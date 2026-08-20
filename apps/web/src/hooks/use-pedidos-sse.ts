@@ -7,7 +7,7 @@ import { API_URL } from "@/lib/api";
 
 /**
  * EventSource sobre la cookie de sesión. Reconecta con backoff.
- * Cada evento de panel invalida pedidos, hoja, operación, cartera, ruta y tablero.
+ * Cada evento de panel invalida pedidos, hoja, operación, cartera, ruta, tablero y conversaciones.
  */
 export function usePedidosSse(activo: boolean): void {
   const qc = useQueryClient();
@@ -45,6 +45,7 @@ export function usePedidosSse(activo: boolean): void {
             void qc.invalidateQueries({ queryKey: ["ruta"] });
             void qc.invalidateQueries({ queryKey: ["cuadre"] });
             void qc.invalidateQueries({ queryKey: ["tablero"] });
+            void qc.invalidateQueries({ queryKey: ["conversaciones"] });
           }
         } catch {
           /* payload ilegible: se ignora, no se tumba la suscripción */

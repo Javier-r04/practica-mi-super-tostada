@@ -5,7 +5,7 @@
  * En desarrollo (D5) Tabasco Casa Vieja recibe precios de demo y un token conocido.
  */
 import { resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq, and } from "drizzle-orm";
@@ -137,6 +137,7 @@ const CLIENTES = [
     notasPermanentes: "Paga en efectivo. ~10 presentaciones.",
     limiteFacturasPendientes: null,
     horarioEntregaFijo: null,
+    telefonoWa: "+50255550101",
   },
   {
     nombre: "Tabasco Interplaza",
@@ -445,6 +446,8 @@ export async function seed(databaseUrl: string) {
           tokenPortalHash: createHash("sha256")
             .update(tokenPortal)
             .digest("hex"),
+          tokenPortalCifrado: encryptSeed(tokenPortal),
+          telefonoWa: "+50255550101",
         })
         .where(eq(schema.cliente.id, tabascoCasaVieja.id));
       console.log(
@@ -454,6 +457,8 @@ export async function seed(databaseUrl: string) {
         "[seed] Precios de demo (no reales) en tortillas No. 16/14/12 y nachos blancos.",
       );
     }
+
+    await seedPlantillasFake(db, ORG_ID);
 
     const [kraken] = await db
       .select()
@@ -498,3 +503,85 @@ if (import.meta.main) {
   await seed(url);
   console.log("Seed CONTEXT §5 aplicado (idempotente).");
 }
+
+function encryptSeed(plain: string): string | null {
+  const hex = process.env.APP_ENCRYPTION_KEY;
+  if (!hex || !/^[0-9a-fA-F]{64}$/.test(hex)) return null;
+  const key = Buffer.from(hex, "hex");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(plain, "utf8"),
+    cipher.final(),
+  ]);
+  const tag = cipher.getAuthTag();
+  return [
+    "v1",
+    iv.toString("base64url"),
+    tag.toString("base64url"),
+    encrypted.toString("base64url"),
+  ].join(".");
+}
+
+async function seedPlantillasFake(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  orgId: string,
+): Promise<void> {
+  const defs = [
+    {
+      name: "mst_invitacion_v1",
+      proposito: "INVITACION",
+      body: "Buenas noches. Ya está abierta la toma de pedidos para {{1}}. Puede responder aquí o abrir su portal.",
+    },
+    {
+      name: "mst_confirmacion_v1",
+      proposito: "CONFIRMACION",
+      body: "Recibimos su pedido {{1}} para el {{2}}. Total {{3}}.",
+    },
+    {
+      name: "mst_estado_cuenta_v1",
+      proposito: "ESTADO_CUENTA",
+      body: "Le compartimos su estado de cuenta: {{1}} facturas pendientes por {{2}}.",
+    },
+    {
+      name: "mst_consolidado_v1",
+      proposito: "CONSOLIDADO",
+      body: "Pedido consolidado para {{1}} (v{{2}}).",
+    },
+  ] as const;
+  for (const def of defs) {
+    await db
+      .insert(schema.plantillaWa)
+      .values({
+        organizacionId: orgId,
+        name: def.name,
+        language: "es",
+        status: "APPROVED",
+        category: "UTILITY",
+        componentes: [{ type: "BODY", text: def.body }],
+        sincronizadoAt: new Date(),
+      })
+      .onConflictDoNothing();
+  }
+  const rows = await db
+    .select()
+    .from(schema.plantillaWa)
+    .where(eq(schema.plantillaWa.organizacionId, orgId));
+  for (const def of defs) {
+    const tpl = rows.find((r) => r.name === def.name);
+    if (!tpl) continue;
+    await db
+      .insert(schema.plantillaProposito)
+      .values({
+        organizacionId: orgId,
+        proposito: def.proposito,
+        plantillaWaId: tpl.id,
+      })
+      .onConflictDoNothing();
+  }
+  await db
+    .insert(schema.conexionWaba)
+    .values({ organizacionId: orgId, estado: "DESARROLLO" })
+    .onConflictDoNothing();
+}
+

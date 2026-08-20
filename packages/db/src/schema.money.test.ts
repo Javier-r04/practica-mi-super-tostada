@@ -6,6 +6,7 @@ import { getTableColumns, getTableName } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import {
   clienteProducto,
+  conversacion,
   factura,
   mensaje,
   outbox,
@@ -70,6 +71,14 @@ describe("constraints de idempotencia", () => {
     const config = getTableConfig(mensaje);
     const hasUnique = config.uniqueConstraints.some((u) =>
       u.columns.some((c) => c.name === "wa_message_id"),
+    );
+    expect(hasUnique).toBe(true);
+  });
+
+  test("conversacion.cliente_id es unique: un hilo por restaurante", () => {
+    const config = getTableConfig(conversacion);
+    const hasUnique = config.uniqueConstraints.some((u) =>
+      u.columns.some((c) => c.name === "cliente_id"),
     );
     expect(hasUnique).toBe(true);
   });

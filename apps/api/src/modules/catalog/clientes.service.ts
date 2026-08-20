@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { and, asc, eq } from "drizzle-orm";
 import { cliente } from "@misupertostada/db";
 import {
@@ -16,12 +16,14 @@ import { parseBody } from "../shared/zod-body";
 import type { Actor } from "../identity/actor";
 import { esViolacionUnica, normalizarHorario } from "./catalog.util";
 import { hashPortalToken } from "../shared/portal-token";
+import { EncryptionService } from "../shared/crypto";
 
 @Injectable()
 export class ClientesService {
   constructor(
     @Inject(DRIZZLE) private readonly db: AppDatabase,
     private readonly audit: AuditWriter,
+    @Optional() private readonly crypto?: EncryptionService,
   ) {}
 
   async listar(actor: Actor): Promise<ClientePublico[]> {
@@ -137,9 +139,13 @@ export class ClientesService {
   ): Promise<{ token: string }> {
     const actual = await this.owned(id, actor.organizacionId);
     const token = randomBytes(32).toString("base64url");
+    const cifrado = this.crypto?.encrypt(token) ?? null;
     const [row] = await this.db
       .update(cliente)
-      .set({ tokenPortalHash: hashPortalToken(token) })
+      .set({
+        tokenPortalHash: hashPortalToken(token),
+        tokenPortalCifrado: cifrado,
+      })
       .where(eq(cliente.id, id))
       .returning();
     if (!row) {

@@ -10,18 +10,14 @@ import { FulfillmentModule } from "./modules/fulfillment/fulfillment.module";
 import { ReceivablesModule } from "./modules/receivables/receivables.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
-import { redactPortalPath } from "./modules/shared/pino-redact";
+import { redactPortalPath, PINO_REDACT_PATHS } from "./modules/shared/pino-redact";
 
 @Module({
   imports: [
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV === "production" ? "info" : "debug",
-        redact: [
-          "req.headers.authorization",
-          "req.headers.cookie",
-          "req.headers['x-portal-token']",
-        ],
+        redact: [...PINO_REDACT_PATHS],
         serializers: {
           req(req) {
             const serialized = stdSerializers.req(req);

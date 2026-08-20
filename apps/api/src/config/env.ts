@@ -21,6 +21,15 @@ const envSchema = z
     R2_BUCKET: z.string().min(1).optional(),
     R2_ENDPOINT: z.string().url().optional(),
     R2_PUBLIC_BASE_URL: z.string().url().optional(),
+    APP_ENCRYPTION_KEY: z
+      .string()
+      .regex(/^[0-9a-fA-F]{64}$/, "APP_ENCRYPTION_KEY debe ser 32 bytes hex")
+      .optional(),
+    META_APP_ID: z.string().min(1).optional(),
+    META_APP_SECRET: z.string().min(1).optional(),
+    META_CONFIG_ID: z.string().min(1).optional(),
+    META_VERIFY_TOKEN: z.string().min(1).optional(),
+    META_GRAPH_VERSION: z.string().min(1).default("v21.0"),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== "production") return;
@@ -30,6 +39,7 @@ const envSchema = z
       "R2_SECRET_ACCESS_KEY",
       "R2_BUCKET",
       "R2_ENDPOINT",
+      "APP_ENCRYPTION_KEY",
     ] as const;
     for (const key of required) {
       if (!data[key]) {
@@ -43,6 +53,10 @@ const envSchema = z
   });
 
 export type Env = z.infer<typeof envSchema>;
+
+export function metaSignupConfigured(env: Env): boolean {
+  return Boolean(env.META_APP_ID && env.META_CONFIG_ID);
+}
 
 export function r2Configured(env: Env): boolean {
   return Boolean(

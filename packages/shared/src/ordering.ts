@@ -6,6 +6,7 @@ import {
   PUNTOS_CARGA,
   UNIDADES_MEDIDA,
 } from "./estados";
+import { MESSAGING_SSE_TIPOS } from "./messaging";
 import { COBRANZA_SSE_TIPOS } from "./receivables";
 import { formatearFechaLarga } from "./calendar";
 import { centavosSchema, formatearCentavos } from "./money";
@@ -293,6 +294,7 @@ export const PANEL_SSE_TIPOS = [
   ...PEDIDO_SSE_TIPOS,
   ...OPERACION_SSE_TIPOS,
   ...COBRANZA_SSE_TIPOS,
+  ...MESSAGING_SSE_TIPOS,
 ] as const;
 
 export const pedidoSseEventSchema = z.object({
@@ -315,6 +317,12 @@ export const panelSseEventSchema = z.union([
     fechaOperacion: fechaOperacionSchema,
     pedidoId: z.string().uuid().optional(),
     facturaId: z.string().uuid().optional(),
+    clienteId: z.string().uuid().optional(),
+  }),
+  z.object({
+    tipo: z.enum(MESSAGING_SSE_TIPOS),
+    conversacionId: z.string().uuid().optional(),
+    mensajeId: z.string().uuid().optional(),
     clienteId: z.string().uuid().optional(),
   }),
 ]);

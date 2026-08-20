@@ -11,6 +11,8 @@ export const PERMISOS = [
   "permisos.delegar",
   "ventana.cerrar",
   "ventana.reabrir",
+  "mensajeria.enviar",
+  "mensajeria.conectar",
 ] as const;
 
 export type PermisoCodigo = (typeof PERMISOS)[number];
@@ -20,6 +22,7 @@ export const PERMISOS_NO_DELEGABLES = [
   "usuarios.gestionar",
   "permisos.delegar",
   "ventana.reabrir",
+  "mensajeria.conectar",
 ] as const;
 
 export type PermisoNoDelegable = (typeof PERMISOS_NO_DELEGABLES)[number];
@@ -33,6 +36,7 @@ export const ROL_PERMISOS: Record<Rol, readonly PermisoCodigo[]> = {
     "cobranza.registrar_pago",
     "cobranza.capturar_dte",
     "ventana.cerrar",
+    "mensajeria.enviar",
   ],
   PRODUCCION: [],
   TIENDA: [
@@ -85,6 +89,8 @@ export const PERMISO_DESCRIPCION: Record<PermisoCodigo, string> = {
   "permisos.delegar": "Delegar permisos granulares",
   "ventana.cerrar": "Cerrar la ventana y generar la hoja de producción",
   "ventana.reabrir": "Reabrir un día de operación cerrado",
+  "mensajeria.enviar": "Enviar WhatsApp y mapear plantillas",
+  "mensajeria.conectar": "Conectar el WABA con Embedded Signup",
 };
 
 export const ROLES_CONOCIDOS = ROLES;

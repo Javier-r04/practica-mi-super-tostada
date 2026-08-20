@@ -54,7 +54,7 @@ const NAV: readonly NavItem[] = [
   { href: "/produccion", id: "produccion", label: "Producción", icon: Factory },
   { href: "/reparto", id: "reparto", label: "Reparto", icon: Truck },
   { href: "/cartera", id: "cartera", label: "Cartera", icon: Banknote },
-  { id: "conversaciones", label: "Conversaciones", icon: MessageCircle, soon: true },
+  { href: "/conversaciones", id: "conversaciones", label: "Conversaciones", icon: MessageCircle, mobile: false },
   { href: "/catalogo", id: "catalogo", label: "Catálogo", icon: Package, mobile: false },
   { href: "/clientes", id: "clientes", label: "Clientes", icon: Users, mobile: false },
 ];

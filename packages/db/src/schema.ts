@@ -159,6 +159,7 @@ export const cliente = pgTable(
     notasPermanentes: text("notas_permanentes"),
     limiteFacturasPendientes: integer("limite_facturas_pendientes"),
     tokenPortalHash: text("token_portal_hash"),
+    tokenPortalCifrado: text("token_portal_cifrado"),
     activo: boolean("activo").notNull().default(true),
     ...timestamps,
   },
@@ -293,22 +294,26 @@ export const pago = pgTable(
   ],
 );
 
-export const conversacion = pgTable("conversacion", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  clienteId: uuid("cliente_id")
-    .notNull()
-    .references(() => cliente.id),
-  ventanaExpiraAt: timestamp("ventana_expira_at", {
-    withTimezone: true,
-    mode: "date",
-  }),
-  ultimoInboundAt: timestamp("ultimo_inbound_at", {
-    withTimezone: true,
-    mode: "date",
-  }),
-  noLeidos: integer("no_leidos").notNull().default(0),
-  ...timestamps,
-});
+export const conversacion = pgTable(
+  "conversacion",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clienteId: uuid("cliente_id")
+      .notNull()
+      .references(() => cliente.id),
+    ventanaExpiraAt: timestamp("ventana_expira_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    ultimoInboundAt: timestamp("ultimo_inbound_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    noLeidos: integer("no_leidos").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [unique("conversacion_cliente_id_unique").on(t.clienteId)],
+);
 
 export const mensaje = pgTable(
   "mensaje",
@@ -353,6 +358,45 @@ export const plantillaWa = pgTable(
       t.organizacionId,
       t.name,
       t.language,
+    ),
+  ],
+);
+
+export const conexionWaba = pgTable(
+  "conexion_waba",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizacionId: uuid("organizacion_id")
+      .notNull()
+      .references(() => organizacion.id),
+    wabaId: text("waba_id"),
+    phoneNumberId: text("phone_number_id"),
+    accessTokenCifrado: text("access_token_cifrado"),
+    waProduccion: text("wa_produccion"),
+    waTienda: text("wa_tienda"),
+    estado: text("estado").notNull().default("DESARROLLO"),
+    ...timestamps,
+  },
+  (t) => [unique("conexion_waba_org_unique").on(t.organizacionId)],
+);
+
+export const plantillaProposito = pgTable(
+  "plantilla_proposito",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizacionId: uuid("organizacion_id")
+      .notNull()
+      .references(() => organizacion.id),
+    proposito: text("proposito").notNull(),
+    plantillaWaId: uuid("plantilla_wa_id")
+      .notNull()
+      .references(() => plantillaWa.id),
+    ...timestamps,
+  },
+  (t) => [
+    unique("plantilla_proposito_org_proposito_unique").on(
+      t.organizacionId,
+      t.proposito,
     ),
   ],
 );

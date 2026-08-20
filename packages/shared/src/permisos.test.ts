@@ -15,6 +15,8 @@ describe("permisos por rol", () => {
     expect(tienePermiso(efectivos, "precios.cambiar")).toBe(true);
     expect(tienePermiso(efectivos, "ventana.reabrir")).toBe(true);
     expect(tienePermiso(efectivos, "ventana.cerrar")).toBe(true);
+    expect(tienePermiso(efectivos, "mensajeria.enviar")).toBe(true);
+    expect(tienePermiso(efectivos, "mensajeria.conectar")).toBe(true);
   });
 
   test("ADMIN no cambia precios ni reabre ventana hasta que se lo deleguen", () => {
@@ -30,7 +32,10 @@ describe("permisos por rol", () => {
     const base = permisosEfectivos("ADMIN");
     expect(tienePermiso(base, "ventana.cerrar")).toBe(true);
     expect(tienePermiso(base, "ventana.reabrir")).toBe(false);
+    expect(tienePermiso(base, "mensajeria.enviar")).toBe(true);
+    expect(tienePermiso(base, "mensajeria.conectar")).toBe(false);
     expect(puedeDelegar("ADMIN_JEFE", "ventana.cerrar")).toBe(true);
+    expect(puedeDelegar("ADMIN_JEFE", "mensajeria.conectar")).toBe(false);
   });
 
   test("producción no tiene acciones de catálogo ni cobranza", () => {
@@ -52,6 +57,9 @@ describe("permisos por rol", () => {
       false,
     );
     expect(tienePermiso(permisosEfectivos("PRODUCCION"), "pedidos.entregar")).toBe(
+      false,
+    );
+    expect(tienePermiso(permisosEfectivos("PRODUCCION"), "mensajeria.enviar")).toBe(
       false,
     );
   });

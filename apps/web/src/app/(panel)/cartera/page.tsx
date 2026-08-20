@@ -42,6 +42,7 @@ export default function CarteraPage() {
   const [metodoPago, setMetodoPago] = useState("");
   const [cobrando, setCobrando] = useState<FacturaCartera | null>(null);
   const [error, setError] = useState<string>();
+  const [aviso, setAviso] = useState<string>();
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -56,6 +57,10 @@ export default function CarteraPage() {
   const puedeCobrar = tienePermiso(
     me.data?.usuario.permisos ?? [],
     "cobranza.registrar_pago",
+  );
+  const puedeRecordar = tienePermiso(
+    me.data?.usuario.permisos ?? [],
+    "mensajeria.enviar",
   );
 
   const filtros = { clienteId, desde, hasta, metodoPago };
@@ -135,6 +140,27 @@ export default function CarteraPage() {
     },
   });
 
+  const recordar = useMutation({
+    mutationFn: (id: string) =>
+      api<{ encolado: boolean }>(`/cartera/clientes/${id}/recordatorio`, {
+        method: "POST",
+      }),
+    onSuccess: (data) => {
+      setError(undefined);
+      setAviso(
+        data.encolado
+          ? "Recordatorio encolado"
+          : "Ya se envió un recordatorio hoy",
+      );
+    },
+    onError: (err) => {
+      setAviso(undefined);
+      setError(
+        err instanceof ApiError ? err.message : "No se pudo encolar el recordatorio",
+      );
+    },
+  });
+
   const hintDte = puedeDte
     ? undefined
     : "Solo tienda o administración captura el DTE";
@@ -191,8 +217,16 @@ export default function CarteraPage() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled
-                      title="Llega en mensajería"
+                      disabled={!puedeRecordar || recordar.isPending}
+                      title={
+                        puedeRecordar
+                          ? "Envía el estado de cuenta por WhatsApp"
+                          : "No tiene permiso para enviar WhatsApp"
+                      }
+                      loading={
+                        recordar.isPending && recordar.variables === c.clienteId
+                      }
+                      onClick={() => recordar.mutate(c.clienteId)}
                     >
                       <MessageCircle size={15} aria-hidden />
                       Recordar por WhatsApp
@@ -204,6 +238,11 @@ export default function CarteraPage() {
           </Card>
         </div>
 
+        {aviso && (
+          <p className="text-sm text-marca" role="status">
+            {aviso}
+          </p>
+        )}
         {error && (
           <p className="text-sm text-peligro" role="alert">
             {error}

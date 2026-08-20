@@ -340,31 +340,31 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 ### E7 — Mensajería *(semana 7)*
 
 **F-701 · Alta con Embedded Signup**
-- [ ] Registro asistido bajo la app de Tech Provider
-- [ ] Tokens cifrados en reposo; suscripción de webhooks por WABA
+- [x] Registro asistido bajo la app de Tech Provider
+- [x] Tokens cifrados en reposo; suscripción de webhooks por WABA
 
 **F-702 · Webhooks**
-- [ ] Dedupe por `wa_message_id` UNIQUE
-- [ ] `ventana_expira_at` desde el timestamp del webhook
-- [ ] Callbacks de estado: sent / delivered / read / failed
+- [x] Dedupe por `wa_message_id` UNIQUE
+- [x] `ventana_expira_at` desde el timestamp del webhook
+- [x] Callbacks de estado: sent / delivered / read / failed
 
 **F-703 · Registro de plantillas**
-- [ ] Sincronizado desde Graph API + webhook de cambio de estado
-- [ ] Nombres nunca hardcodeados
+- [x] Sincronizado desde Graph API + webhook de cambio de estado
+- [x] Nombres nunca hardcodeados
 
 **F-704 · Bandeja de conversaciones**
-- [ ] Vista general y conversación por cliente
-- [ ] Estado de ventana visible con countdown
-- [ ] Composer bloqueado a plantillas cuando la ventana está cerrada
+- [x] Vista general y conversación por cliente
+- [x] Estado de ventana visible con countdown
+- [x] Composer bloqueado a plantillas cuando la ventana está cerrada
 
 **F-705 · Automatizaciones**
-- [ ] Invitación diaria programada (18:00) con botón URL y token
-- [ ] Confirmación de pedido recibido
-- [ ] Recordatorio de cobro con estado de cuenta en PDF adjunto
+- [x] Invitación diaria programada (18:00) con botón URL y token
+- [x] Confirmación de pedido recibido
+- [x] Recordatorio de cobro con estado de cuenta en PDF adjunto
 
 **F-706 · Validador y preview**
-- [ ] Sin saltos de línea, sin >4 espacios, longitud bajo el límite, sin variables vacías
-- [ ] Preview renderizado obligatorio antes de enviar
+- [x] Sin saltos de línea, sin >4 espacios, longitud bajo el límite, sin variables vacías
+- [x] Preview renderizado obligatorio antes de enviar
 
 ### E8 — Offline *(semana 7)*
 

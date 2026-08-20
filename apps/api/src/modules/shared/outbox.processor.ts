@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { outbox } from "@misupertostada/db";
 import { DRIZZLE } from "./tokens";
 import type { AppDatabase } from "./database.module";
@@ -65,14 +65,25 @@ export class OutboxProcessor {
   }
 
   async idsPendientes(limit = 50): Promise<string[]> {
-    const rows = await this.db
-      .select({ id: outbox.id, tipo: outbox.tipo, estado: outbox.estado })
-      .from(outbox)
-      .where(eq(outbox.estado, "PENDIENTE"))
-      .limit(limit);
-
-    return rows
-      .filter((row) => this.dispatcher.canHandle(row.tipo))
-      .map((row) => row.id);
+    const ids: string[] = [];
+    let offset = 0;
+    const batchSize = 100;
+    while (ids.length < limit) {
+      const rows = await this.db
+        .select({ id: outbox.id, tipo: outbox.tipo })
+        .from(outbox)
+        .where(eq(outbox.estado, "PENDIENTE"))
+        .orderBy(asc(outbox.createdAt))
+        .limit(batchSize)
+        .offset(offset);
+      if (rows.length === 0) break;
+      offset += rows.length;
+      for (const row of rows) {
+        if (!this.dispatcher.canHandle(row.tipo)) continue;
+        ids.push(row.id);
+        if (ids.length >= limit) break;
+      }
+    }
+    return ids;
   }
 }

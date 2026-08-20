@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  type OnApplicationBootstrap,
   type OnModuleDestroy,
   type OnModuleInit,
 } from "@nestjs/common";
@@ -14,7 +15,7 @@ export const COLA_OUTBOX_DESPACHAR = "outbox.despachar";
 export const COLA_ASSET_VARIANTES = "asset.variantes";
 
 @Injectable()
-export class PgBossService implements OnModuleInit, OnModuleDestroy {
+export class PgBossService implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(PgBossService.name);
   private boss: PgBoss | null = null;
   private drainTimer: ReturnType<typeof setInterval> | null = null;
@@ -68,7 +69,9 @@ export class PgBossService implements OnModuleInit, OnModuleDestroy {
         await this.variants.generate(job.data.assetId);
       },
     );
+  }
 
+  async onApplicationBootstrap(): Promise<void> {
     await this.drain();
     this.drainTimer = setInterval(() => {
       void this.drain();

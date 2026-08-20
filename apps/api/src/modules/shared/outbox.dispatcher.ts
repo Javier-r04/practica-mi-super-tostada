@@ -10,6 +10,27 @@ export interface OutboxDispatcher {
   dispatch(row: OutboxRow): Promise<void>;
 }
 
+/** Varios módulos registran handlers. Shared no importa Messaging. */
+export class OutboxDispatcherRegistry implements OutboxDispatcher {
+  private readonly handlers: OutboxDispatcher[] = [];
+
+  register(handler: OutboxDispatcher): void {
+    this.handlers.push(handler);
+  }
+
+  canHandle(tipo: string): boolean {
+    return this.handlers.some((h) => h.canHandle(tipo));
+  }
+
+  async dispatch(row: OutboxRow): Promise<void> {
+    const handler = this.handlers.find((h) => h.canHandle(row.tipo));
+    if (!handler) {
+      throw new Error(`Ningún handler de outbox para ${row.tipo}`);
+    }
+    await handler.dispatch(row);
+  }
+}
+
 export class NullOutboxDispatcher implements OutboxDispatcher {
   canHandle(): boolean {
     return false;

@@ -7,7 +7,7 @@ import { DomainExceptionFilter } from "./domain-exception.filter";
 import { AuditWriter } from "./audit.writer";
 import { OutboxWriter } from "./outbox.writer";
 import { OutboxProcessor } from "./outbox.processor";
-import { NullOutboxDispatcher, OUTBOX_DISPATCHER } from "./outbox.dispatcher";
+import { OUTBOX_DISPATCHER, OutboxDispatcherRegistry } from "./outbox.dispatcher";
 import { DomainEventWriter } from "./domain-event.writer";
 import { PedidoEvents } from "./panel-events";
 import { PgBossService } from "./pgboss.service";
@@ -18,6 +18,7 @@ import { AssetVariantsJob } from "./storage/variants.job";
 import { AssetsService } from "./storage/assets.service";
 import { AssetsController } from "./storage/assets.controller";
 import { CalendarioController } from "./calendario.controller";
+import { EncryptionService } from "./crypto";
 
 @Global()
 @Module({
@@ -28,7 +29,8 @@ import { CalendarioController } from "./calendario.controller";
     BusinessCalendarService,
     OutboxWriter,
     OutboxProcessor,
-    { provide: OUTBOX_DISPATCHER, useClass: NullOutboxDispatcher },
+    OutboxDispatcherRegistry,
+    { provide: OUTBOX_DISPATCHER, useExisting: OutboxDispatcherRegistry },
     AuditWriter,
     DomainEventWriter,
     PedidoEvents,
@@ -45,6 +47,7 @@ import { CalendarioController } from "./calendario.controller";
     AssetVariantsJob,
     AssetsService,
     PgBossService,
+    EncryptionService,
   ],
   exports: [
     DatabaseModule,
@@ -52,6 +55,8 @@ import { CalendarioController } from "./calendario.controller";
     BusinessCalendarService,
     OutboxWriter,
     OutboxProcessor,
+    OutboxDispatcherRegistry,
+    OUTBOX_DISPATCHER,
     AuditWriter,
     DomainEventWriter,
     PedidoEvents,
@@ -59,6 +64,7 @@ import { CalendarioController } from "./calendario.controller";
     AssetVariantsJob,
     AssetsService,
     PgBossService,
+    EncryptionService,
   ],
 })
 export class SharedModule {}
