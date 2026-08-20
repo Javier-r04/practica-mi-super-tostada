@@ -12,6 +12,7 @@ module.exports = function (options) {
     ],
     resolve: {
       ...options.resolve,
+      extensions: [".tsx", ".ts", ".js", ...(options.resolve?.extensions ?? [])],
       alias: {
         ...(options.resolve && options.resolve.alias),
         "@misupertostada/shared": path.resolve(
@@ -21,6 +22,10 @@ module.exports = function (options) {
         "@misupertostada/db": path.resolve(
           __dirname,
           "../../packages/db/src/index.ts",
+        ),
+        "@misupertostada/pdf": path.resolve(
+          __dirname,
+          "../../packages/pdf/src/index.ts",
         ),
       },
     },

@@ -5,6 +5,8 @@ const tones = {
   default: "text-[var(--text-money)]",
   muted: "text-tinta-500",
   pendiente: "text-aviso",
+  pagado: "text-marca",
+  vencido: "text-peligro",
 };
 
 export function Money({

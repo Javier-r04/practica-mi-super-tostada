@@ -22,6 +22,20 @@
       "when": 1787211000000,
       "tag": "0003_usuario_username",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787220000000,
+      "tag": "0004_operacion_diaria",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787230000000,
+      "tag": "0005_cobranza",
+      "breakpoints": true
     }
   ]
 }

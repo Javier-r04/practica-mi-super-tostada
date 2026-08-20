@@ -7,6 +7,8 @@ const tones = {
   paper: "bg-papel text-tinta-800 border-[var(--cream-500)] shadow-tarjeta",
   brand:
     "bg-[var(--surface-brand)] text-[var(--text-on-brand)] border-[var(--green-900)] shadow-modal",
+  accent:
+    "bg-blanco text-tinta-800 border-[var(--border-accent)] shadow-tarjeta",
 };
 
 export function Card({

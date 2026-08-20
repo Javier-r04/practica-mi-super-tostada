@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Package,
   Sun,
+  Truck,
   Users,
   X,
 } from "lucide-react";
@@ -35,19 +36,22 @@ type NavItem = {
   label: string;
   icon: typeof Package;
   soon?: boolean;
+  /** Si es false, solo aparece en el menú lateral, no en la barra inferior. */
+  mobile?: boolean;
 };
 
 const NAV: readonly NavItem[] = [
-  { id: "hoy", label: "Hoy", icon: Sun, soon: true },
+  { href: "/hoy", id: "hoy", label: "Hoy", icon: Sun },
   { href: "/pedidos", id: "pedidos", label: "Pedidos", icon: ClipboardList },
-  { id: "produccion", label: "Producción", icon: Factory, soon: true },
-  { id: "cartera", label: "Cartera", icon: Banknote, soon: true },
+  { href: "/produccion", id: "produccion", label: "Producción", icon: Factory },
+  { href: "/reparto", id: "reparto", label: "Reparto", icon: Truck },
+  { href: "/cartera", id: "cartera", label: "Cartera", icon: Banknote },
   { id: "conversaciones", label: "Conversaciones", icon: MessageCircle, soon: true },
-  { href: "/catalogo", id: "catalogo", label: "Catálogo", icon: Package },
-  { href: "/clientes", id: "clientes", label: "Clientes", icon: Users },
+  { href: "/catalogo", id: "catalogo", label: "Catálogo", icon: Package, mobile: false },
+  { href: "/clientes", id: "clientes", label: "Clientes", icon: Users, mobile: false },
 ];
 
-const MOVIL = NAV.filter((item) => !item.soon);
+const MOVIL = NAV.filter((item) => item.href && !item.soon && item.mobile !== false);
 
 function itemActivo(pathname: string, item: NavItem): boolean {
   if (!item.href) return false;
@@ -226,12 +230,12 @@ export function PanelShell({
               href={item.href!}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-tap min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[12px] font-semibold",
+                "flex min-h-tap min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-[11px] font-semibold leading-tight",
                 active ? "text-marca" : "text-tinta-500",
               )}
             >
               <Icon size={22} aria-hidden />
-              {item.label}
+              <span className="max-w-full truncate">{item.label}</span>
             </Link>
           );
         })}

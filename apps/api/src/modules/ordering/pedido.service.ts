@@ -10,7 +10,6 @@ import {
   usuario,
 } from "@misupertostada/db";
 import {
-  MENSAJE_PEDIDO_ANULADO,
   MENSAJE_PRECIO_AUSENTE,
   anularPedidoRequestSchema,
   confirmarPedidoRequestSchema,
@@ -28,6 +27,7 @@ import {
   type PedidoDetalle,
   type PedidoSseEvent,
   type PortalPedido,
+  type BusinessCalendar,
 } from "@misupertostada/shared";
 import { DRIZZLE } from "../shared/tokens";
 import type { AppDatabase } from "../shared/database.module";
@@ -42,12 +42,18 @@ import type { ClientePortal } from "./portal-token.service";
 import { PedidoEvents } from "./pedido-events";
 import {
   congelarSnapshots,
+  diaCerrado,
+  exigirAnulable,
   exigirCaptura,
   exigirConfirmado,
   horarioDe,
   ventanaCerrada,
   type ItemSnapshot,
 } from "./pedido-reglas";
+import {
+  bloquearDiaOperacion,
+  leerEstadoDia,
+} from "../shared/dia-operacion";
 
 export type PortalMeta = { ip: string | null; userAgent: string | null };
 
@@ -71,10 +77,8 @@ export class PedidoService {
     const input = parseBody(confirmarPedidoRequestSchema, body);
     const cal = await this.calendar.load();
     const now = this.calendar.now();
-    if (!cal.isVentanaAbierta(now)) {
-      throw ventanaCerrada(cal.getProximaApertura(now));
-    }
     const fechaOperacion = cal.getFechaOperacion(now);
+    this.exigirVentanaPortal(cal, now);
     const [abierto] = await this.db
       .select()
       .from(pedido)
@@ -99,6 +103,11 @@ export class PedidoService {
     for (let intento = 0; intento < 5; intento++) {
       try {
         const resultado = await this.db.transaction(async (tx) => {
+          await this.exigirDiaNoCerrado(
+            tx,
+            clienteRow.organizacionId,
+            fechaOperacion,
+          );
           await tx
             .select({ id: cliente.id })
             .from(cliente)
@@ -218,9 +227,9 @@ export class PedidoService {
 
   async listar(actor: Actor, query: unknown): Promise<PedidoBandeja[]> {
     const input = parseBody(listarPedidosQuerySchema, query);
-    const cal = await this.calendar.load();
     const fechaOperacion =
-      input.fechaOperacion ?? cal.getFechaOperacion(this.calendar.now());
+      input.fechaOperacion ??
+      (await this.fechaCapturaPanel(actor.organizacionId));
     const filtros = [
       eq(pedido.organizacionId, actor.organizacionId),
       eq(pedido.fechaOperacion, fechaOperacion),
@@ -286,8 +295,7 @@ export class PedidoService {
   async crearManual(body: unknown, actor: Actor): Promise<PedidoDetalle> {
     exigirCaptura(actor);
     const input = parseBody(crearPedidoManualRequestSchema, body);
-    const cal = await this.calendar.load();
-    const fechaOperacion = cal.getFechaOperacion(this.calendar.now());
+    const fechaOperacion = await this.fechaCapturaPanel(actor.organizacionId);
     const clienteRow = await this.clienteDe(
       input.clienteId,
       actor.organizacionId,
@@ -298,6 +306,11 @@ export class PedidoService {
     for (let intento = 0; intento < 5; intento++) {
       try {
         const pedidoId = await this.db.transaction(async (tx) => {
+          await this.exigirDiaNoCerrado(
+            tx,
+            actor.organizacionId,
+            fechaOperacion,
+          );
           await tx
             .select({ id: cliente.id })
             .from(cliente)
@@ -362,6 +375,11 @@ export class PedidoService {
     exigirConfirmado(row.estado);
     const notasAdmin = input.notasAdmin.trim();
     await this.db.transaction(async (tx) => {
+      await this.exigirDiaNoCerrado(
+        tx,
+        actor.organizacionId,
+        row.fechaOperacion,
+      );
       await tx
         .update(pedido)
         .set({ notasAdmin })
@@ -406,6 +424,11 @@ export class PedidoService {
     );
 
     await this.db.transaction(async (tx) => {
+      await this.exigirDiaNoCerrado(
+        tx,
+        actor.organizacionId,
+        row.fechaOperacion,
+      );
       const itemsAntes = await this.itemsDe(row.id, tx);
       const congelados = congelarSnapshots(snapshots, itemsAntes);
       await tx.delete(pedidoItem).where(eq(pedidoItem.pedidoId, row.id));
@@ -437,15 +460,14 @@ export class PedidoService {
     exigirCaptura(actor);
     const input = parseBody(anularPedidoRequestSchema, body);
     const row = await this.pedidoDe(id, actor.organizacionId);
-    if (row.estado === "ANULADO") {
-      throw new DomainException(
-        "PEDIDO_ANULADO",
-        MENSAJE_PEDIDO_ANULADO,
-        409,
-      );
-    }
+    exigirAnulable(row.estado);
     const anuladoAt = this.calendar.now();
     await this.db.transaction(async (tx) => {
+      await this.exigirDiaNoCerrado(
+        tx,
+        actor.organizacionId,
+        row.fechaOperacion,
+      );
       await tx
         .update(pedido)
         .set({
@@ -695,6 +717,32 @@ export class PedidoService {
         precioUnitarioCentavos: liga.precioCentavos,
       };
     });
+  }
+
+  private async fechaCapturaPanel(organizacionId: string): Promise<string> {
+    const cal = await this.calendar.load();
+    const now = this.calendar.now();
+    const fechaOperacion = cal.getFechaOperacion(now);
+    if (cal.isVentanaAbierta(now)) return fechaOperacion;
+    const reciente = cal.getFechaOperacionDeVentanaReciente(now);
+    const { diaEstado } = await leerEstadoDia(this.db, organizacionId, reciente);
+    return diaEstado === "REABIERTO" ? reciente : fechaOperacion;
+  }
+
+  private async exigirDiaNoCerrado(
+    tx: AppDatabase,
+    organizacionId: string,
+    fechaOperacion: string,
+  ): Promise<void> {
+    await bloquearDiaOperacion(tx, organizacionId, fechaOperacion);
+    const { diaEstado } = await leerEstadoDia(tx, organizacionId, fechaOperacion);
+    if (diaEstado === "CERRADO") throw diaCerrado();
+  }
+
+  private exigirVentanaPortal(cal: BusinessCalendar, now: Date): void {
+    if (!cal.isVentanaAbierta(now)) {
+      throw ventanaCerrada(cal.getProximaApertura(now));
+    }
   }
 
   private async insertarPedido(

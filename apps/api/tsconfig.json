@@ -12,8 +12,10 @@
     "baseUrl": "./",
     "paths": {
       "@misupertostada/shared": ["../../packages/shared/src/index.ts"],
-      "@misupertostada/db": ["../../packages/db/src/index.ts"]
+      "@misupertostada/db": ["../../packages/db/src/index.ts"],
+      "@misupertostada/pdf": ["../../packages/pdf/src/index.ts"]
     },
+    "jsx": "react-jsx",
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,

@@ -12,6 +12,7 @@ import {
   portalCuentaSchema,
   portalProductoSchema,
   portalSesionSchema,
+  estadoFactura,
   type PortalCuenta,
   type PortalSesion,
 } from "@misupertostada/shared";
@@ -22,6 +23,7 @@ import { BusinessCalendarService } from "../shared/calendar.service";
 import { PedidoService, type PortalMeta } from "./pedido.service";
 import { horarioDe } from "./pedido-reglas";
 import type { ClientePortal } from "./portal-token.service";
+import { leerEstadoDia } from "../shared/dia-operacion";
 
 @Injectable()
 export class PortalService {
@@ -50,6 +52,11 @@ export class PortalService {
     const now = this.calendar.now();
     const fechaOperacion = cal.getFechaOperacion(now);
     const horario = horarioDe(clienteRow);
+    const { diaEstado } = await leerEstadoDia(
+      this.db,
+      clienteRow.organizacionId,
+      fechaOperacion,
+    );
     const [catalogo, pedidoAbierto, cuenta] = await Promise.all([
       this.catalogoDe(clienteRow),
       this.pedidos.portalAbierto(clienteRow.id, fechaOperacion, horario),
@@ -63,7 +70,7 @@ export class PortalService {
         horarioEntregaFijo: horario,
       },
       ventana: {
-        abierta: cal.isVentanaAbierta(now),
+        abierta: cal.isVentanaAbierta(now) && diaEstado !== "CERRADO",
         fechaOperacion,
         cierraAt: instanteAIso(cal.getCierreVentana(now)),
         proximaAperturaAt: instanteAIso(cal.getProximaApertura(now)),
@@ -106,6 +113,13 @@ export class PortalService {
       if (abonado >= fac.montoCentavos) continue;
       const saldo = fac.montoCentavos - abonado;
       const emitida = fac.emitidaAt ?? fac.createdAt;
+      const antiguedadDias = emitida ? cal.diasCalendarioEntre(emitida, now) : 0;
+      const estado = estadoFactura({
+        montoCentavos: fac.montoCentavos,
+        abonadoCentavos: abonado,
+        antiguedadDias,
+      });
+      if (estado === "PAGADO") continue;
       pendientes.push({
         id: fac.id,
         numeroDte: fac.numeroDte ?? null,
@@ -113,8 +127,13 @@ export class PortalService {
         abonadoCentavos: abonado,
         saldoCentavos: saldo,
         emitidaAt: emitida ? instanteAIso(emitida) : null,
-        antiguedadDias: cal.diasCalendarioEntre(emitida, now),
-        estado: abonado > 0 ? ("ABONO_PARCIAL" as const) : ("PENDIENTE" as const),
+        antiguedadDias,
+        estado:
+          estado === "VENCIDO"
+            ? ("VENCIDO" as const)
+            : estado === "ABONO_PARCIAL"
+              ? ("ABONO_PARCIAL" as const)
+              : ("PENDIENTE" as const),
       });
     }
 

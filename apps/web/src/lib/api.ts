@@ -25,11 +25,17 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
   });
   const contentType = res.headers.get("content-type") ?? "";
-  if (contentType.includes("text/csv")) {
+  if (contentType.includes("text/csv") || contentType.includes("text/plain")) {
     if (!res.ok) {
-      throw new ApiError("HTTP", "No se pudo descargar la plantilla", res.status);
+      throw new ApiError("HTTP", "No se pudo descargar", res.status);
     }
     return (await res.text()) as T;
+  }
+  if (contentType.includes("application/pdf")) {
+    if (!res.ok) {
+      throw new ApiError("HTTP", "No se pudo descargar el PDF", res.status);
+    }
+    return (await res.blob()) as T;
   }
   const json: unknown = await res.json();
   const parsed = envelopeSchema.safeParse(json);

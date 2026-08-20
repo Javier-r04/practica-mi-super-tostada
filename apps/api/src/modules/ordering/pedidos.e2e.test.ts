@@ -540,6 +540,41 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
     }
   });
 
+  test("anular un ENTREGADO se rechaza: la factura se calcula sobre lo entregado", async () => {
+    const f = await fixture(fixedClock(instanteGT("2026-08-20T10:00:00")));
+    try {
+      const { cli } = await catalogoTienda6(f);
+      const [entregado] = await f.db
+        .insert(pedido)
+        .values({
+          organizacionId: f.orgId,
+          correlativo: 90,
+          fechaOperacion: "2026-08-21",
+          clienteId: cli.id,
+          estado: "ENTREGADO",
+          origen: "MANUAL",
+        })
+        .returning({ id: pedido.id });
+
+      await expect(
+        f.pedidos.anular(
+          entregado!.id,
+          { motivo: "Ya lo llevamos" },
+          f.actor,
+        ),
+      ).rejects.toMatchObject({ code: "PEDIDO_ENTREGADO", httpStatus: 409 });
+
+      const [fila] = await f.db
+        .select()
+        .from(pedido)
+        .where(eq(pedido.id, entregado!.id));
+      expect(fila?.estado).toBe("ENTREGADO");
+      expect(fila?.anuladoAt).toBeNull();
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
   test("F-303 el bus emite pedido.creado, pedido.editado y pedido.anulado", async () => {
     const f = await fixture(fixedClock(instanteGT("2026-08-20T10:00:00")));
     try {

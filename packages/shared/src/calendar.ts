@@ -5,10 +5,20 @@ import type { PuntoCarga } from "./estados";
 /** Zona del negocio. UTC−6, sin horario de verano. */
 export const ZONA_NEGOCIO = "America/Guatemala";
 
+export const DIA_ESTADOS_CALENDARIO = [
+  "SIN_CIERRE",
+  "CERRADO",
+  "REABIERTO",
+] as const;
+export type DiaEstadoCalendario = (typeof DIA_ESTADOS_CALENDARIO)[number];
+
 /** Snapshot de calendario para el chrome del panel. Lo calcula el servidor. */
 export const calendarioAhoraSchema = z.object({
   fechaOperacion: z.string().min(10),
   ventanaAbierta: z.boolean(),
+  capturaAbierta: z.boolean(),
+  diaEstado: z.enum(DIA_ESTADOS_CALENDARIO),
+  versionHoja: z.number().int().nullable(),
   esSabado: z.boolean(),
 });
 export type CalendarioAhora = z.infer<typeof calendarioAhoraSchema>;
@@ -23,6 +33,15 @@ export function formatearFechaLarga(fecha: FechaCalendario): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
+/** Nombre del día en mayúsculas para el consolidado: "SÁBADO". */
+export function nombreDiaOperacion(fecha: FechaCalendario): string {
+  const dt = DateTime.fromISO(String(fecha), { zone: ZONA_NEGOCIO }).setLocale(
+    "es-GT",
+  );
+  if (!dt.isValid) return String(fecha);
+  return dt.toFormat("cccc").toLocaleUpperCase("es-GT");
+}
+
 export type FechaCalendario = `${number}-${number}-${number}` | string;
 
 export type VentanaHoraria = {
@@ -35,6 +54,11 @@ export type VentanaHoraria = {
 export type BusinessCalendar = {
   isVentanaAbierta(now: Date): boolean;
   getFechaOperacion(now: Date): FechaCalendario;
+  /**
+   * Fecha de la ventana que acaba de cerrar. A las 00:00 del 21,
+   * `getFechaOperacion` ya es el 22; esto sigue siendo el 21.
+   */
+  getFechaOperacionDeVentanaReciente(now: Date): FechaCalendario;
   getSiguienteDiaHabil(from: Date | FechaCalendario): FechaCalendario;
   isDiaNoLaborable(fecha: Date | FechaCalendario): boolean;
   isSabado(fecha: Date | FechaCalendario): boolean;
@@ -46,7 +70,7 @@ export type BusinessCalendar = {
   getCierreVentana(now: Date): Date;
   /** Instantáneo UTC de la próxima apertura. */
   getProximaApertura(now: Date): Date;
-  /** Días de calendario en zona GT entre dos instantes (antigüedad de factura). */
+  /** Días de calendario GT entre dos instantes (antigüedad de factura). */
   diasCalendarioEntre(desde: Date, hasta: Date): number;
 };
 
@@ -140,6 +164,17 @@ export function createBusinessCalendar(opts?: {
   const getFechaOperacion = (now: Date): FechaCalendario =>
     getSiguienteDiaHabil(aFechaCalendario(enZona(now)));
 
+  const getFechaOperacionDeVentanaReciente = (
+    now: Date,
+  ): FechaCalendario => {
+    if (isVentanaAbierta(now)) return getFechaOperacion(now);
+    const dt = enZona(now);
+    if (minutosDelDia(dt) < ventana.aperturaMinutos) {
+      return getSiguienteDiaHabil(aFechaCalendario(dt.minus({ days: 1 })));
+    }
+    return getSiguienteDiaHabil(aFechaCalendario(dt));
+  };
+
   const puntoCargaEfectivo = (
     punto: PuntoCarga,
     fecha: Date | FechaCalendario,
@@ -207,6 +242,7 @@ export function createBusinessCalendar(opts?: {
   return {
     isVentanaAbierta,
     getFechaOperacion,
+    getFechaOperacionDeVentanaReciente,
     getSiguienteDiaHabil,
     isDiaNoLaborable,
     isSabado,

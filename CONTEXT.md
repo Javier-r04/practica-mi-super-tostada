@@ -278,50 +278,50 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 ### E4 — Operación diaria *(semana 5)*
 
 **F-401 · Cierre y consolidación**
-- [ ] Al cerrar la ventana se materializa la hoja del día (no antes)
-- [ ] Emite `VentanaPedidoCerrada`
+- [x] Al cerrar la ventana se materializa la hoja del día (no antes)
+- [x] Emite `VentanaPedidoCerrada`
 
 **F-402 · Hoja de producción**
-- [ ] Agrupada por punto de carga; regla de sábado aplicada (todo desde planta)
-- [ ] Horarios fijos y notas de producción impresos automáticamente
-- [ ] Formato reconocible respecto al mensaje actual (§4)
+- [x] Agrupada por punto de carga; regla de sábado aplicada (todo desde planta)
+- [x] Horarios fijos y notas de producción impresos automáticamente
+- [x] Formato reconocible respecto al mensaje actual (§4)
 
 **F-403 · Vistas por rol**
-- [ ] Misma información, distintas acciones: producción, tienda, reparto
+- [x] Misma información, distintas acciones: producción, tienda, reparto
 
 **F-404 · Exportación de respaldo**
-- [ ] Hoja del día en texto y PDF, enviable por WhatsApp
-- [ ] Plan B si falla la conexión en planta de madrugada
+- [x] Hoja del día en texto y PDF, enviable por WhatsApp
+- [x] Plan B si falla la conexión en planta de madrugada
 
 **F-405 · Reapertura de día cerrado**
-- [ ] Solo `ADMIN_JEFE`, con motivo obligatorio
-- [ ] No se reenvían mensajes ya enviados
-- [ ] Al recerrar: hoja **versión 2 con cambios resaltados**
-- [ ] Todo en `audit_log`
+- [x] Solo `ADMIN_JEFE`, con motivo obligatorio
+- [x] No se reenvían mensajes ya enviados
+- [x] Al recerrar: hoja **versión 2 con cambios resaltados**
+- [x] Todo en `audit_log`
 
 ### E5 — Cobranza *(semana 6)*
 
 **F-501 · Entrega y cantidades reales**
-- [ ] `cantidad_entregada` por línea, por defecto igual a lo pedido
-- [ ] La factura se calcula sobre lo **entregado**
+- [x] `cantidad_entregada` por línea, por defecto igual a lo pedido
+- [x] La factura se calcula sobre lo **entregado**
 
 **F-502 · Captura del número de DTE**
-- [ ] Carla registra el número de factura del sistema externo
-- [ ] Es la llave que conecta pedido entregado ↔ cuenta por cobrar
+- [x] Carla registra el número de factura del sistema externo
+- [x] Es la llave que conecta pedido entregado ↔ cuenta por cobrar
 
 **F-503 · Pagos y abonos**
-- [ ] `Pago` como tabla propia: monto, método, fecha, comprobante
-- [ ] Factura pagada cuando la suma de pagos cubre el total
-- [ ] Soporta abonos parciales
+- [x] `Pago` como tabla propia: monto, método, fecha, comprobante
+- [x] Factura pagada cuando la suma de pagos cubre el total
+- [x] Soporta abonos parciales
 
 **F-504 · Comprobantes adjuntos**
-- [ ] Foto de transferencia o recibo desde el celular, asociada al pago
+- [x] Foto de transferencia o recibo desde el celular, asociada al pago
 
 **F-505 · Control de cartera**
-- [ ] Contador de facturas pendientes por cliente con límite configurable
-- [ ] Alerta al superar el límite, con acción de recordatorio
-- [ ] Filtros por cliente, rango de fechas y método de pago
-- [ ] Cuadre diario con repartidor y corte quincenal
+- [x] Contador de facturas pendientes por cliente con límite configurable
+- [x] Alerta al superar el límite, con acción de recordatorio
+- [x] Filtros por cliente, rango de fechas y método de pago
+- [x] Cuadre diario con repartidor y corte quincenal
 
 ### E6 — Dashboard *(semana 6)*
 

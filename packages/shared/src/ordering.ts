@@ -6,6 +6,7 @@ import {
   PUNTOS_CARGA,
   UNIDADES_MEDIDA,
 } from "./estados";
+import { COBRANZA_SSE_TIPOS } from "./receivables";
 import { formatearFechaLarga } from "./calendar";
 import { centavosSchema, formatearCentavos } from "./money";
 
@@ -109,7 +110,7 @@ export const portalFacturaPendienteSchema = z.object({
   saldoCentavos: centavosSchema,
   emitidaAt: z.string().nullable(),
   antiguedadDias: z.number().int().nonnegative(),
-  estado: z.enum(["PENDIENTE", "ABONO_PARCIAL"]),
+  estado: z.enum(["PENDIENTE", "ABONO_PARCIAL", "VENCIDO"]),
 });
 
 export type PortalFacturaPendiente = z.infer<typeof portalFacturaPendienteSchema>;
@@ -282,6 +283,18 @@ export const PEDIDO_SSE_TIPOS = [
   "pedido.anulado",
 ] as const;
 
+export const OPERACION_SSE_TIPOS = [
+  "dia.cerrado",
+  "dia.reabierto",
+  "hoja.generada",
+] as const;
+
+export const PANEL_SSE_TIPOS = [
+  ...PEDIDO_SSE_TIPOS,
+  ...OPERACION_SSE_TIPOS,
+  ...COBRANZA_SSE_TIPOS,
+] as const;
+
 export const pedidoSseEventSchema = z.object({
   tipo: z.enum(PEDIDO_SSE_TIPOS),
   pedidoId: z.string().uuid(),
@@ -289,3 +302,21 @@ export const pedidoSseEventSchema = z.object({
 });
 
 export type PedidoSseEvent = z.infer<typeof pedidoSseEventSchema>;
+
+export const panelSseEventSchema = z.union([
+  pedidoSseEventSchema,
+  z.object({
+    tipo: z.enum(OPERACION_SSE_TIPOS),
+    fechaOperacion: fechaOperacionSchema,
+    versionHoja: z.number().int().nullable().optional(),
+  }),
+  z.object({
+    tipo: z.enum(COBRANZA_SSE_TIPOS),
+    fechaOperacion: fechaOperacionSchema,
+    pedidoId: z.string().uuid().optional(),
+    facturaId: z.string().uuid().optional(),
+    clienteId: z.string().uuid().optional(),
+  }),
+]);
+
+export type PanelSseEvent = z.infer<typeof panelSseEventSchema>;

@@ -20,6 +20,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
@@ -262,21 +263,35 @@ export const factura = pgTable(
     emitidaAt: timestamp("emitida_at", { withTimezone: true, mode: "date" }),
     ...timestamps,
   },
-  (t) => [unique("factura_pedido_unique").on(t.pedidoId)],
+  (t) => [
+    unique("factura_pedido_unique").on(t.pedidoId),
+    uniqueIndex("factura_numero_dte_unique")
+      .on(t.numeroDte)
+      .where(sql`${t.numeroDte} is not null`),
+  ],
 );
 
-export const pago = pgTable("pago", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  facturaId: uuid("factura_id")
-    .notNull()
-    .references(() => factura.id),
-  montoCentavos: integer("monto_centavos").notNull(),
-  metodo: pagoMetodoEnum("metodo").notNull(),
-  fecha: date("fecha", { mode: "string" }).notNull(),
-  comprobanteAssetId: uuid("comprobante_asset_id"),
-  registradoPor: uuid("registrado_por").references(() => usuario.id),
-  ...timestamps,
-});
+export const pago = pgTable(
+  "pago",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    facturaId: uuid("factura_id")
+      .notNull()
+      .references(() => factura.id),
+    montoCentavos: integer("monto_centavos").notNull(),
+    metodo: pagoMetodoEnum("metodo").notNull(),
+    fecha: date("fecha", { mode: "string" }).notNull(),
+    comprobanteAssetId: uuid("comprobante_asset_id"),
+    registradoPor: uuid("registrado_por").references(() => usuario.id),
+    idempotencyKey: text("idempotency_key"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("pago_idempotency_key_unique")
+      .on(t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} is not null`),
+  ],
+);
 
 export const conversacion = pgTable("conversacion", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -426,6 +441,62 @@ export const outbox = pgTable(
       t.tipo,
       t.destinatarioId,
       t.fechaOperacion,
+    ),
+  ],
+);
+
+export const diaOperacionEstadoEnum = pgEnum("dia_operacion_estado", [
+  "ABIERTO",
+  "CERRADO",
+  "REABIERTO",
+]);
+
+export const diaOperacion = pgTable(
+  "dia_operacion",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizacionId: uuid("organizacion_id")
+      .notNull()
+      .references(() => organizacion.id),
+    fechaOperacion: date("fecha_operacion", { mode: "string" }).notNull(),
+    estado: diaOperacionEstadoEnum("estado").notNull(),
+    motivoReapertura: text("motivo_reapertura"),
+    cerradoAt: timestamp("cerrado_at", { withTimezone: true, mode: "date" }),
+    cerradoPor: uuid("cerrado_por").references(() => usuario.id),
+    reabiertoAt: timestamp("reabierto_at", { withTimezone: true, mode: "date" }),
+    reabiertoPor: uuid("reabierto_por").references(() => usuario.id),
+    ...timestamps,
+  },
+  (t) => [
+    unique("dia_operacion_org_fecha_unique").on(
+      t.organizacionId,
+      t.fechaOperacion,
+    ),
+  ],
+);
+
+export const hojaProduccion = pgTable(
+  "hoja_produccion",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizacionId: uuid("organizacion_id")
+      .notNull()
+      .references(() => organizacion.id),
+    fechaOperacion: date("fecha_operacion", { mode: "string" }).notNull(),
+    version: integer("version").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    texto: text("texto").notNull(),
+    generadoAt: timestamp("generado_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+    generadoPor: uuid("generado_por").references(() => usuario.id),
+    ...timestamps,
+  },
+  (t) => [
+    unique("hoja_produccion_org_fecha_version_unique").on(
+      t.organizacionId,
+      t.fechaOperacion,
+      t.version,
     ),
   ],
 );

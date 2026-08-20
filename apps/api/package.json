@@ -24,6 +24,7 @@
     "zod": "^3.25.76",
     "@misupertostada/shared": "workspace:*",
     "@misupertostada/db": "workspace:*",
+    "@misupertostada/pdf": "workspace:*",
     "argon2": "^0.45.1",
     "pg-boss": "^12.27.0",
     "cookie-parser": "^1.4.7",

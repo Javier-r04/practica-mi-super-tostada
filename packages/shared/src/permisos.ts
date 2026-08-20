@@ -4,9 +4,12 @@ export const PERMISOS = [
   "precios.cambiar",
   "catalogo.escribir",
   "pedidos.capturar_manual",
+  "pedidos.entregar",
   "cobranza.registrar_pago",
+  "cobranza.capturar_dte",
   "usuarios.gestionar",
   "permisos.delegar",
+  "ventana.cerrar",
   "ventana.reabrir",
 ] as const;
 
@@ -26,11 +29,19 @@ export const ROL_PERMISOS: Record<Rol, readonly PermisoCodigo[]> = {
   ADMIN: [
     "catalogo.escribir",
     "pedidos.capturar_manual",
+    "pedidos.entregar",
     "cobranza.registrar_pago",
+    "cobranza.capturar_dte",
+    "ventana.cerrar",
   ],
   PRODUCCION: [],
-  TIENDA: ["pedidos.capturar_manual"],
-  REPARTO: ["cobranza.registrar_pago"],
+  TIENDA: [
+    "pedidos.capturar_manual",
+    "pedidos.entregar",
+    "cobranza.capturar_dte",
+    "cobranza.registrar_pago",
+  ],
+  REPARTO: ["pedidos.entregar", "cobranza.registrar_pago"],
 };
 
 export function esPermisoCodigo(value: string): value is PermisoCodigo {
@@ -67,9 +78,12 @@ export const PERMISO_DESCRIPCION: Record<PermisoCodigo, string> = {
   "precios.cambiar": "Cambiar precios por cliente",
   "catalogo.escribir": "Crear y editar productos y clientes",
   "pedidos.capturar_manual": "Capturar pedidos recibidos por llamada",
+  "pedidos.entregar": "Marcar un pedido como entregado y ajustar cantidades",
   "cobranza.registrar_pago": "Registrar cobros y abonos",
+  "cobranza.capturar_dte": "Registrar el número de DTE del sistema externo",
   "usuarios.gestionar": "Crear y desactivar cuentas internas",
   "permisos.delegar": "Delegar permisos granulares",
+  "ventana.cerrar": "Cerrar la ventana y generar la hoja de producción",
   "ventana.reabrir": "Reabrir un día de operación cerrado",
 };
 

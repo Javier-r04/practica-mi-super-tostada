@@ -39,7 +39,10 @@ export type PedidoOrigen = (typeof PEDIDO_ORIGENES)[number];
 export const FAMILIAS = ["TORTILLA", "TOSTADA", "FRITURA"] as const;
 export type Familia = (typeof FAMILIAS)[number];
 
-/** Cheque queda como nota de cliente hasta F-503; el enum no lo incluye. */
+/**
+ * Cheque no es método de pago: queda en `notas_permanentes` del cliente
+ * (Escuelita La Ciénaga). El enum no lo incluye.
+ */
 export const PAGO_METODOS = ["EFECTIVO", "TRANSFERENCIA"] as const;
 export type PagoMetodo = (typeof PAGO_METODOS)[number];
 

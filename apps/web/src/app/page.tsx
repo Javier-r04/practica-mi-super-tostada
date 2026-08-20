@@ -16,7 +16,7 @@ function HomeRedirect() {
   });
 
   useEffect(() => {
-    if (me.data) router.replace("/catalogo");
+    if (me.data) router.replace("/hoy");
     if (me.error instanceof ApiError) router.replace("/login");
   }, [me.data, me.error, router]);
 

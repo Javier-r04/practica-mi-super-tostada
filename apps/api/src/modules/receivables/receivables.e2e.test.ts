@@ -1,0 +1,807 @@
+import { describe, expect, test } from "bun:test";
+import { and, eq } from "drizzle-orm";
+import { DateTime } from "luxon";
+import {
+  asset,
+  auditLog,
+  cliente,
+  factura,
+  outbox,
+  organizacion,
+  pago,
+  pedido,
+  usuario,
+} from "@misupertostada/db";
+import {
+  TIPO_EVENTO_LIMITE_CREDITO,
+  ZONA_NEGOCIO,
+  permisosEfectivos,
+  type Clock,
+} from "@misupertostada/shared";
+import { AuditWriter } from "../shared/audit.writer";
+import { OutboxWriter } from "../shared/outbox.writer";
+import { DomainEventWriter } from "../shared/domain-event.writer";
+import { BusinessCalendarService } from "../shared/calendar.service";
+import { PedidoEvents } from "../shared/panel-events";
+import { openTestDb, postgresListo } from "../../test/db";
+import type { Actor } from "../identity/actor";
+import { ProductosService } from "../catalog/productos.service";
+import { ClientesService } from "../catalog/clientes.service";
+import { ClienteProductoService } from "../catalog/cliente-producto.service";
+import { PedidoService } from "../ordering/pedido.service";
+import { PortalService } from "../ordering/portal.service";
+import { CierreService } from "../fulfillment/cierre.service";
+import { HojaService } from "../fulfillment/hoja.service";
+import { EntregaService } from "../fulfillment/entrega.service";
+import { FacturaService } from "./factura.service";
+import { PagoService } from "./pago.service";
+import { CarteraService } from "./cartera.service";
+
+const listo = await postgresListo();
+
+function instanteGT(isoLocal: string): Date {
+  const dt = DateTime.fromISO(isoLocal, { zone: ZONA_NEGOCIO });
+  if (!dt.isValid) throw new Error(`instante inválido: ${isoLocal}`);
+  return dt.toJSDate();
+}
+
+function relojControlado(inicial: Date): Clock & { set(d: Date): void } {
+  let actual = inicial;
+  return {
+    now: () => actual,
+    set: (d: Date) => {
+      actual = d;
+    },
+  };
+}
+
+function actorDe(
+  row: { id: string; username: string; rol: Actor["rol"] },
+  orgId: string,
+  ua: string,
+): Actor {
+  return {
+    usuarioId: row.id,
+    organizacionId: orgId,
+    username: row.username,
+    rol: row.rol,
+    permisos: permisosEfectivos(row.rol),
+    sesionId: crypto.randomUUID(),
+    ip: "127.0.0.1",
+    userAgent: ua,
+  };
+}
+
+async function fixture(clock: Clock) {
+  const { client, db } = openTestDb();
+  const audit = new AuditWriter(db);
+  const outboxWriter = new OutboxWriter(db);
+  const domainEventsWriter = new DomainEventWriter(db);
+  const calendar = new BusinessCalendarService(db, clock);
+  const events = new PedidoEvents();
+  const productos = new ProductosService(db, audit);
+  const clientes = new ClientesService(db, audit);
+  const ligas = new ClienteProductoService(db, audit, clientes);
+  const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
+  const hoja = new HojaService(db, calendar);
+  const cierre = new CierreService(
+    db,
+    audit,
+    outboxWriter,
+    domainEventsWriter,
+    calendar,
+    hoja,
+    events,
+  );
+  const facturas = new FacturaService(db, audit, outboxWriter, calendar, events);
+  const entregas = new EntregaService(
+    db,
+    audit,
+    domainEventsWriter,
+    calendar,
+    events,
+    facturas,
+  );
+  const pagos = new PagoService(db, audit, calendar, events, facturas);
+  const cartera = new CarteraService(db, calendar);
+  const portal = new PortalService(db, audit, calendar, pedidos);
+
+  const [org] = await db
+    .insert(organizacion)
+    .values({ nombre: `org-e5-${crypto.randomUUID()}` })
+    .returning({ id: organizacion.id });
+
+  async function alta(
+    rol: Actor["rol"],
+    prefijo: string,
+  ): Promise<{ row: { id: string; username: string; rol: Actor["rol"] }; actor: Actor }> {
+    const username = `${prefijo}-${crypto.randomUUID().slice(0, 8)}`;
+    const [row] = await db
+      .insert(usuario)
+      .values({
+        organizacionId: org!.id,
+        username,
+        rol,
+        activo: true,
+      })
+      .returning({ id: usuario.id, username: usuario.username, rol: usuario.rol });
+    return {
+      row: row!,
+      actor: actorDe(row!, org!.id, `test-${prefijo}`),
+    };
+  }
+
+  const jefe = await alta("ADMIN_JEFE", "cristian");
+  const alex = await alta("PRODUCCION", "alex");
+  const carla = await alta("TIENDA", "carla");
+  const tony = await alta("REPARTO", "tony");
+
+  return {
+    client,
+    db,
+    clock,
+    orgId: org!.id,
+    actor: jefe.actor,
+    actorProduccion: alex.actor,
+    actorTienda: carla.actor,
+    actorReparto: tony.actor,
+    productos,
+    clientes,
+    ligas,
+    pedidos,
+    cierre,
+    entregas,
+    facturas,
+    pagos,
+    cartera,
+    portal,
+    events,
+  };
+}
+
+async function catalogo(
+  f: Awaited<ReturnType<typeof fixture>>,
+  opts: {
+    precioCentavos?: number;
+    cantidad?: number;
+    limite?: number | null;
+    horario?: string | null;
+    nombre?: string;
+  } = {},
+) {
+  const precio = opts.precioCentavos ?? 1250;
+  const prod = await f.productos.crear(
+    {
+      sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
+      nombreCanonico: "Tortilla No. 16 (grande)",
+      familia: "TORTILLA",
+      unidadMedida: "LIBRA",
+      puntoCarga: "DEMOCRACIA",
+    },
+    f.actor,
+  );
+  const cli = await f.clientes.crear(
+    {
+      nombre: opts.nombre ?? `Tabasco ${crypto.randomUUID().slice(0, 6)}`,
+      limiteFacturasPendientes: opts.limite,
+      horarioEntregaFijo: opts.horario ?? "08:30",
+    },
+    f.actor,
+  );
+  await f.ligas.upsert(
+    cli.id,
+    prod.id,
+    { precioCentavos: precio, notaProduccion: "GRUESAS" },
+    f.actor,
+  );
+  const pedidoCreado = await f.pedidos.crearManual(
+    {
+      clienteId: cli.id,
+      items: [{ productoId: prod.id, cantidad: opts.cantidad ?? 50 }],
+    },
+    f.actor,
+  );
+  await f.cierre.cerrar({}, f.actor);
+  return { prod, cli, pedido: pedidoCreado };
+}
+
+describe.skipIf(!listo)("E5 cobranza", () => {
+  test("F-501 entregar sin ajustar: cantidad = pedida, factura = total, ENTREGADO", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p, prod } = await catalogo(f, { precioCentavos: 1250, cantidad: 50 });
+      const r = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      expect(r.estado).toBe("ENTREGADO");
+      expect(r.factura.montoCentavos).toBe(62500);
+      expect(r.factura.estado).toBe("PENDIENTE");
+      const item = r.items.find((i) => i.productoId === prod.id);
+      expect(item?.cantidadEntregada).toBe(50);
+      expect(item?.cantidadPedida).toBe(50);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-501 bajar 50→40 lb a Q4.50 snapshot: 18000, no 22500; subir catálogo no cambia", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p, prod, cli } = await catalogo(f, {
+        precioCentavos: 450,
+        cantidad: 50,
+      });
+      const r = await f.entregas.entregar(
+        {
+          pedidoId: p.id,
+          items: [{ productoId: prod.id, cantidadEntregada: 40 }],
+        },
+        f.actorReparto,
+      );
+      expect(r.factura.montoCentavos).toBe(18000);
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 9999 }, f.actor);
+      const [fac] = await f.db
+        .select()
+        .from(factura)
+        .where(eq(factura.pedidoId, p.id));
+      expect(fac?.montoCentavos).toBe(18000);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-501 entregar CONFIRMADO (día no cerrado) → 409 PEDIDO_NO_ENTREGABLE", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `X-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla No. 16 (grande)",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear({ nombre: `Abierto ${crypto.randomUUID().slice(0, 6)}` }, f.actor);
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 1250 }, f.actor);
+      const p = await f.pedidos.crearManual(
+        { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 10 }] },
+        f.actor,
+      );
+      await expect(f.entregas.entregar({ pedidoId: p.id }, f.actorReparto)).rejects.toMatchObject({
+        code: "PEDIDO_NO_ENTREGABLE",
+        httpStatus: 409,
+      });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-501 segunda entrega del mismo pedido es 200 idempotente, una sola factura", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p, prod } = await catalogo(f);
+      const a = await f.entregas.entregar(
+        { pedidoId: p.id, items: [{ productoId: prod.id, cantidadEntregada: 50 }] },
+        f.actorReparto,
+      );
+      const b = await f.entregas.entregar(
+        { pedidoId: p.id, items: [{ productoId: prod.id, cantidadEntregada: 50 }] },
+        f.actorReparto,
+      );
+      expect(a.idempotente).toBe(false);
+      expect(b.idempotente).toBe(true);
+      expect(b.factura.id).toBe(a.factura.id);
+      const facs = await f.db.select().from(factura).where(eq(factura.pedidoId, p.id));
+      expect(facs).toHaveLength(1);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-403 PRODUCCION POST entregar → 403; GET ruta → 200", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p } = await catalogo(f);
+      await expect(
+        f.entregas.entregar({ pedidoId: p.id }, f.actorProduccion),
+      ).rejects.toMatchObject({ code: "PERMISO_DENEGADO", httpStatus: 403 });
+      const ruta = await f.entregas.ruta({}, f.actorProduccion);
+      expect(ruta.paradas.length).toBeGreaterThan(0);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-502 REPARTO no captura DTE; TIENDA sí; duplicado 409", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `DTE-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla No. 16 (grande)",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const cliA = await f.clientes.crear(
+        { nombre: `DTE-A ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      const cliB = await f.clientes.crear(
+        { nombre: `DTE-B ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(cliA.id, prod.id, { precioCentavos: 1250 }, f.actor);
+      await f.ligas.upsert(cliB.id, prod.id, { precioCentavos: 1250 }, f.actor);
+      const pA = await f.pedidos.crearManual(
+        { clienteId: cliA.id, items: [{ productoId: prod.id, cantidad: 10 }] },
+        f.actor,
+      );
+      const pB = await f.pedidos.crearManual(
+        { clienteId: cliB.id, items: [{ productoId: prod.id, cantidad: 10 }] },
+        f.actor,
+      );
+      await f.cierre.cerrar({}, f.actor);
+      const ea = await f.entregas.entregar({ pedidoId: pA.id }, f.actorReparto);
+      const eb = await f.entregas.entregar({ pedidoId: pB.id }, f.actorReparto);
+      const dte = `DTE-${crypto.randomUUID().slice(0, 8)}`;
+      await expect(
+        f.facturas.capturarDte(ea.factura.id, { numeroDte: dte }, f.actorReparto),
+      ).rejects.toMatchObject({ code: "PERMISO_DENEGADO", httpStatus: 403 });
+      const conDte = await f.facturas.capturarDte(
+        ea.factura.id,
+        { numeroDte: dte },
+        f.actorTienda,
+      );
+      expect(conDte.numeroDte).toBe(dte);
+      await expect(
+        f.facturas.capturarDte(eb.factura.id, { numeroDte: dte }, f.actorTienda),
+      ).rejects.toMatchObject({ code: "DTE_DUPLICADO", httpStatus: 409 });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-503 abono 3000 sobre 10000 → ABONO_PARCIAL; 7000 → PAGADO; portal 0 pendientes", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      expect(e.factura.montoCentavos).toBe(10000);
+      const a1 = await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `abono-1-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 3000,
+          metodo: "EFECTIVO",
+        },
+        f.actorReparto,
+      );
+      expect(a1.facturas[0]?.estado).toBe("ABONO_PARCIAL");
+      expect(a1.facturas[0]?.saldoCentavos).toBe(7000);
+      const a2 = await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `abono-2-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 7000,
+          metodo: "EFECTIVO",
+        },
+        f.actorReparto,
+      );
+      expect(a2.facturas[0]?.estado).toBe("PAGADO");
+      const [cliRow] = await f.db.select().from(cliente).where(eq(cliente.id, cli.id));
+      const cuenta = await f.portal.cuentaDe(cliRow!);
+      expect(cuenta.facturasPendientes).toBe(0);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-503 abono 10001 → 409 PAGO_EXCEDE_SALDO, cero filas pago", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      await expect(
+        f.pagos.registrar(
+          {
+            id: crypto.randomUUID(),
+            idempotencyKey: `excede-${crypto.randomUUID()}`,
+            facturaId: e.factura.id,
+            montoCentavos: 10001,
+            metodo: "EFECTIVO",
+          },
+          f.actorReparto,
+        ),
+      ).rejects.toMatchObject({ code: "PAGO_EXCEDE_SALDO", httpStatus: 409 });
+      const pagos = await f.db.select().from(pago).where(eq(pago.facturaId, e.factura.id));
+      expect(pagos).toHaveLength(0);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-503 FIFO cliente: 10000 y 5000, pago 12000 → 10000+2000", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `FIFO-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla No. 16 (grande)",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `FIFO ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 1000 }, f.actor);
+      const p1 = await f.pedidos.crearManual(
+        { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 10 }] },
+        f.actor,
+      );
+      const p2 = await f.pedidos.crearManual(
+        { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 5 }] },
+        f.actor,
+      );
+      await f.cierre.cerrar({}, f.actor);
+      const e1 = await f.entregas.entregar({ pedidoId: p1.id }, f.actorReparto);
+      const e2 = await f.entregas.entregar({ pedidoId: p2.id }, f.actorReparto);
+      const r = await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `fifo-${crypto.randomUUID()}`,
+          clienteId: cli.id,
+          montoCentavos: 12000,
+          metodo: "EFECTIVO",
+        },
+        f.actorReparto,
+      );
+      expect(r.pagos).toHaveLength(2);
+      expect(r.pagos.map((x) => x.montoCentavos).sort((a, b) => b - a)).toEqual([
+        10000, 2000,
+      ]);
+      const fac1 = r.facturas.find((x) => x.id === e1.factura.id);
+      const fac2 = r.facturas.find((x) => x.id === e2.factura.id);
+      expect(fac1?.estado).toBe("PAGADO");
+      expect(fac2?.estado).toBe("ABONO_PARCIAL");
+      expect(fac2?.abonadoCentavos).toBe(2000);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-504 transferencia sin comprobante 400; efectivo sin foto 200", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      await expect(
+        f.pagos.registrar(
+          {
+            id: crypto.randomUUID(),
+            idempotencyKey: `tr-${crypto.randomUUID()}`,
+            facturaId: e.factura.id,
+            montoCentavos: 1000,
+            metodo: "TRANSFERENCIA",
+          },
+          f.actorReparto,
+        ),
+      ).rejects.toMatchObject({ code: "COMPROBANTE_REQUERIDO", httpStatus: 400 });
+      const ok = await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `ef-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 1000,
+          metodo: "EFECTIVO",
+        },
+        f.actorReparto,
+      );
+      expect(ok.pagos).toHaveLength(1);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-503 mismo idempotency_key dos veces → un pago", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const body = {
+        id: crypto.randomUUID(),
+        idempotencyKey: `dup-${crypto.randomUUID()}`,
+        facturaId: e.factura.id,
+        montoCentavos: 2000,
+        metodo: "EFECTIVO" as const,
+      };
+      const a = await f.pagos.registrar(body, f.actorReparto);
+      const b = await f.pagos.registrar({ ...body, id: crypto.randomUUID() }, f.actorReparto);
+      expect(a.idempotente).toBe(false);
+      expect(b.idempotente).toBe(true);
+      expect(b.pagos[0]?.id).toBe(a.pagos[0]?.id);
+      const filas = await f.db.select().from(pago).where(eq(pago.facturaId, e.factura.id));
+      expect(filas).toHaveLength(1);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-505 límite 3: cuarta pendiente dispara outbox; quinta mismo día no duplica", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `LIM-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla No. 16 (grande)",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        {
+          nombre: `Limite ${crypto.randomUUID().slice(0, 6)}`,
+          limiteFacturasPendientes: 3,
+        },
+        f.actor,
+      );
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 1000 }, f.actor);
+      const pedidos = [];
+      for (let i = 0; i < 5; i++) {
+        pedidos.push(
+          await f.pedidos.crearManual(
+            { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 1 }] },
+            f.actor,
+          ),
+        );
+      }
+      await f.cierre.cerrar({}, f.actor);
+      for (let i = 0; i < 3; i++) {
+        await f.entregas.entregar({ pedidoId: pedidos[i]!.id }, f.actorReparto);
+      }
+      const antes = await f.db
+        .select()
+        .from(outbox)
+        .where(
+          and(
+            eq(outbox.tipo, TIPO_EVENTO_LIMITE_CREDITO),
+            eq(outbox.destinatarioId, cli.id),
+          ),
+        );
+      expect(antes).toHaveLength(0);
+      await f.entregas.entregar({ pedidoId: pedidos[3]!.id }, f.actorReparto);
+      const media = await f.db
+        .select()
+        .from(outbox)
+        .where(
+          and(
+            eq(outbox.tipo, TIPO_EVENTO_LIMITE_CREDITO),
+            eq(outbox.destinatarioId, cli.id),
+          ),
+        );
+      expect(media).toHaveLength(1);
+      await f.entregas.entregar({ pedidoId: pedidos[4]!.id }, f.actorReparto);
+      const despues = await f.db
+        .select()
+        .from(outbox)
+        .where(
+          and(
+            eq(outbox.tipo, TIPO_EVENTO_LIMITE_CREDITO),
+            eq(outbox.destinatarioId, cli.id),
+          ),
+        );
+      expect(despues).toHaveLength(1);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-505 reloj +15 días incluye vencidas; a +14 no", async () => {
+    const clock = relojControlado(instanteGT("2026-08-05T16:00:00"));
+    const f = await fixture(clock);
+    try {
+      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const dteCap = await f.facturas.capturarDte(e.factura.id, { numeroDte: `V-${crypto.randomUUID().slice(0, 8)}` }, f.actorTienda);
+      expect(dteCap.emitidaAt).toBeTruthy();
+      expect(dteCap.antiguedadDias).toBe(0);
+      clock.set(instanteGT("2026-08-19T16:00:00"));
+      const a14 = await f.cartera.listar(f.actor, { estado: "vencidas" });
+      expect(a14.some((x) => x.id === e.factura.id)).toBe(false);
+      clock.set(instanteGT("2026-08-20T16:00:00"));
+      const a15 = await f.cartera.listar(f.actor, { estado: "vencidas" });
+      expect(a15.some((x) => x.id === e.factura.id)).toBe(true);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-505 cuadre: efectivo de Tony + transferencia de Carla; no mezcla ayer", async () => {
+    const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
+    const f = await fixture(clock);
+    try {
+      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `ayer-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 1000,
+          metodo: "EFECTIVO",
+          fecha: "2026-08-19",
+        },
+        f.actor,
+      );
+      await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `t1-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 2000,
+          metodo: "EFECTIVO",
+        },
+        f.actorReparto,
+      );
+      await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `t2-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 1500,
+          metodo: "EFECTIVO",
+        },
+        f.actorReparto,
+      );
+      const pagoId = crypto.randomUUID();
+      const [comp] = await f.db
+        .insert(asset)
+        .values({
+          key: `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`.slice(0, 64),
+          bucket: "test",
+          mime: "image/jpeg",
+          size: 12,
+          ownerType: "pago",
+          ownerId: pagoId,
+        })
+        .returning({ id: asset.id });
+      await f.pagos.registrar(
+        {
+          id: pagoId,
+          idempotencyKey: `c1-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 3000,
+          metodo: "TRANSFERENCIA",
+          comprobanteAssetId: comp!.id,
+        },
+        f.actorTienda,
+      );
+      const cuadre = await f.cartera.cuadre(f.actor, { fecha: "2026-08-20" });
+      expect(cuadre.totalEfectivoCentavos).toBe(3500);
+      expect(cuadre.totalTransferenciaCentavos).toBe(3000);
+      expect(cuadre.pagos.every((x) => x.fecha === "2026-08-20")).toBe(true);
+      const tony = cuadre.porActor.find((a) => a.usuarioId === f.actorReparto.usuarioId);
+      expect(tony?.efectivoCentavos).toBe(3500);
+      expect(tony?.count).toBe(2);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-501 entregar 0 en todas las líneas → factura 0, no cuenta al límite", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `CERO-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla No. 16 (grande)",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        {
+          nombre: `Cero ${crypto.randomUUID().slice(0, 6)}`,
+          limiteFacturasPendientes: 1,
+        },
+        f.actor,
+      );
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 1250 }, f.actor);
+      const p1 = await f.pedidos.crearManual(
+        { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 10 }] },
+        f.actor,
+      );
+      const p2 = await f.pedidos.crearManual(
+        { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 10 }] },
+        f.actor,
+      );
+      await f.cierre.cerrar({}, f.actor);
+      const cero = await f.entregas.entregar(
+        { pedidoId: p1.id, items: [{ productoId: prod.id, cantidadEntregada: 0 }] },
+        f.actorReparto,
+      );
+      expect(cero.factura.montoCentavos).toBe(0);
+      expect(cero.factura.estado).toBe("PAGADO");
+      await f.entregas.entregar({ pedidoId: p2.id }, f.actorReparto);
+      const alertas = await f.db
+        .select()
+        .from(outbox)
+        .where(
+          and(
+            eq(outbox.tipo, TIPO_EVENTO_LIMITE_CREDITO),
+            eq(outbox.destinatarioId, cli.id),
+          ),
+        );
+      expect(alertas).toHaveLength(0);
+      const resumen = await f.cartera.resumen(f.actor, {});
+      expect(resumen.pendientesCount).toBe(1);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("anular ENTREGADO sigue 409 (regresión E3)", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p } = await catalogo(f);
+      await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      await expect(
+        f.pedidos.anular(p.id, { motivo: "Ya lo llevamos" }, f.actor),
+      ).rejects.toMatchObject({ code: "PEDIDO_ENTREGADO", httpStatus: 409 });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("audit_log de entrega, DTE y pago con actor distinto", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      await f.facturas.capturarDte(
+        e.factura.id,
+        { numeroDte: `AUD-${crypto.randomUUID().slice(0, 6)}` },
+        f.actorTienda,
+      );
+      await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `aud-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 1000,
+          metodo: "EFECTIVO",
+        },
+        f.actorReparto,
+      );
+      const entregaAudit = await f.db
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.accion, "pedidos.entregar"));
+      expect(entregaAudit.some((a) => a.actorId === f.actorReparto.usuarioId)).toBe(true);
+      const dteAudit = await f.db
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.accion, "cobranza.capturar_dte"));
+      expect(dteAudit.some((a) => a.actorId === f.actorTienda.usuarioId)).toBe(true);
+      const pagoAudit = await f.db
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.accion, "cobranza.registrar_pago"));
+      expect(pagoAudit.some((a) => a.actorId === f.actorReparto.usuarioId)).toBe(true);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+});

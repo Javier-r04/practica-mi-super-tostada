@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { organizacion, permiso, usuario } from "@misupertostada/db";
-import { systemClock } from "@misupertostada/shared";
+import { permisosEfectivos, systemClock } from "@misupertostada/shared";
 import { AuthService } from "./auth.service";
 import { PasswordService } from "./password.service";
 import { SessionService } from "./session.service";
@@ -66,15 +66,7 @@ function actorJefe(f: Awaited<ReturnType<typeof fixture>>): Actor {
     organizacionId: f.orgId,
     username: f.username,
     rol: "ADMIN_JEFE",
-    permisos: [
-      "precios.cambiar",
-      "catalogo.escribir",
-      "pedidos.capturar_manual",
-      "cobranza.registrar_pago",
-      "usuarios.gestionar",
-      "permisos.delegar",
-      "ventana.reabrir",
-    ],
+    permisos: permisosEfectivos("ADMIN_JEFE"),
     sesionId: crypto.randomUUID(),
     ip: "127.0.0.1",
     userAgent: "test",

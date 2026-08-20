@@ -36,6 +36,26 @@ export function exigirCaptura(actor: Actor): void {
   }
 }
 
+export function exigirAnulable(estado: string): void {
+  if (estado === "ANULADO") {
+    throw new DomainException("PEDIDO_ANULADO", MENSAJE_PEDIDO_ANULADO, 409);
+  }
+  if (estado === "ENTREGADO") {
+    throw new DomainException(
+      "PEDIDO_ENTREGADO",
+      "Un pedido entregado no se anula: la factura se calcula sobre lo entregado.",
+      409,
+    );
+  }
+  if (estado !== "CONFIRMADO") {
+    throw new DomainException(
+      "PEDIDO_NO_EDITABLE",
+      "Solo se anulan pedidos confirmados",
+      409,
+    );
+  }
+}
+
 export function exigirConfirmado(estado: string): void {
   if (estado === "ANULADO") {
     throw new DomainException("PEDIDO_ANULADO", MENSAJE_PEDIDO_ANULADO, 409);
@@ -72,6 +92,14 @@ export function ventanaCerrada(proxima: Date): DomainException {
   return new DomainException(
     "VENTANA_CERRADA",
     `${MENSAJE_VENTANA_CERRADA} Abre el ${fechaLarga} a las ${hora}.`,
+    409,
+  );
+}
+
+export function diaCerrado(): DomainException {
+  return new DomainException(
+    "DIA_CERRADO",
+    "El día de operación ya está cerrado. Reabrir requiere motivo y lo hace solo el administrador jefe.",
     409,
   );
 }

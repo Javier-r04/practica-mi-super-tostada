@@ -5,8 +5,8 @@ export const centavosSchema = z.number().int();
 
 /**
  * Redondeo bancario (half-even / IEEE 754 roundTiesToEven).
- * Criterio para totales: el empate a .5 va al entero par, para no sesgar
- * siempre hacia arriba al calcular montos.
+ * Criterio para totales cuando entre un factor no entero.
+ * `montoFacturaCentavos` no lo usa: cantidad × precio snapshot ya son enteros.
  */
 export function redondearBancario(valor: number): number {
   if (!Number.isFinite(valor)) {

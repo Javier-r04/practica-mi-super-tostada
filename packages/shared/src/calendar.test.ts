@@ -50,13 +50,45 @@ describe("BusinessCalendar", () => {
     expect(calendar.getFechaOperacion(now)).toBe("2026-08-21");
   });
 
-  test("cambio de día a medianoche: 00:00 ya es el día siguiente", () => {
-    const antes = instanteGT("2026-08-20T23:59:00");
+  test("00:00: getFechaOperacionDeVentanaReciente cierra el día que acaba de terminar, no el siguiente", () => {
     const medianoche = instanteGT("2026-08-21T00:00:00");
-
-    expect(calendar.isVentanaAbierta(medianoche)).toBe(false);
-    expect(calendar.getFechaOperacion(antes)).toBe("2026-08-21");
     expect(calendar.getFechaOperacion(medianoche)).toBe("2026-08-22");
+    expect(calendar.getFechaOperacionDeVentanaReciente(medianoche)).toBe(
+      "2026-08-21",
+    );
+  });
+
+  test("ventana abierta: la fecha reciente coincide con la de operación", () => {
+    const tarde = instanteGT("2026-08-20T22:00:00");
+    expect(calendar.isVentanaAbierta(tarde)).toBe(true);
+    expect(calendar.getFechaOperacionDeVentanaReciente(tarde)).toBe(
+      calendar.getFechaOperacion(tarde),
+    );
+  });
+
+  test("sábado 00:00: la ventana reciente es el sábado, no el lunes", () => {
+    const viernesNoche = instanteGT("2026-08-21T23:59:00");
+    const sabadoMedianoche = instanteGT("2026-08-22T00:00:00");
+    expect(calendar.getFechaOperacion(viernesNoche)).toBe("2026-08-22");
+    expect(calendar.getFechaOperacion(sabadoMedianoche)).toBe("2026-08-24");
+    expect(
+      calendar.getFechaOperacionDeVentanaReciente(sabadoMedianoche),
+    ).toBe("2026-08-22");
+  });
+
+  test("feriado 00:00: la ventana reciente conserva la fecha de la víspera", () => {
+    const vispera = instanteGT("2026-09-14T23:59:00");
+    const feriadoMedianoche = instanteGT("2026-09-15T00:00:00");
+    expect(calendar.getFechaOperacion(vispera)).toBe("2026-09-16");
+    expect(
+      calendar.getFechaOperacionDeVentanaReciente(feriadoMedianoche),
+    ).toBe("2026-09-16");
+  });
+
+  test("nombreDiaOperacion en mayúsculas para el consolidado", async () => {
+    const { nombreDiaOperacion } = await import("./calendar");
+    expect(nombreDiaOperacion("2026-08-22")).toBe("SÁBADO");
+    expect(nombreDiaOperacion("2026-08-21")).toBe("VIERNES");
   });
 
   test("sábado: es hábil y la carga efectiva sale de PLANTA", () => {

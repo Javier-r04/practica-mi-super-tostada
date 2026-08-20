@@ -18,6 +18,7 @@ export class PgBossService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PgBossService.name);
   private boss: PgBoss | null = null;
   private drainTimer: ReturnType<typeof setInterval> | null = null;
+  private intervalTimers: ReturnType<typeof setInterval>[] = [];
 
   constructor(
     private readonly processor: OutboxProcessor,
@@ -76,6 +77,7 @@ export class PgBossService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     if (this.drainTimer) clearInterval(this.drainTimer);
+    for (const t of this.intervalTimers) clearInterval(t);
     if (this.boss) await this.boss.stop({ graceful: false, timeout: 5_000 });
   }
 
@@ -95,6 +97,28 @@ export class PgBossService implements OnModuleInit, OnModuleDestroy {
       { assetId },
       { singletonKey: assetId },
     );
+  }
+
+  async registerIntervalJob(
+    queue: string,
+    everyMs: number,
+    handler: () => Promise<void>,
+  ): Promise<void> {
+    if (!this.boss) return;
+    await this.boss.createQueue(queue, {
+      policy: "exclusive",
+      retryLimit: 3,
+      retryDelay: 15,
+      retryBackoff: true,
+    });
+    await this.boss.work(queue, async () => {
+      await handler();
+    });
+    const timer = setInterval(() => {
+      void this.boss?.send(queue, {}, { singletonKey: queue });
+    }, everyMs);
+    this.intervalTimers.push(timer);
+    void this.boss.send(queue, {}, { singletonKey: queue });
   }
 
   async drain(): Promise<void> {

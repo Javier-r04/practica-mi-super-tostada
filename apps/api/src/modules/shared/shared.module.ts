@@ -8,6 +8,8 @@ import { AuditWriter } from "./audit.writer";
 import { OutboxWriter } from "./outbox.writer";
 import { OutboxProcessor } from "./outbox.processor";
 import { NullOutboxDispatcher, OUTBOX_DISPATCHER } from "./outbox.dispatcher";
+import { DomainEventWriter } from "./domain-event.writer";
+import { PedidoEvents } from "./panel-events";
 import { PgBossService } from "./pgboss.service";
 import { CLOCK, STORAGE_PORT } from "./tokens";
 import { FakeStorageAdapter } from "./storage/fake.storage";
@@ -28,6 +30,8 @@ import { CalendarioController } from "./calendario.controller";
     OutboxProcessor,
     { provide: OUTBOX_DISPATCHER, useClass: NullOutboxDispatcher },
     AuditWriter,
+    DomainEventWriter,
+    PedidoEvents,
     { provide: APP_FILTER, useClass: DomainExceptionFilter },
     FakeStorageAdapter,
     {
@@ -49,6 +53,8 @@ import { CalendarioController } from "./calendario.controller";
     OutboxWriter,
     OutboxProcessor,
     AuditWriter,
+    DomainEventWriter,
+    PedidoEvents,
     STORAGE_PORT,
     AssetVariantsJob,
     AssetsService,

@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { DateTime } from "luxon";
 import {
   auditLog,
+  diaOperacion,
   factura,
   organizacion,
   outbox,
@@ -417,9 +418,9 @@ describe.skipIf(!listo)("portal E2", () => {
         .insert(factura)
         .values({
           pedidoId: pedidoPendiente!.id,
-          numeroDte: "DTE-100",
+          numeroDte: `DTE-100-${crypto.randomUUID().slice(0, 8)}`,
           montoCentavos: 10000,
-          emitidaAt: instanteGT("2026-08-05T10:00:00"),
+          emitidaAt: instanteGT("2026-08-10T10:00:00"),
         })
         .returning();
       await f.db.insert(pago).values({
@@ -433,7 +434,7 @@ describe.skipIf(!listo)("portal E2", () => {
         .insert(factura)
         .values({
           pedidoId: pedidoPagado!.id,
-          numeroDte: "DTE-200",
+          numeroDte: `DTE-200-${crypto.randomUUID().slice(0, 8)}`,
           montoCentavos: 1000,
           emitidaAt: instanteGT("2026-08-01T10:00:00"),
         })
@@ -454,9 +455,49 @@ describe.skipIf(!listo)("portal E2", () => {
       expect(cuenta.saldoCentavos).toBe(7000);
       expect(cuenta.facturas).toHaveLength(1);
       expect(cuenta.facturas[0]?.saldoCentavos).toBe(7000);
-      expect(cuenta.facturas[0]?.antiguedadDias).toBe(15);
+      expect(cuenta.facturas[0]?.antiguedadDias).toBe(10);
       expect(cuenta.facturas[0]?.estado).toBe("ABONO_PARCIAL");
       expect(JSON.stringify(cuenta)).not.toMatch(/cancelad/i);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("portal 409 DIA_CERRADO aunque la ventana reloj siga abierta", async () => {
+    const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
+    const f = await fixture(clock);
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla No. 16 (grande)",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `Cierre ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 1250 }, f.actor);
+      await f.db.insert(diaOperacion).values({
+        organizacionId: f.orgId,
+        fechaOperacion: "2026-08-21",
+        estado: "CERRADO",
+      });
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+      const sesion = await f.portal.abrirSesion(clienteRow, meta);
+      expect(sesion.ventana.abierta).toBe(false);
+      await expect(
+        f.pedidos.upsertPortal(
+          clienteRow,
+          { items: [{ productoId: prod.id, cantidad: 10 }] },
+          meta,
+        ),
+      ).rejects.toMatchObject({ code: "DIA_CERRADO", httpStatus: 409 });
     } finally {
       await f.client.end({ timeout: 1 });
     }

@@ -49,7 +49,7 @@ export default function LoginPage() {
                 method: "POST",
                 body: JSON.stringify(parsed.data),
               });
-              router.replace("/catalogo");
+              router.replace("/hoy");
             } catch (err) {
               setError(
                 err instanceof ApiError ? err.message : "No se pudo entrar",
