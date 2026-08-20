@@ -34,7 +34,7 @@ bun run db:seed
 - API: http://localhost:3001
 - Salud: `GET http://localhost:3001/health` — reporta `db: ok|down` sin tumbar el proceso. Un `.env` incompleto sí es fatal al boot.
 
-`db:seed` es idempotente: se puede correr dos veces. No inventa precios (`precio_centavos` queda nulo hasta que Cristian los cargue).
+`db:seed` es idempotente: se puede correr dos veces. No inventa precios (`precio_centavos` queda nulo hasta que Cristian los cargue). En desarrollo crea cuatro cuentas (`cristian` ADMIN_JEFE, `alex`, `carla`, `tony`) con `SEED_ADMIN_PASSWORD` (default `dev-local-only`). Login: `POST /auth/login` con `{ username, password }` y cookie `httpOnly`.
 
 ## Scripts
 
@@ -52,4 +52,4 @@ bun run db:seed
 
 ## Qué no está en este hito
 
-Login, almacenamiento R2, WhatsApp, pg-boss ni pantallas de operación. Eso viene después de la fundación (F-004 en adelante).
+Pantallas de operación (E1), WhatsApp y PWA. Auth, outbox/pg-boss y storage R2 ya están en la API.

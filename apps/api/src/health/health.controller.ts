@@ -2,7 +2,9 @@ import { Controller, Get, Inject } from "@nestjs/common";
 import { envelopeOk } from "@misupertostada/shared";
 import type { Sql } from "postgres";
 import { POSTGRES_CLIENT } from "../modules/shared/tokens";
+import { Public } from "../modules/shared/public.decorator";
 
+@Public()
 @Controller("health")
 export class HealthController {
   constructor(@Inject(POSTGRES_CLIENT) private readonly sql: Sql) {}

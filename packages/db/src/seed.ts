@@ -8,6 +8,8 @@ import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq, and } from "drizzle-orm";
 import postgres from "postgres";
+import * as argon2 from "argon2";
+import { PERMISO_DESCRIPCION, PERMISOS } from "@misupertostada/shared";
 import * as schema from "./schema";
 
 config({ path: resolve(import.meta.dir, "../../../.env") });
@@ -245,6 +247,52 @@ export async function seed(databaseUrl: string) {
         ventanaCierre: "00:00",
       })
       .onConflictDoNothing({ target: schema.organizacion.id });
+
+    await db
+      .insert(schema.permiso)
+      .values(
+        PERMISOS.map((codigo) => ({
+          codigo,
+          descripcion: PERMISO_DESCRIPCION[codigo],
+        })),
+      )
+      .onConflictDoNothing();
+
+    if (process.env.NODE_ENV !== "production") {
+      const password = process.env.SEED_ADMIN_PASSWORD ?? "dev-local-only";
+      const passwordHash = await argon2.hash(password, {
+        type: argon2.argon2id,
+      });
+      await db
+        .insert(schema.usuario)
+        .values([
+          {
+            organizacionId: ORG_ID,
+            username: "cristian",
+            passwordHash,
+            rol: "ADMIN_JEFE",
+          },
+          {
+            organizacionId: ORG_ID,
+            username: "alex",
+            passwordHash,
+            rol: "PRODUCCION",
+          },
+          {
+            organizacionId: ORG_ID,
+            username: "carla",
+            passwordHash,
+            rol: "TIENDA",
+          },
+          {
+            organizacionId: ORG_ID,
+            username: "tony",
+            passwordHash,
+            rol: "REPARTO",
+          },
+        ])
+        .onConflictDoNothing();
+    }
 
     await db
       .insert(schema.producto)

@@ -43,3 +43,39 @@ export {
   envelopeSchema,
   type Envelope,
 } from "./envelope";
+export {
+  PERMISOS,
+  PERMISOS_NO_DELEGABLES,
+  PERMISO_DESCRIPCION,
+  ROL_PERMISOS,
+  esNoDelegable,
+  esPermisoCodigo,
+  puedeDelegar,
+  permisosEfectivos,
+  tienePermiso,
+  type PermisoCodigo,
+  type PermisoNoDelegable,
+} from "./permisos";
+export {
+  actorPublicoSchema,
+  crearUsuarioRequestSchema,
+  delegarPermisoRequestSchema,
+  loginRequestSchema,
+  usernameSchema,
+  type ActorPublico,
+  type CrearUsuarioRequest,
+  type DelegarPermisoRequest,
+  type LoginRequest,
+} from "./auth";
+export {
+  ASSET_MAX_BYTES,
+  ASSET_MIME_PERMITIDOS,
+  ASSET_OWNER_TYPES,
+  SHA256_HEX,
+  confirmAssetRequestSchema,
+  presignRequestSchema,
+  type AssetMime,
+  type AssetOwnerType,
+  type ConfirmAssetRequest,
+  type PresignRequest,
+} from "./storage";

@@ -91,13 +91,14 @@ export const usuario = pgTable(
     organizacionId: uuid("organizacion_id")
       .notNull()
       .references(() => organizacion.id),
-    email: text("email").notNull(),
+    email: text("email"),
+    username: text("username").notNull(),
     passwordHash: text("password_hash"),
     rol: rolEnum("rol").notNull(),
     activo: boolean("activo").notNull().default(true),
     ...timestamps,
   },
-  (t) => [unique("usuario_email_unique").on(t.email)],
+  (t) => [unique("usuario_username_unique").on(t.username)],
 );
 
 export const sesion = pgTable(

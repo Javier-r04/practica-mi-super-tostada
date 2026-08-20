@@ -180,7 +180,7 @@ Razón: el vocabulario es específico y no traduce limpio (*papalinas*, *punto d
 ```
 Organizacion            multi-tenant ligero: FK en tablas core, sin UI de gestión
 
-Usuario                 email, password_hash, rol, activo
+Usuario                 username, password_hash, rol, activo
 Rol                     ADMIN_JEFE | ADMIN | PRODUCCION | TIENDA | REPARTO
 Permiso                 granular; ADMIN_JEFE puede delegar (ver §7)
 

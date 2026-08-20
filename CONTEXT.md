@@ -193,21 +193,21 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 - [x] Zona `America/Guatemala` fija; ningún `new Date()` fuera del módulo
 
 **F-004 · Autenticación y roles**
-- [ ] Login con cookie httpOnly + argon2id
-- [ ] Roles `ADMIN_JEFE | ADMIN | PRODUCCION | TIENDA | REPARTO`
-- [ ] `ADMIN_JEFE` puede delegar permisos granulares
-- [ ] Cuenta individual por persona; sin cuentas compartidas
+- [x] Login con cookie httpOnly + argon2id
+- [x] Roles `ADMIN_JEFE | ADMIN | PRODUCCION | TIENDA | REPARTO`
+- [x] `ADMIN_JEFE` puede delegar permisos granulares
+- [x] Cuenta individual por persona; sin cuentas compartidas
 
 **F-005 · Auditoría y eventos**
 - [x] `audit_log` append-only con actor, acción, entidad, antes/después, IP, user-agent
 - [x] `domain_events` + `outbox` con constraint única de idempotencia
-- [ ] Worker que drena el outbox con reintentos vía pg-boss
-- [ ] Test: reinicio a mitad de proceso no duplica ni pierde mensajes
+- [x] Worker que drena el outbox con reintentos vía pg-boss
+- [x] Test: reinicio a mitad de proceso no duplica ni pierde mensajes
 
 **F-006 · Almacenamiento de archivos**
-- [ ] URLs prefirmadas contra R2; el browser sube directo, los bytes no pasan por la API
+- [x] URLs prefirmadas contra R2; el browser sube directo, los bytes no pasan por la API
 - [x] Tabla `Asset` polimórfica con claves content-addressed (sha256)
-- [ ] Variantes de imagen generadas al subir
+- [x] Variantes de imagen generadas al subir
 
 ### E1 — Catálogo y clientes *(semana 2)*
 
