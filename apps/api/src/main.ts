@@ -1,8 +1,8 @@
 import "reflect-metadata";
+import { loadEnv } from "./config/env";
 import { NestFactory } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module";
-import { loadEnv } from "./config/env";
 
 async function bootstrap() {
   const env = loadEnv();
@@ -12,4 +12,7 @@ async function bootstrap() {
   await app.listen(env.API_PORT);
 }
 
-void bootstrap();
+bootstrap().catch((err: unknown) => {
+  console.error("Fatal bootstrap error", err);
+  process.exit(1);
+});

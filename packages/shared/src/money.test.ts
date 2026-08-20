@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { centavosSchema, formatearCentavos } from "./money";
+import { centavosSchema, formatearCentavos, redondearBancario } from "./money";
 
 describe("formatearCentavos", () => {
   test("formatea 1250 como Q 12.50", () => {
@@ -24,13 +24,13 @@ describe("formatearCentavos", () => {
     expect(formatearCentavos(-1250, { simbolo: false })).toBe("−12.50");
   });
 
-  test("redondea valores no enteros (no deberían llegar aquí)", () => {
-    expect(formatearCentavos(1250.4)).toBe("Q 12.50");
-    expect(formatearCentavos(1250.6)).toBe("Q 12.51");
+  test("rechaza floats: no enmascara corrupción de centavos", () => {
+    expect(() => formatearCentavos(1250.4)).toThrow(/entero en centavos/);
+    expect(() => formatearCentavos(1250.6)).toThrow(/entero en centavos/);
   });
 
-  test("trata NaN como cero", () => {
-    expect(formatearCentavos(Number.NaN)).toBe("Q 0.00");
+  test("rechaza NaN", () => {
+    expect(() => formatearCentavos(Number.NaN)).toThrow(/entero en centavos/);
   });
 });
 
@@ -43,5 +43,24 @@ describe("centavosSchema", () => {
 
   test("rechaza decimales", () => {
     expect(centavosSchema.safeParse(12.5).success).toBe(false);
+  });
+});
+
+describe("redondearBancario (half-even)", () => {
+  test("empate .5 redondea al par más cercano", () => {
+    expect(redondearBancario(2.5)).toBe(2);
+    expect(redondearBancario(3.5)).toBe(4);
+    expect(redondearBancario(12.5)).toBe(12);
+    expect(redondearBancario(13.5)).toBe(14);
+  });
+
+  test("fuera del empate redondea al más cercano", () => {
+    expect(redondearBancario(2.4)).toBe(2);
+    expect(redondearBancario(2.6)).toBe(3);
+  });
+
+  test("negativos también usan half-even", () => {
+    expect(redondearBancario(-2.5)).toBe(-2);
+    expect(redondearBancario(-3.5)).toBe(-4);
   });
 });

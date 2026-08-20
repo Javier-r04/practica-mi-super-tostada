@@ -10,6 +10,10 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "paths": {
+      "@misupertostada/shared": ["../../packages/shared/src/index.ts"],
+      "@misupertostada/db": ["../../packages/db/src/index.ts"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,

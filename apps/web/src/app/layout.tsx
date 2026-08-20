@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es-GT" className="h-full">
+    <html lang="es-GT" className="h-full" suppressHydrationWarning>
       <body className="min-h-full flex flex-col font-core bg-tinta-50 text-tinta-800">
         {children}
       </body>

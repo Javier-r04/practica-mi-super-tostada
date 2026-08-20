@@ -1,0 +1,31 @@
+-- Reversa de 0001_init. No hay DELETE de filas de negocio: esto tira el esquema de init.
+DROP TABLE IF EXISTS "usuario_permiso" CASCADE;
+DROP TABLE IF EXISTS "sesion" CASCADE;
+DROP TABLE IF EXISTS "pago" CASCADE;
+DROP TABLE IF EXISTS "factura" CASCADE;
+DROP TABLE IF EXISTS "pedido_item" CASCADE;
+DROP TABLE IF EXISTS "pedido" CASCADE;
+DROP TABLE IF EXISTS "cliente_producto" CASCADE;
+DROP TABLE IF EXISTS "mensaje" CASCADE;
+DROP TABLE IF EXISTS "conversacion" CASCADE;
+DROP TABLE IF EXISTS "plantilla_wa" CASCADE;
+DROP TABLE IF EXISTS "asset" CASCADE;
+DROP TABLE IF EXISTS "audit_log" CASCADE;
+DROP TABLE IF EXISTS "domain_events" CASCADE;
+DROP TABLE IF EXISTS "outbox" CASCADE;
+DROP TABLE IF EXISTS "dia_no_laborable" CASCADE;
+DROP TABLE IF EXISTS "producto" CASCADE;
+DROP TABLE IF EXISTS "cliente" CASCADE;
+DROP TABLE IF EXISTS "permiso" CASCADE;
+DROP TABLE IF EXISTS "usuario" CASCADE;
+DROP TABLE IF EXISTS "organizacion" CASCADE;
+
+DROP TYPE IF EXISTS "public"."familia";
+DROP TYPE IF EXISTS "public"."mensaje_direccion";
+DROP TYPE IF EXISTS "public"."outbox_estado";
+DROP TYPE IF EXISTS "public"."pago_metodo";
+DROP TYPE IF EXISTS "public"."pedido_estado";
+DROP TYPE IF EXISTS "public"."pedido_origen";
+DROP TYPE IF EXISTS "public"."punto_carga";
+DROP TYPE IF EXISTS "public"."rol";
+DROP TYPE IF EXISTS "public"."unidad_medida";
