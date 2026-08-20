@@ -1,0 +1,36 @@
+:root{
+/* --- Verde maíz (marca primaria). Muestreado del material promocional: #002e03 → #005002 --- */
+--green-950:#031C06;--green-900:#062E0A;--green-850:#0A3D10;--green-800:#0E4E15;--green-700:#136220;--green-600:#1B7A2B;--green-500:#2B9A3D;--green-400:#57B865;--green-300:#8FD298;--green-200:#C2E7C7;--green-100:#DFF2E1;--green-50:#F1F8F1;
+/* --- Amarillo rótulo / oro relieve --- */
+--yellow-600:#C9A400;--yellow-500:#F5D400;--yellow-400:#FFE100;--yellow-300:#FFEC5C;--yellow-200:#FFF4A3;--yellow-100:#FFF9D6;
+--gold-600:#A87C1C;--gold-500:#D8B437;--gold-400:#E9D145;
+/* --- Papel: el corte de ola crema del material impreso --- */
+--cream-500:#EFE7D2;--cream-300:#F6F1E4;--cream-100:#FBF8F0;
+/* --- Neutros cálidos (tintados hacia el papel, nunca gris azulado) --- */
+--ink-900:#17190F;--ink-800:#282A20;--ink-700:#3D4034;--ink-600:#575B4C;--ink-500:#767A69;--ink-400:#9B9E8E;--ink-300:#C2C4B7;--ink-200:#DEDFD6;--ink-100:#EDEEE8;--ink-50:#F7F7F4;--white:#FFFFFF;
+/* --- Semánticos de operación --- */
+--red-700:#8E1C16;--red-600:#B3231C;--red-100:#FBE4E2;
+--amber-700:#8A5502;--amber-600:#C77A02;--amber-100:#FDF0D6;
+--blue-700:#154A63;--blue-600:#1D6A8C;--blue-100:#E1EFF5;
+
+/* ============ ALIAS SEMÁNTICOS ============ */
+/* Superficies */
+--surface-page:var(--ink-50);--surface-card:var(--white);--surface-sunken:var(--ink-100);--surface-inverse:var(--green-900);--surface-brand:var(--green-800);--surface-brand-soft:var(--green-50);--surface-accent:var(--yellow-400);--surface-paper:var(--cream-300);--surface-overlay:rgba(3,28,6,.55);
+/* Texto */
+--text-body:var(--ink-800);--text-strong:var(--ink-900);--text-muted:var(--ink-500);--text-subtle:var(--ink-400);--text-on-brand:var(--white);--text-on-accent:var(--green-900);--text-brand:var(--green-800);--text-link:var(--green-700);--text-link-hover:var(--green-600);--text-danger:var(--red-600);--text-warning:var(--amber-700);--text-money:var(--ink-900);
+/* Bordes */
+--border-subtle:var(--ink-200);--border-default:var(--ink-300);--border-strong:var(--ink-400);--border-brand:var(--green-800);--border-accent:var(--yellow-500);--border-focus:var(--green-600);
+/* Estados de dominio (pedido / factura / sync) */
+--estado-borrador-bg:var(--ink-100);--estado-borrador-fg:var(--ink-600);
+--estado-confirmado-bg:var(--blue-100);--estado-confirmado-fg:var(--blue-700);
+--estado-produccion-bg:var(--yellow-100);--estado-produccion-fg:var(--gold-600);
+--estado-entregado-bg:var(--green-100);--estado-entregado-fg:var(--green-700);
+--estado-anulado-bg:var(--ink-100);--estado-anulado-fg:var(--ink-500);
+--estado-pagado-bg:var(--green-100);--estado-pagado-fg:var(--green-700);
+--estado-pendiente-bg:var(--amber-100);--estado-pendiente-fg:var(--amber-700);
+--estado-vencido-bg:var(--red-100);--estado-vencido-fg:var(--red-700);
+--estado-sin-sincronizar-bg:var(--amber-100);--estado-sin-sincronizar-fg:var(--amber-700);
+/* Punto de carga */
+--carga-planta-bg:var(--green-100);--carga-planta-fg:var(--green-800);
+--carga-democracia-bg:var(--blue-100);--carga-democracia-fg:var(--blue-700);
+}

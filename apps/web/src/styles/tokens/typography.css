@@ -1,0 +1,16 @@
+:root{
+/* Escala operativa. Base 14px. Nunca bajar de 13px en texto interactivo; rótulos 12px solo en caps. */
+--text-3xs:11px;--text-2xs:12px;--text-xs:13px;--text-sm:14px;--text-base:14px;--text-md:16px;--text-lg:18px;--text-xl:20px;--text-2xl:24px;--text-3xl:28px;--text-4xl:36px;
+
+--leading-tight:1;--leading-snug:1.25;--leading-normal:1.4;--leading-relaxed:1.5;--leading-loose:1.65;
+--weight-regular:400;--weight-medium:500;--weight-semibold:600;--weight-bold:600;
+--tracking-display:0;--tracking-caps:.08em;--tracking-normal:0;--tracking-tight:-.01em;
+
+/* Roles compuestos. Un solo corte: Plex Sans. Cifras de tablero = cuerpo grande, no display promocional. */
+--type-promo-size:var(--text-4xl);--type-promo-family:var(--font-core);--type-promo-leading:1.05;
+--type-h1-size:var(--text-2xl);--type-h2-size:var(--text-lg);--type-h3-size:var(--text-md);
+--type-label-size:var(--text-2xs);--type-label-tracking:var(--tracking-caps);--type-label-weight:var(--weight-semibold);
+--type-body-size:var(--text-base);--type-body-leading:var(--leading-relaxed);
+--type-data-size:var(--text-xs);--type-data-family:var(--font-mono);
+--numeric-tabular:tabular-nums;/* @kind other */
+}

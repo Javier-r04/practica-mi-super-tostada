@@ -1,0 +1,33 @@
+<!-- @dsCard group="Components" viewport="700x380" name="Formularios" subtitle="Input, Textarea, Select, Checkbox, RadioGroup, Switch, QuantityStepper, SearchField" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{background:var(--surface-page);padding:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;align-items:start}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const { Input, Textarea, Select, Checkbox, RadioGroup, Switch, QuantityStepper, SearchField, Icon, Field } = window.MiSPerTostadaDesignSystem_679973;
+function Demo(){
+  const [metodo,setMetodo]=React.useState('EFECTIVO');
+  const [fav,setFav]=React.useState(true);
+  const [activo,setActivo]=React.useState(true);
+  const [cant,setCant]=React.useState(12.5);
+  const [q,setQ]=React.useState('tortilla');
+  return <div className="grid">
+    <Input label="Monto cobrado" prefix="Q" inputMode="decimal" defaultValue="1,240.00"/>
+    <Input label="Número de DTE" error="Ese DTE ya está registrado" defaultValue="A-00918273"/>
+    <Select label="Punto de carga" options={[{value:'PLANTA',label:'Planta'},{value:'DEMOCRACIA',label:'Democracia'}]}/>
+    <Field label="Método de pago"><RadioGroup name="metodo" value={metodo} onChange={setMetodo} options={[{value:'EFECTIVO',label:'Efectivo',icon:<Icon name="banknote" size={18}/>},{value:'TRANSFERENCIA',label:'Transferencia',icon:<Icon name="arrow-left-right" size={18}/>}]}/></Field>
+    <Field label="Cantidad pedida" hint="Paso de 0.5 lb"><QuantityStepper value={cant} onChange={setCant} step={0.5} unidad="lb" size="lg"/></Field>
+    <Field label="Buscar producto"><SearchField value={q} onChange={setQ} placeholder="Cliente, alias o correlativo"/></Field>
+    <Textarea label="Motivo de la reapertura" required rows={2} hint="Queda en audit_log con tu usuario."/>
+    <div style={{display:'grid',gap:8}}>
+      <Checkbox label="Marcar como favorito del cliente" description="Aparece primero en su portal" checked={fav} onChange={setFav}/>
+      <Switch label="Cliente activo" description="Desactivar no borra su historial" checked={activo} onChange={setActivo}/>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

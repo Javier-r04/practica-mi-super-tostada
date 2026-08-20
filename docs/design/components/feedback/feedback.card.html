@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" viewport="700x420" name="Retroalimentación" subtitle="Toast, OfflineBanner, EmptyState, Dialog" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{background:var(--surface-page);padding:16px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const { Toast, OfflineBanner, EmptyState, Dialog, Button, Textarea } = window.MiSPerTostadaDesignSystem_679973;
+function Demo(){
+  return <div className="cols">
+    <div style={{display:'grid',gap:10}}>
+      <Toast tone="exito" title="Cobro registrado" description="Q 1,240.00 en efectivo · pedido 1042" onDismiss={()=>{}}/>
+      <Toast tone="aviso" title="Guardado en este teléfono" description="Se enviará al recuperar señal"/>
+      <Toast tone="error" title="Meta rechazó el envío" description="Código 131047: fuera de la ventana de 24 h" action={<Button size="sm" variant="secondary">Usar plantilla</Button>}/>
+      <div style={{display:'grid',gap:6,border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-md)',overflow:'hidden',background:'var(--white)'}}>
+        <OfflineBanner online={false} pendientes={2}/>
+        <OfflineBanner online pendientes={2} onReintentar={()=>{}}/>
+        <OfflineBanner online pendientes={2} sincronizando/>
+      </div>
+      <div style={{background:'var(--white)',border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-card)'}}>
+        <EmptyState size="sm" icon="clipboard-list" title="Ningún pedido todavía" description="La ventana abre a las 15:00." action={<Button variant="secondary" size="sm">Capturar pedido manual</Button>}/>
+      </div>
+    </div>
+    <div style={{position:'relative',minHeight:330,borderRadius:'var(--radius-card)',overflow:'hidden',background:'var(--ink-100)'}}>
+      <Dialog open tone="warning" title="Reabrir el día 19 de agosto" description="No se reenvían los mensajes ya enviados. Al cerrar de nuevo se genera hoja versión 2 con los cambios resaltados." onClose={()=>{}}
+        footer={<><Button variant="secondary">Cancelar</Button><Button variant="danger">Reabrir día</Button></>}>
+        <Textarea label="Motivo" required rows={2} hint="Queda en audit_log con tu usuario."/>
+      </Dialog>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

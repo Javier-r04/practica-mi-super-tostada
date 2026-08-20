@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" viewport="700x330" name="Navegación" subtitle="SidebarNav, TopBar, BottomNav" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{background:var(--surface-page);padding:16px;margin:0}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const { SidebarNav, TopBar, BackButton, BottomNav, VentanaBadge, Icon } = window.MiSPerTostadaDesignSystem_679973;
+function Demo(){
+  const [v,setV]=React.useState('pedidos');
+  const [m,setM]=React.useState('cobros');
+  return <div style={{display:'flex',gap:18,alignItems:'flex-start'}}>
+    <div style={{height:298,borderRadius:'var(--radius-md)',overflow:'hidden',display:'flex'}}>
+      <SidebarNav activeId={v} onSelect={setV}
+        header={<div style={{display:'flex',alignItems:'center',gap:8}}><img src="../../assets/logo-badge.png" alt="Mi Súper Tostada" style={{width:34,height:34,borderRadius:6,objectFit:'cover'}}/><span style={{color:'#fff',fontFamily:'var(--font-display)',fontSize:15,lineHeight:1.05,textTransform:'uppercase'}}>Mi Súper<br/>Tostada</span></div>}
+        footer={<div style={{fontSize:12}}><div style={{color:'#fff',fontWeight:700}}>Cristian</div><div style={{color:'var(--green-300)',fontSize:11,letterSpacing:'.08em'}}>ADMIN_JEFE</div></div>}
+        items={[{id:'hoy',label:'Hoy',icon:'sun'},{id:'pedidos',label:'Pedidos',icon:'clipboard-list',badge:18},{id:'produccion',label:'Producción',icon:'factory'},{id:'cartera',label:'Cartera',icon:'banknote',badge:7},{id:'conversaciones',label:'Conversaciones',icon:'message-circle',badge:2},{id:'catalogo',label:'Catálogo',icon:'package'}]}/>
+    </div>
+    <div style={{flex:1,display:'grid',gap:14}}>
+      <div style={{borderRadius:'var(--radius-md)',overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+        <TopBar title="Pedido 1042" subtitle="Restaurante Doña Marta · entrega 08:30" left={<BackButton/>} right={<VentanaBadge abierta expiraEn={2*3600e3+14*60e3} size="sm"/>}/>
+      </div>
+      <div style={{borderRadius:'var(--radius-md)',overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+        <TopBar tone="light" title="Cartera" subtitle="7 facturas pendientes" right={<Icon name="filter" size={18} color="var(--ink-600)"/>}/>
+      </div>
+      <div style={{borderRadius:'var(--radius-md)',overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+        <BottomNav activeId={m} onSelect={setM} items={[{id:'ruta',label:'Ruta',icon:'route'},{id:'cobros',label:'Cobros',icon:'banknote',badge:3},{id:'historial',label:'Historial',icon:'history'},{id:'yo',label:'Mi cuenta',icon:'user'}]}/>
+      </div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

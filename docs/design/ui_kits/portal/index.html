@@ -1,0 +1,35 @@
+<!-- @dsCard group="Portal cliente" viewport="900x760" name="Portal del cliente · /p/{token}" subtitle="Sin login, sin app: catálogo con alias y favoritos, resumen y confirmación" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Portal del cliente · Mi Súper Tostada</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;background:var(--ink-100);display:grid;place-items:start center;padding:24px;min-height:100vh}
+.phone{position:relative;width:390px;height:712px;display:flex;flex-direction:column;overflow:hidden;background:var(--surface-page);border-radius:26px;box-shadow:var(--shadow-lg);border:1px solid var(--ink-200)}
+.url{font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-bottom:8px;text-align:center}</style>
+</head><body>
+<div><div class="url">mst.gt/p/8f3a…c21 &nbsp;·&nbsp; token opaco, sin login</div><div id="root" class="phone"></div></div>
+<script type="text/babel" src="PortalScreens.jsx"></script>
+<script type="text/babel">
+const { TopBar, BackButton, VentanaBadge, Icon } = window.MiSPerTostadaDesignSystem_679973;
+function Portal(){
+  const [paso,setPaso]=React.useState('catalogo');
+  const [cantidades,setCantidades]=React.useState({'TOR-16-LB':40,'TOS-DEL-BO':12,'PAP-NAT-BO':6});
+  const ventanaMs=2*3600e3+14*60e3;
+  return <>
+    <TopBar
+      title={paso==='catalogo'?'Restaurante Doña Marta':paso==='resumen'?'Revisar pedido':'Pedido 1042'}
+      subtitle={paso==='catalogo'?'Pedido para el jueves 20 de agosto':'Jueves 20 de agosto · entrega 08:30'}
+      left={paso==='catalogo'
+        ? <img src="../../assets/logo-badge.png" alt="Mi Súper Tostada" style={{width:34,height:34,borderRadius:7,objectFit:'cover'}}/>
+        : <BackButton onClick={()=>setPaso(paso==='resumen'?'catalogo':'resumen')}/>}
+      right={paso==='catalogo'?<Icon name="phone" size={18}/>:null}/>
+    {paso==='catalogo' && <PortalCatalogo cantidades={cantidades} setCantidades={setCantidades} ventanaMs={ventanaMs} onContinuar={()=>setPaso('resumen')}/>}
+    {paso==='resumen' && <PortalResumen cantidades={cantidades} onVolver={()=>setPaso('catalogo')} onConfirmar={()=>setPaso('confirmado')}/>}
+    {paso==='confirmado' && <PortalConfirmado onEditar={()=>setPaso('catalogo')}/>}
+  </>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Portal/>);
+</script></body></html>

@@ -1,0 +1,45 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Core" subtitle="Button, Badge, Tag, Tabs, Card, Icon" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{background:var(--surface-page);padding:16px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.stack{display:grid;gap:14px}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const { Button, Badge, Tag, Tabs, Card, Icon } = window.MiSPerTostadaDesignSystem_679973;
+function Demo(){
+  const [tab,setTab]=React.useState('pendientes');
+  return <div className="stack">
+    <div className="row">
+      <Button variant="primary">Confirmar pedido</Button>
+      <Button variant="accent">Cerrar ventana</Button>
+      <Button variant="secondary">Cancelar</Button>
+      <Button variant="ghost">Ver historial</Button>
+      <Button variant="danger" size="sm">Anular</Button>
+      <Button variant="primary" size="sm" disabled>Sin permiso</Button>
+    </div>
+    <div className="row">
+      <Button size="lg" variant="primary"><Icon name="banknote" size={18}/>Registrar cobro</Button>
+      <Badge tone="green" dot>Sincronizado</Badge><Badge tone="amber">3 pendientes</Badge>
+      <Badge tone="red">Vencido</Badge><Badge tone="blue">Confirmado</Badge><Badge tone="solid" size="sm">Planta</Badge>
+      <Tag tone="brand" onRemove={()=>{}}>tortilla grande</Tag>
+      <Tag tone="accent" icon={<Icon name="star" size={14}/>}>Favorito</Tag>
+    </div>
+    <Tabs activeId={tab} onSelect={setTab} tabs={[{id:'todas',label:'Todas',count:42},{id:'pendientes',label:'Pendientes',count:7},{id:'vencidas',label:'Vencidas',count:2}]}/>
+    <div className="row" style={{alignItems:'stretch'}}>
+      <Card title="Pedidos de hoy" subtitle="Ventana abierta hasta 00:00" style={{flex:1}} actions={<Badge tone="green" dot>Abierta</Badge>}>
+        <span style={{fontFamily:'var(--font-display)',fontSize:38,color:'var(--green-800)'}}>18</span>
+      </Card>
+      <Card tone="brand" title="Por cobrar hoy" style={{flex:1}}>
+        <span style={{fontFamily:'var(--font-display)',fontSize:38,color:'var(--yellow-400)'}}>Q 4,820.50</span>
+      </Card>
+      <Card tone="paper" title="Hoja de producción" subtitle="Versión 2 · reabierto" style={{flex:1}}>
+        <div className="row"><Icon name="factory" size={18} color="var(--green-700)"/><span style={{fontSize:'var(--text-sm)'}}>142 lb tortilla n.º 16</span></div>
+      </Card>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

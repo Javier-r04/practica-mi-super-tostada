@@ -1,0 +1,80 @@
+<!-- @dsCard group="Reparto (PWA)" viewport="900x780" name="App de reparto · ruta y cobro" subtitle="Móvil con cola offline: nunca muestra éxito sin confirmación del servidor" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Reparto · Mi Súper Tostada</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;background:var(--ink-100);display:flex;justify-content:center;padding:24px;min-height:100vh}
+.phone{position:relative;width:390px;height:722px;display:flex;flex-direction:column;overflow:hidden;background:var(--surface-page);border-radius:26px;box-shadow:var(--shadow-lg);border:1px solid var(--ink-200)}
+.aside{width:230px;margin-left:24px;font-size:12px;color:var(--text-muted);line-height:1.5}</style>
+</head><body>
+<div id="root" class="phone"></div>
+<div class="aside">
+  <div class="mst-label" style="margin-bottom:6px">Demostración</div>
+  <p>Usa el interruptor de señal en la barra superior para ver la interfaz honesta: sin conexión, las acciones se encolan y quedan marcadas <strong>SIN SINCRONIZAR</strong> hasta que el servidor confirma.</p>
+</div>
+<script type="text/babel" src="RepartoScreens.jsx"></script>
+<script type="text/babel">
+const { TopBar, BackButton, BottomNav, OfflineBanner, Toast, Icon, Card, Money, EstadoBadge, EmptyState, Button } = window.MiSPerTostadaDesignSystem_679973;
+
+function HistorialScreen({ cola }){
+  return <div style={{flex:1,overflow:'auto',padding:'var(--space-4)',display:'grid',gap:'var(--space-3)',alignContent:'start'}}>
+    <Card flush padding="md" title="Cierre del día" subtitle="Lo que Tony reporta al final del turno">
+      <div style={{borderTop:'1px solid var(--border-subtle)'}}>
+        {[['Efectivo recibido',214000],['Transferencias',96000],['Por cobrar en ruta',186500]].map(([t,v])=>
+          <div key={t} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'var(--space-3) var(--space-4)',borderBottom:'1px solid var(--border-subtle)'}}>
+            <span style={{fontSize:'var(--text-sm)'}}>{t}</span><Money centavos={v}/></div>)}
+      </div>
+    </Card>
+    <Card flush padding="md" title="Cola de este teléfono" subtitle="IndexedDB · cada acción con su idempotency_key">
+      {cola.length===0
+        ? <EmptyState size="sm" icon="check-check" title="Todo sincronizado" description="No hay acciones esperando señal."/>
+        : <div style={{borderTop:'1px solid var(--border-subtle)'}}>
+            {cola.map((c,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'var(--space-3) var(--space-4)',borderBottom:'1px solid var(--border-subtle)'}}>
+              <Icon name="cloud-off" size={16} color="var(--amber-700)"/>
+              <span style={{flex:1,fontSize:'var(--text-sm)'}}>{c}</span>
+              <EstadoBadge estado="SIN_SINCRONIZAR" size="sm"/></div>)}
+          </div>}
+    </Card>
+  </div>;
+}
+
+function Reparto(){
+  const [vista,setVista]=React.useState('ruta');
+  const [online,setOnline]=React.useState(true);
+  const [abierto,setAbierto]=React.useState(null);
+  const [cobrando,setCobrando]=React.useState(null);
+  const [entregados,setEntregados]=React.useState([1043]);
+  const [cola,setCola]=React.useState([]);
+  const [aviso,setAviso]=React.useState(null);
+  const cobrosPendientes=cola.filter(c=>c.startsWith('Cobro')).map(()=>1042);
+
+  const entregar=(n)=>{ setEntregados(p=>[...p,n]);
+    if(online){ setAviso({tone:'exito',title:'Entrega registrada',desc:`Pedido ${n} confirmado por el servidor`}); }
+    else { setCola(p=>[...p,`Entrega pedido ${n}`]); setAviso({tone:'aviso',title:'Guardado en este teléfono',desc:'Se enviará al recuperar señal'}); } };
+  const guardarCobro=(n)=>{ setCobrando(null);
+    if(online){ setAviso({tone:'exito',title:'Cobro registrado',desc:'Q 1,865.00 en efectivo'}); }
+    else { setCola(p=>[...p,`Cobro pedido ${n} · Q 1,865.00 efectivo`]); setAviso({tone:'aviso',title:'Cobro en cola',desc:'Sin señal: guardado en este teléfono'}); } };
+
+  const titulo = cobrando?'Registrar cobro' : abierto?`Pedido ${abierto}` : vista==='ruta'?'Ruta de hoy':'Cierre del día';
+  const volver = ()=> cobrando?setCobrando(null):setAbierto(null);
+
+  return <>
+    <TopBar title={titulo} subtitle={cobrando||abierto?'Jueves 20 de agosto':'Tony · jueves 20 de agosto'}
+      left={(abierto||cobrando)?<BackButton onClick={volver}/>:<img src="../../assets/logo-badge.png" alt="Mi Súper Tostada" style={{width:34,height:34,borderRadius:7,objectFit:'cover'}}/>}
+      right={<button onClick={()=>setOnline(o=>!o)} title="Simular señal" style={{display:'flex',alignItems:'center',gap:6,height:32,padding:'0 10px',border:0,borderRadius:999,background:online?'var(--green-700)':'var(--amber-600)',color:'#fff',fontSize:11,fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',cursor:'pointer'}}>
+        <Icon name={online?'wifi':'wifi-off'} size={14}/>{online?'con señal':'sin señal'}</button>}/>
+    <OfflineBanner online={online} pendientes={cola.length} onReintentar={()=>{setCola([]);setAviso({tone:'exito',title:'Cola enviada',desc:'El servidor confirmó todas las acciones'});}}/>
+    {cobrando ? <CobroScreen correlativo={cobrando} online={online} onCancelar={()=>setCobrando(null)} onGuardar={()=>guardarCobro(cobrando)}/>
+      : abierto ? <EntregaScreen correlativo={abierto} online={online} entregado={entregados.includes(abierto)} onEntregar={()=>entregar(abierto)} onCobrar={()=>setCobrando(abierto)}/>
+      : vista==='ruta' ? <RutaScreen onAbrir={setAbierto} entregados={entregados} cobrosPendientes={cobrosPendientes}/>
+      : <HistorialScreen cola={cola}/>}
+    {aviso && <div style={{position:'absolute',left:12,right:12,bottom:80,zIndex:70}}>
+      <Toast tone={aviso.tone} title={aviso.title} description={aviso.desc} onDismiss={()=>setAviso(null)} style={{maxWidth:'100%'}}/></div>}
+    {!abierto && !cobrando && <BottomNav activeId={vista} onSelect={setVista} items={[{id:'ruta',label:'Ruta',icon:'route'},{id:'cierre',label:'Cierre',icon:'banknote',badge:cola.length||undefined}]}/>}
+  </>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Reparto/>);
+</script></body></html>

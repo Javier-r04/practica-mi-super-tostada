@@ -1,0 +1,45 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Dominio" subtitle="Money, EstadoBadge, VentanaBadge, PedidoItemRow, ContadorFacturas, MensajePreview" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{background:var(--surface-page);padding:16px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.cols{display:grid;grid-template-columns:1.15fr 1fr;gap:20px;align-items:start}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const { Money, EstadoBadge, VentanaBadge, PedidoItemRow, ContadorFacturas, MensajePreview } = window.MiSPerTostadaDesignSystem_679973;
+function Demo(){
+  return <div style={{display:'grid',gap:16}}>
+    <div className="row">
+      <Money centavos={124050} size="lg"/>
+      <Money centavos={482050} size="xl"/>
+      <Money centavos={-32500} tone="vencido"/>
+      <Money centavos={90000} tone="pagado"/>
+    </div>
+    <div className="row">
+      {['BORRADOR','CONFIRMADO','EN_PRODUCCION','ENTREGADO','ANULADO','PAGADO','PENDIENTE','VENCIDO','SIN_SINCRONIZAR'].map(e=><EstadoBadge key={e} estado={e}/>)}
+    </div>
+    <div className="row">
+      <VentanaBadge abierta expiraEn={2*3600e3+14*60e3}/>
+      <VentanaBadge abierta={false}/>
+      <VentanaBadge abierta tipo="whatsapp" expiraEn={21*3600e3+5*60e3}/>
+      <VentanaBadge abierta={false} tipo="whatsapp"/>
+    </div>
+    <div className="cols">
+      <div style={{border:'1px solid var(--border-subtle)',borderRadius:'var(--radius-card)',overflow:'hidden'}}>
+        <PedidoItemRow nombreMostrado="Tortilla n.º 16" alias="tortilla grande" unidadMedida="LIBRA" cantidad={40} precioUnitarioCentavos={450} puntoCarga="PLANTA"/>
+        <PedidoItemRow nombreMostrado="Papalinas" unidadMedida="BOLSA" cantidad={12} cantidadEntregada={10} precioUnitarioCentavos={1500} puntoCarga="DEMOCRACIA" notaProduccion="grosor especial"/>
+        <PedidoItemRow nombreMostrado="Tostada delgada" unidadMedida="BOLSA" cantidad={6} precioUnitarioCentavos={1200} editable onChangeCantidad={()=>{}}/>
+      </div>
+      <div style={{display:'grid',gap:12}}>
+        <ContadorFacturas pendientes={3} limite={4} montoCentavos={186500}/>
+        <ContadorFacturas pendientes={5} limite={4} montoCentavos={412000}/>
+      </div>
+    </div>
+    <MensajePreview tipo="plantilla" plantilla="estado_cuenta_v3" adjunto="estado-cuenta-agosto.pdf" hora="21:04" estado="entregado"
+      cuerpo="Buenas noches, Doña Marta. Le comparto su estado de cuenta al 19 de agosto: 3 facturas pendientes por Q 1,865.00."/>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

@@ -1,0 +1,46 @@
+@import "../styles/styles.css";
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+@theme inline {
+  --color-marca: var(--green-800);
+  --color-marca-hover: var(--green-700);
+  --color-marca-prof: var(--green-900);
+  --color-marca-soft: var(--green-50);
+  --color-acento: var(--yellow-400);
+  --color-acento-fuerte: var(--yellow-500);
+  --color-tinta-900: var(--ink-900);
+  --color-tinta-800: var(--ink-800);
+  --color-tinta-500: var(--ink-500);
+  --color-tinta-200: var(--ink-200);
+  --color-tinta-50: var(--ink-50);
+  --color-papel: var(--cream-300);
+  --color-peligro: var(--red-600);
+  --color-peligro-700: var(--red-700);
+  --color-aviso: var(--amber-600);
+  --color-aviso-700: var(--amber-700);
+  --color-info: var(--blue-600);
+  --color-pagado: var(--green-700);
+  --color-blanco: var(--white);
+  --radius-campo: var(--radius-sm);
+  --radius-tarjeta: var(--radius-lg);
+  --radius-pill: var(--radius-pill);
+  --shadow-tarjeta: var(--shadow-sm);
+  --shadow-modal: var(--shadow-lg);
+  --shadow-foco: var(--shadow-focus);
+  --font-display: "IBM Plex Sans", system-ui, sans-serif;
+  --font-core: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-weight-bold: 600;
+  --text-xs: 13px;
+  --text-sm: 14px;
+  --text-base: 14px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+  --height-campo: var(--field-height);
+  --height-fila: var(--row-height);
+  --height-topbar: var(--topbar-height);
+  --width-sidebar: var(--sidebar-width);
+}

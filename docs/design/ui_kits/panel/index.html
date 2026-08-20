@@ -1,0 +1,73 @@
+<!-- @dsCard group="Panel interno" viewport="1440x900" name="Panel interno · Hoy" subtitle="Cierre nocturno: pedidos, cartera, producción y conversaciones" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Panel interno · Mi Súper Tostada</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<script src="data.js"></script>
+<style>html,body{height:100%}body{margin:0;background:var(--surface-page)}#root{height:100%}</style>
+</head><body><div id="root"></div>
+<script type="text/babel" src="HoyScreen.jsx"></script>
+<script type="text/babel" src="PedidosScreen.jsx"></script>
+<script type="text/babel" src="CarteraScreen.jsx"></script>
+<script type="text/babel" src="ProduccionScreen.jsx"></script>
+<script type="text/babel">
+const { SidebarNav, Card, Button, Icon, Badge, VentanaBadge, SearchField, EstadoBadge, Money, Tag } = window.MiSPerTostadaDesignSystem_679973;
+const D = window.MST_DATA;
+
+function CatalogoScreen(){
+  const [q,setQ]=React.useState('');
+  const lista=D.catalogo.filter(p=>!q||p.nombre.toLowerCase().includes(q.toLowerCase())||(p.alias||'').includes(q.toLowerCase()));
+  return <Card flush padding="md" title="Catálogo" subtitle="~40 SKU planos con campo familia · nada de matriz de variantes"
+    actions={<Button size="sm" variant="secondary"><Icon name="plus" size={15}/>Nuevo producto</Button>}>
+    <div style={{padding:'0 var(--space-4) var(--space-3)'}}><SearchField value={q} onChange={setQ} placeholder="Nombre canónico o alias del cliente"/></div>
+    <table style={{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-sm)'}}>
+      <thead><tr style={{background:'var(--ink-50)'}}>{['SKU','Nombre canónico','Familia','Unidad','Punto de carga','Alias frecuente','Precio base',''].map(h=>
+        <th key={h} style={{textAlign:h==='Precio base'?'right':'left',padding:'var(--space-2) var(--space-4)',fontSize:'var(--text-2xs)',fontWeight:700,letterSpacing:'var(--tracking-caps)',textTransform:'uppercase',color:'var(--text-muted)',borderBottom:'1px solid var(--border-subtle)'}}>{h}</th>)}</tr></thead>
+      <tbody>{lista.map(p=>
+        <tr key={p.sku} style={{borderBottom:'1px solid var(--border-subtle)'}}>
+          <td style={{padding:'var(--space-3) var(--space-4)',fontFamily:'var(--font-mono)',fontSize:'var(--text-xs)'}}>{p.sku}</td>
+          <td style={{padding:'var(--space-3) var(--space-4)',fontWeight:600}}>{p.nombre}</td>
+          <td style={{padding:'var(--space-3) var(--space-4)',color:'var(--text-muted)'}}>{p.familia}</td>
+          <td style={{padding:'var(--space-3) var(--space-4)',color:'var(--text-muted)'}}>{p.unidad}</td>
+          <td style={{padding:'var(--space-3) var(--space-4)'}}><EstadoBadge estado={p.punto} size="sm"/></td>
+          <td style={{padding:'var(--space-3) var(--space-4)'}}>{p.alias?<Tag tone="brand">{p.alias}</Tag>:<span style={{color:'var(--text-subtle)'}}>—</span>}</td>
+          <td style={{padding:'var(--space-3) var(--space-4)',textAlign:'right'}}><Money centavos={p.precioCentavos}/></td>
+          <td style={{padding:'var(--space-2) var(--space-4)',textAlign:'right'}}><Button size="sm" variant="ghost">Precios por cliente</Button></td>
+        </tr>)}</tbody>
+    </table>
+  </Card>;
+}
+
+const NAV=[{id:'hoy',label:'Hoy',icon:'sun'},{id:'pedidos',label:'Pedidos',icon:'clipboard-list',badge:18},{id:'produccion',label:'Producción',icon:'factory'},{id:'cartera',label:'Cartera',icon:'banknote',badge:7},{id:'conversaciones',label:'Conversaciones',icon:'message-circle',badge:2},{id:'catalogo',label:'Catálogo',icon:'package'}];
+const TITULOS={hoy:'Hoy',pedidos:'Pedidos',produccion:'Producción y entregas',cartera:'Cartera',conversaciones:'Conversaciones',catalogo:'Catálogo'};
+
+function Panel(){
+  const [vista,setVista]=React.useState('hoy');
+  const Pantalla={hoy:()=> <HoyScreen onIr={setVista}/>,pedidos:PedidosScreen,produccion:ProduccionScreen,cartera:CarteraScreen,conversaciones:ConversacionesScreen,catalogo:CatalogoScreen}[vista];
+  return <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
+    <SidebarNav activeId={vista} onSelect={setVista} items={NAV}
+      header={<div style={{display:'flex',alignItems:'center',gap:10}}>
+        <img src="../../assets/logo-badge.png" alt="Mi Súper Tostada" style={{width:38,height:38,borderRadius:8,objectFit:'cover'}}/>
+        <span style={{color:'#fff',fontFamily:'var(--font-display)',fontSize:16,lineHeight:1.02,textTransform:'uppercase'}}>Mi Súper<br/>Tostada</span></div>}
+      footer={<div style={{display:'flex',alignItems:'center',gap:8}}>
+        <span style={{width:30,height:30,borderRadius:'50%',background:'var(--green-700)',color:'#fff',display:'grid',placeItems:'center',fontSize:12,fontWeight:700}}>CR</span>
+        <span style={{fontSize:12,lineHeight:1.2}}><span style={{display:'block',color:'#fff',fontWeight:700}}>{D.usuario.nombre}</span><span style={{color:'var(--green-300)',fontSize:10,letterSpacing:'.08em'}}>{D.usuario.rol}</span></span></div>}/>
+    <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0}}>
+      <header style={{display:'flex',alignItems:'center',gap:'var(--space-4)',minHeight:'var(--topbar-height)',padding:'0 var(--space-6)',background:'var(--surface-card)',borderBottom:'1px solid var(--border-subtle)'}}>
+        <h1 style={{fontSize:'var(--text-lg)'}}>{TITULOS[vista]}</h1>
+        <span style={{fontSize:'var(--text-xs)',color:'var(--text-muted)'}}>Fecha de operación: <strong style={{color:'var(--text-body)'}}>{D.fechaOperacion}</strong></span>
+        <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:'var(--space-3)'}}>
+          <VentanaBadge abierta expiraEn={D.ventanaRestanteMs}/>
+          <Badge tone="neutral" size="sm">outbox 3</Badge>
+          <Icon name="bell" size={18} color="var(--ink-600)"/>
+        </div>
+      </header>
+      <main style={{position:'relative',flex:1,overflow:'auto',padding:'var(--space-6)'}}><Pantalla/></main>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Panel/>);
+</script></body></html>

@@ -1,0 +1,10 @@
+:root{
+/* Escala 4px. La interfaz es mobile-first y densa: 8/12/16 hacen el 80% del trabajo. */
+--space-0:0;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;--space-12:48px;--space-16:64px;--space-20:80px;--space-24:96px;
+--gutter-mobile:16px;--gutter-desktop:24px;
+--page-max:1240px;--reading-max:68ch;
+--row-height:52px;          /* fila de tabla/lista táctil */
+--tap-min:44px;             /* mínimo de área táctil: Tony usa guantes */
+--field-height:44px;--field-height-sm:36px;
+--sidebar-width:248px;--topbar-height:56px;--bottombar-height:64px;
+}

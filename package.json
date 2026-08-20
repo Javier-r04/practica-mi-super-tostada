@@ -1,0 +1,13 @@
+{
+  "name": "misupertostada",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "bun run --filter web dev",
+    "dev:api": "bun run --filter api start:dev",
+    "build": "bun run --filter web build && bun run --filter api build",
+    "lint": "bun run --filter web lint",
+    "test": "bun test"
+  },
+  "packageManager": "bun@1.3.13"
+}

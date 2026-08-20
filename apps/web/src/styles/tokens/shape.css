@@ -1,0 +1,21 @@
+:root{
+/* Radios: contenedores suaves, controles suaves, badges cápsula. Nada de esquinas rectas
+   salvo en tablas y encabezados a sangre. */
+--radius-none:0;--radius-xs:4px;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-pill:999px;--radius-card:var(--radius-lg);--radius-field:var(--radius-sm);--radius-button:var(--radius-sm);
+
+--border-width:1px;--border-width-strong:2px;--border-width-accent:3px;
+
+/* Sombras: cálidas y bajas. La superficie flotante nunca "brilla". */
+--shadow-none:none;
+--shadow-xs:0 1px 1px rgba(23,25,15,.05);
+--shadow-sm:0 1px 2px rgba(23,25,15,.07),0 1px 1px rgba(23,25,15,.04);
+--shadow-md:0 2px 6px rgba(23,25,15,.08),0 1px 2px rgba(23,25,15,.05);
+--shadow-lg:0 12px 28px rgba(23,25,15,.14),0 2px 6px rgba(23,25,15,.06);
+--shadow-inset-field:inset 0 1px 2px rgba(23,25,15,.06);
+--shadow-focus:0 0 0 3px rgba(43,154,61,.32);
+--shadow-focus-danger:0 0 0 3px rgba(179,35,28,.28);
+
+/* Degradados de protección sobre foto (encabezados con imagen de planta/maíz) */
+--scrim-bottom:linear-gradient(180deg,rgba(3,28,6,0) 0%,rgba(3,28,6,.78) 100%);/* @kind other */
+--scrim-top:linear-gradient(0deg,rgba(3,28,6,0) 0%,rgba(3,28,6,.7) 100%);/* @kind other */
+}
