@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export function Dialog({
   open,
@@ -11,6 +12,7 @@ export function Dialog({
   footer,
   onClose,
   tone = "default",
+  size = "md",
 }: {
   open: boolean;
   title: string;
@@ -19,6 +21,7 @@ export function Dialog({
   footer?: ReactNode;
   onClose: () => void;
   tone?: "default" | "danger";
+  size?: "md" | "lg";
 }) {
   const titleId = useId();
   const descId = useId();
@@ -53,7 +56,10 @@ export function Dialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className="max-h-[100dvh] w-full overflow-auto rounded-t-tarjeta bg-blanco shadow-modal focus:outline-none sm:max-h-[90dvh] sm:max-w-[460px] sm:rounded-tarjeta"
+        className={cn(
+          "max-h-[100dvh] w-full overflow-auto rounded-t-tarjeta bg-blanco shadow-modal focus:outline-none sm:max-h-[90dvh] sm:rounded-tarjeta",
+          size === "lg" ? "sm:max-w-[640px]" : "sm:max-w-[460px]",
+        )}
         style={{ borderTop: `3px solid ${acento}` }}
       >
         <header className="flex items-start gap-3 px-5 pb-3 pt-5">

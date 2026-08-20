@@ -27,7 +27,7 @@ export function Badge({
 
 export function Tag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex h-7 items-center rounded-pill border border-[var(--green-200)] bg-[var(--green-50)] px-2 text-xs font-semibold text-marca">
+    <span className="inline-flex h-7 items-center gap-1.5 rounded-pill border border-[var(--green-200)] bg-[var(--green-50)] px-2 text-xs font-semibold text-marca">
       {children}
     </span>
   );

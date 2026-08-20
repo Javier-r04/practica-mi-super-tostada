@@ -19,7 +19,8 @@ import { DRIZZLE } from "../shared/tokens";
 import type { AppDatabase } from "../shared/database.module";
 import { AuditWriter } from "../shared/audit.writer";
 import { BusinessCalendarService } from "../shared/calendar.service";
-import { PedidoService, horarioDe, type PortalMeta } from "./pedido.service";
+import { PedidoService, type PortalMeta } from "./pedido.service";
+import { horarioDe } from "./pedido-reglas";
 import type { ClientePortal } from "./portal-token.service";
 
 @Injectable()

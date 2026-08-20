@@ -28,6 +28,7 @@ import { ClientesService } from "../catalog/clientes.service";
 import { ClienteProductoService } from "../catalog/cliente-producto.service";
 import { PortalTokenService } from "./portal-token.service";
 import { PortalService } from "./portal.service";
+import { PedidoEvents } from "./pedido-events";
 import { PedidoService } from "./pedido.service";
 
 const listo = await postgresListo();
@@ -57,7 +58,8 @@ async function fixture(clock: Clock) {
   const clientes = new ClientesService(db, audit);
   const ligas = new ClienteProductoService(db, audit, clientes);
   const tokens = new PortalTokenService(db);
-  const pedidos = new PedidoService(db, audit, outboxWriter, calendar);
+  const events = new PedidoEvents();
+  const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
   const portal = new PortalService(db, audit, calendar, pedidos);
 
   const [org] = await db

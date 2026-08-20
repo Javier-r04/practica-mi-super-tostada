@@ -258,22 +258,22 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 ### E3 — Panel de pedidos *(semana 4)*
 
 **F-301 · Bandeja de pedidos**
-- [ ] Filtro por fecha de operación, cliente y estado
-- [ ] Se permiten varios pedidos del mismo cliente el mismo día
-- [ ] Correlativo simple; la fecha es campo aparte
+- [x] Filtro por fecha de operación, cliente y estado
+- [x] Se permiten varios pedidos del mismo cliente el mismo día
+- [x] Correlativo simple; la fecha es campo aparte
 
 **F-302 · Pedido manual**
-- [ ] Captura desde el panel para pedidos recibidos por llamada
-- [ ] Salta la ventana horaria, con `origen: MANUAL` y registro de quién lo capturó
-- [ ] UI cuidada: es un flujo frecuente (caso "tienda 6")
+- [x] Captura desde el panel para pedidos recibidos por llamada
+- [x] Salta la ventana horaria, con `origen: MANUAL` y registro de quién lo capturó
+- [x] UI cuidada: es un flujo frecuente (caso "tienda 6")
 
 **F-303 · Tiempo real por SSE**
-- [ ] Nuevo pedido y cambio de estado se propagan a las pantallas abiertas
-- [ ] Reconexión automática; invalidación de TanStack Query
+- [x] Nuevo pedido y cambio de estado se propagan a las pantallas abiertas
+- [x] Reconexión automática; invalidación de TanStack Query
 
 **F-304 · Notas extraordinarias**
-- [ ] Campo libre por pedido, para casos puntuales
-- [ ] Las notas fijas (horario, punto de carga, grosor) **no** se escriben a mano: derivan del catálogo
+- [x] Campo libre por pedido, para casos puntuales
+- [x] Las notas fijas (horario, punto de carga, grosor) **no** se escriben a mano: derivan del catálogo
 
 ### E4 — Operación diaria *(semana 5)*
 

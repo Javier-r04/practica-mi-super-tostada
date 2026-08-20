@@ -1,0 +1,77 @@
+import {
+  MENSAJE_PEDIDO_ANULADO,
+  MENSAJE_VENTANA_CERRADA,
+  fechaDeInstante,
+  formatearFechaLarga,
+  horaEnZona,
+  tienePermiso,
+} from "@misupertostada/shared";
+import { DomainException } from "../shared/domain.exception";
+import type { Actor } from "../identity/actor";
+import type { ClientePortal } from "./portal-token.service";
+
+export type ItemSnapshot = {
+  productoId: string;
+  cantidad: number;
+  nombreMostrado: string;
+  unidadMedida: "LIBRA" | "BOLSA" | "UNIDAD";
+  precioUnitarioCentavos: number;
+};
+
+export function horarioDe(
+  clienteRow: Pick<ClientePortal, "horarioEntregaFijo">,
+): string | null {
+  const raw = clienteRow.horarioEntregaFijo;
+  if (!raw) return null;
+  return raw.slice(0, 5);
+}
+
+export function exigirCaptura(actor: Actor): void {
+  if (!tienePermiso(actor.permisos, "pedidos.capturar_manual")) {
+    throw new DomainException(
+      "PERMISO_DENEGADO",
+      "No tiene permiso para esta acción",
+      403,
+    );
+  }
+}
+
+export function exigirConfirmado(estado: string): void {
+  if (estado === "ANULADO") {
+    throw new DomainException("PEDIDO_ANULADO", MENSAJE_PEDIDO_ANULADO, 409);
+  }
+  if (estado !== "CONFIRMADO") {
+    throw new DomainException(
+      "PEDIDO_NO_EDITABLE",
+      "Solo se ajustan pedidos confirmados",
+      409,
+    );
+  }
+}
+
+export function congelarSnapshots(
+  snapshots: ItemSnapshot[],
+  itemsAntes: ItemSnapshot[],
+): ItemSnapshot[] {
+  return snapshots.map((item) => {
+    const previo = itemsAntes.find((p) => p.productoId === item.productoId);
+    return previo
+      ? {
+          ...item,
+          nombreMostrado: previo.nombreMostrado,
+          unidadMedida: previo.unidadMedida,
+          precioUnitarioCentavos: previo.precioUnitarioCentavos,
+        }
+      : item;
+  });
+}
+
+export function ventanaCerrada(proxima: Date): DomainException {
+  const fechaLarga = formatearFechaLarga(fechaDeInstante(proxima));
+  const hora = horaEnZona(proxima);
+  return new DomainException(
+    "VENTANA_CERRADA",
+    `${MENSAJE_VENTANA_CERRADA} Abre el ${fechaLarga} a las ${hora}.`,
+    409,
+  );
+}

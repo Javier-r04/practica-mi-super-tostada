@@ -39,7 +39,7 @@ type NavItem = {
 
 const NAV: readonly NavItem[] = [
   { id: "hoy", label: "Hoy", icon: Sun, soon: true },
-  { id: "pedidos", label: "Pedidos", icon: ClipboardList, soon: true },
+  { href: "/pedidos", id: "pedidos", label: "Pedidos", icon: ClipboardList },
   { id: "produccion", label: "Producción", icon: Factory, soon: true },
   { id: "cartera", label: "Cartera", icon: Banknote, soon: true },
   { id: "conversaciones", label: "Conversaciones", icon: MessageCircle, soon: true },

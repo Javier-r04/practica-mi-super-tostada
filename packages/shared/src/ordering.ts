@@ -1,7 +1,19 @@
 import { z } from "zod";
-import { FAMILIAS, PEDIDO_ESTADOS, UNIDADES_MEDIDA } from "./estados";
+import {
+  FAMILIAS,
+  PEDIDO_ESTADOS,
+  PEDIDO_ORIGENES,
+  PUNTOS_CARGA,
+  UNIDADES_MEDIDA,
+} from "./estados";
 import { formatearFechaLarga } from "./calendar";
 import { centavosSchema, formatearCentavos } from "./money";
+
+function opcionalVacio<T extends z.ZodTypeAny>(schema: T) {
+  return z.union([schema, z.literal(""), z.undefined()]).transform((value) =>
+    value === "" || value === undefined ? undefined : (value as z.infer<T>),
+  );
+}
 
 export const UNIDAD_CORTA = {
   LIBRA: "lb",
@@ -146,3 +158,134 @@ export const MENSAJE_PRECIO_AUSENTE =
   "Ese producto no tiene precio. Avisé a la fábrica.";
 export const MENSAJE_LIMITE_TASA =
   "Demasiadas solicitudes. Espere un momento y vuelva a intentar.";
+export const MENSAJE_PEDIDO_ANULADO =
+  "Ese pedido está anulado y no se puede modificar.";
+export const MENSAJE_MOTIVO_ANULACION =
+  "Indique el motivo. El pedido queda anulado, no se borra.";
+
+const fechaOperacionSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use AAAA-MM-DD");
+
+export const listarPedidosQuerySchema = z.object({
+  fechaOperacion: opcionalVacio(fechaOperacionSchema),
+  clienteId: opcionalVacio(z.string().uuid()),
+  estado: opcionalVacio(z.enum(PEDIDO_ESTADOS)),
+});
+
+export type ListarPedidosQuery = z.infer<typeof listarPedidosQuerySchema>;
+
+export const pedidoBandejaSchema = z.object({
+  id: z.string().uuid(),
+  correlativo: z.number().int().positive(),
+  fechaOperacion: z.string(),
+  clienteId: z.string().uuid(),
+  clienteNombre: z.string(),
+  estado: z.enum(PEDIDO_ESTADOS),
+  origen: z.enum(PEDIDO_ORIGENES),
+  totalCentavos: centavosSchema,
+  capturadoPor: z.string().uuid().nullable(),
+  capturadoAt: z.string().min(20),
+  notasAdmin: z.string().nullable(),
+});
+
+export type PedidoBandeja = z.infer<typeof pedidoBandejaSchema>;
+
+export const pedidoDetalleItemSchema = z.object({
+  productoId: z.string().uuid(),
+  cantidad: z.number().int().positive(),
+  nombreMostrado: z.string(),
+  unidadMedida: z.enum(UNIDADES_MEDIDA),
+  precioUnitarioCentavos: centavosSchema,
+  subtotalCentavos: centavosSchema,
+  puntoCarga: z.enum(PUNTOS_CARGA),
+  notaProduccion: z.string().nullable(),
+});
+
+export type PedidoDetalleItem = z.infer<typeof pedidoDetalleItemSchema>;
+
+export const pedidoAuditEntrySchema = z.object({
+  accion: z.string(),
+  actorTipo: z.string(),
+  actorNombre: z.string().nullable(),
+  createdAt: z.string().min(20),
+  antes: z.unknown().nullable(),
+  despues: z.unknown().nullable(),
+});
+
+export type PedidoAuditEntry = z.infer<typeof pedidoAuditEntrySchema>;
+
+export const pedidoDetalleSchema = z.object({
+  id: z.string().uuid(),
+  correlativo: z.number().int().positive(),
+  fechaOperacion: z.string(),
+  clienteId: z.string().uuid(),
+  clienteNombre: z.string(),
+  clienteContacto: z.string().nullable(),
+  clienteTelefonoWa: z.string().nullable(),
+  horarioEntregaFijo: z.string().nullable(),
+  notasPermanentes: z.string().nullable(),
+  estado: z.enum(PEDIDO_ESTADOS),
+  origen: z.enum(PEDIDO_ORIGENES),
+  notasAdmin: z.string().nullable(),
+  capturadoPor: z.string().uuid().nullable(),
+  capturadoPorNombre: z.string().nullable(),
+  capturadoAt: z.string().min(20),
+  anuladoAt: z.string().nullable(),
+  motivoAnulacion: z.string().nullable(),
+  items: z.array(pedidoDetalleItemSchema),
+  totalCentavos: centavosSchema,
+  historial: z.array(pedidoAuditEntrySchema),
+});
+
+export type PedidoDetalle = z.infer<typeof pedidoDetalleSchema>;
+
+export const crearPedidoManualRequestSchema = z.object({
+  clienteId: z.string().uuid(),
+  items: z.array(confirmarPedidoItemSchema).min(1),
+  notasAdmin: z.string().max(2000).optional(),
+});
+
+export type CrearPedidoManualRequest = z.infer<
+  typeof crearPedidoManualRequestSchema
+>;
+
+export const editarNotasPedidoRequestSchema = z.object({
+  notasAdmin: z.string().max(2000),
+});
+
+export type EditarNotasPedidoRequest = z.infer<
+  typeof editarNotasPedidoRequestSchema
+>;
+
+export const editarItemsPedidoRequestSchema = z.object({
+  items: z.array(confirmarPedidoItemSchema).min(1),
+});
+
+export type EditarItemsPedidoRequest = z.infer<
+  typeof editarItemsPedidoRequestSchema
+>;
+
+export const anularPedidoRequestSchema = z.object({
+  motivo: z
+    .string()
+    .trim()
+    .min(1, MENSAJE_MOTIVO_ANULACION)
+    .max(500),
+});
+
+export type AnularPedidoRequest = z.infer<typeof anularPedidoRequestSchema>;
+
+export const PEDIDO_SSE_TIPOS = [
+  "pedido.creado",
+  "pedido.editado",
+  "pedido.anulado",
+] as const;
+
+export const pedidoSseEventSchema = z.object({
+  tipo: z.enum(PEDIDO_SSE_TIPOS),
+  pedidoId: z.string().uuid(),
+  fechaOperacion: fechaOperacionSchema,
+});
+
+export type PedidoSseEvent = z.infer<typeof pedidoSseEventSchema>;

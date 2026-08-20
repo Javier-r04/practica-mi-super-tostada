@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
+  anularPedidoRequestSchema,
   confirmarPedidoRequestSchema,
+  crearPedidoManualRequestSchema,
+  listarPedidosQuerySchema,
+  pedidoSseEventSchema,
   textoConfirmacionPedido,
   totalPedidoCentavos,
 } from "./ordering";
@@ -52,6 +56,87 @@ describe("confirmarPedidoRequestSchema", () => {
     ).toBe(false);
     expect(
       confirmarPedidoRequestSchema.safeParse({ items: [] }).success,
+    ).toBe(false);
+  });
+});
+
+describe("listarPedidosQuerySchema", () => {
+  test("acepta vacío y trata strings vacíos como ausentes", () => {
+    expect(listarPedidosQuerySchema.parse({})).toEqual({});
+    expect(
+      listarPedidosQuerySchema.parse({
+        fechaOperacion: "",
+        clienteId: "",
+        estado: "",
+      }),
+    ).toEqual({});
+  });
+
+  test("acepta fecha, cliente y estado; rechaza estado inventado", () => {
+    const clienteId = "00000000-0000-4000-a000-000000000001";
+    expect(
+      listarPedidosQuerySchema.parse({
+        fechaOperacion: "2026-08-21",
+        clienteId,
+        estado: "CONFIRMADO",
+      }),
+    ).toEqual({
+      fechaOperacion: "2026-08-21",
+      clienteId,
+      estado: "CONFIRMADO",
+    });
+    expect(
+      listarPedidosQuerySchema.safeParse({ estado: "CANCELADO" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("crearPedidoManualRequestSchema", () => {
+  const productoId = "00000000-0000-4000-a000-000000000010";
+  const clienteId = "00000000-0000-4000-a000-000000000001";
+
+  test("exige cliente e ítems; la nota es opcional", () => {
+    expect(
+      crearPedidoManualRequestSchema.parse({
+        clienteId,
+        items: [{ productoId, cantidad: 6 }],
+        notasAdmin: "llevar con las tortillas de la mañana",
+      }),
+    ).toMatchObject({
+      clienteId,
+      notasAdmin: "llevar con las tortillas de la mañana",
+    });
+    expect(
+      crearPedidoManualRequestSchema.safeParse({
+        clienteId,
+        items: [],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("anularPedidoRequestSchema", () => {
+  test("exige motivo no vacío; no admite 'cancelado' como contrato", () => {
+    expect(anularPedidoRequestSchema.parse({ motivo: "  Cliente se equivocó  " })).toEqual({
+      motivo: "Cliente se equivocó",
+    });
+    expect(anularPedidoRequestSchema.safeParse({ motivo: "   " }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("pedidoSseEventSchema", () => {
+  test("solo alta, edición y anulación", () => {
+    const base = {
+      pedidoId: "00000000-0000-4000-a000-000000000099",
+      fechaOperacion: "2026-08-21",
+    };
+    expect(pedidoSseEventSchema.parse({ ...base, tipo: "pedido.creado" }).tipo).toBe(
+      "pedido.creado",
+    );
+    expect(
+      pedidoSseEventSchema.safeParse({ ...base, tipo: "heartbeat" }).success,
     ).toBe(false);
   });
 });
