@@ -1,4 +1,9 @@
 import { Module } from "@nestjs/common";
+import { AnalyticsController } from "./analytics.controller";
+import { TableroService } from "./tablero.service";
 
-@Module({})
+@Module({
+  controllers: [AnalyticsController],
+  providers: [TableroService],
+})
 export class AnalyticsModule {}

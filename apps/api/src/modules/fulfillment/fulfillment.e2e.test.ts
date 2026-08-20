@@ -649,4 +649,32 @@ describe.skipIf(!listo)("E4 operación diaria", () => {
       await f.client.end({ timeout: 1 });
     }
   });
+
+  test("F-601 resumen: monto snapshot, ruta y clientes sin pedido", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { t16, tabasco } = await catalogoBasico(f);
+      const otro = await f.clientes.crear(
+        { nombre: `14 Avenida ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(otro.id, t16.id, { precioCentavos: 1250 }, f.actor);
+      await f.pedidos.crearManual(
+        { clienteId: tabasco.id, items: [{ productoId: t16.id, cantidad: 50 }] },
+        f.actor,
+      );
+      const op = await f.cierre.resumen(f.actor);
+      expect(op.montoPedidosCentavos).toBe(62500);
+      expect(op.ruta.confirmados).toBe(1);
+      expect(op.ruta.anulados).toBe(0);
+      expect(op.clientesSinPedido.some((c) => c.clienteId === otro.id)).toBe(
+        true,
+      );
+      expect(op.clientesSinPedido.some((c) => c.clienteId === tabasco.id)).toBe(
+        false,
+      );
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
 });

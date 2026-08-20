@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PUNTOS_CARGA, UNIDADES_MEDIDA, type UnidadMedida } from "./estados";
 import { nombreDiaOperacion } from "./calendar";
+import { centavosSchema } from "./money";
 import { UNIDAD_CORTA } from "./ordering";
 
 export const DIA_OPERACION_ESTADOS = [
@@ -108,6 +109,18 @@ export const previewCierreSchema = z.object({
 });
 export type PreviewCierre = z.infer<typeof previewCierreSchema>;
 
+export const rutaOperacionSchema = z.object({
+  confirmados: z.number().int().nonnegative(),
+  enProduccion: z.number().int().nonnegative(),
+  entregados: z.number().int().nonnegative(),
+  anulados: z.number().int().nonnegative(),
+});
+
+export const clienteSinPedidoSchema = z.object({
+  clienteId: z.string().uuid(),
+  nombre: z.string(),
+});
+
 export const operacionResumenSchema = z.object({
   fechaOperacion: fechaOperacionSchema,
   diaEstado: z.enum(["SIN_CIERRE", "CERRADO", "REABIERTO"]),
@@ -115,6 +128,9 @@ export const operacionResumenSchema = z.object({
   pedidosPortal: z.number().int(),
   pedidosManual: z.number().int(),
   librasTortilla: z.number().int(),
+  montoPedidosCentavos: centavosSchema,
+  ruta: rutaOperacionSchema,
+  clientesSinPedido: z.array(clienteSinPedidoSchema),
   outboxPendientes: z.number().int(),
   outboxEnviados: z.number().int(),
   outboxError: z.number().int(),

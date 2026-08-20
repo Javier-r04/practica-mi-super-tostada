@@ -326,16 +326,16 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 ### E6 — Dashboard *(semana 6)*
 
 **F-601 · Tablero del administrador**
-- [ ] Operación del día: pedidos recibidos, monto, **clientes que aún no piden**, estado de ruta
-- [ ] Cartera: saldo total, efectivo vs transferencia, sobre límite, antigüedad por tramos
-- [ ] Ventas: por día/semana/quincena, comparativo, participación por cliente
-- [ ] Productos: volumen por presentación y punto de carga
-- [ ] Cliente: frecuencia, ticket promedio, tiempo de pago, **alerta de cliente que dejó de pedir**
-- [ ] Adopción: portal vs manual
+- [x] Operación del día: pedidos recibidos, monto, **clientes que aún no piden**, estado de ruta
+- [x] Cartera: saldo total, efectivo vs transferencia, sobre límite, antigüedad por tramos
+- [x] Ventas: por día/semana/quincena, comparativo, participación por cliente
+- [x] Productos: volumen por presentación y punto de carga
+- [x] Cliente: frecuencia, ticket promedio, tiempo de pago, **alerta de cliente que dejó de pedir**
+- [x] Adopción: portal vs manual
 
 **F-602 · Exportación a PDF**
-- [ ] Con `@react-pdf/renderer`, sin Chrome headless
-- [ ] Cierre de quincena listo para imprimir
+- [x] Con `@react-pdf/renderer`, sin Chrome headless
+- [x] Cierre de quincena listo para imprimir
 
 ### E7 — Mensajería *(semana 7)*
 

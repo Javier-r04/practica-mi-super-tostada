@@ -6,6 +6,8 @@ import { DateTime } from "luxon";
 import {
   ZONA_NEGOCIO,
   createBusinessCalendar,
+  desplazarFecha,
+  rangoSemanaIsoGT,
 } from "./calendar";
 
 const calendar = createBusinessCalendar({
@@ -175,5 +177,21 @@ describe("BusinessCalendar", () => {
     const ahora = instanteGT("2026-08-20T22:00:00");
     expect(calendar.diasCalendarioEntre(emitida, ahora)).toBe(15);
     expect(calendar.diasCalendarioEntre(ahora, ahora)).toBe(0);
+  });
+
+  test("rangoSemanaIsoGT es lunes–domingo en zona GT", () => {
+    expect(rangoSemanaIsoGT("2026-08-20")).toEqual({
+      desde: "2026-08-17",
+      hasta: "2026-08-23",
+    });
+    expect(rangoSemanaIsoGT("2026-08-17")).toEqual({
+      desde: "2026-08-17",
+      hasta: "2026-08-23",
+    });
+  });
+
+  test("desplazarFecha no usa el reloj local", () => {
+    expect(desplazarFecha("2026-08-01", -1)).toBe("2026-07-31");
+    expect(desplazarFecha("2026-02-28", 1)).toBe("2026-03-01");
   });
 });

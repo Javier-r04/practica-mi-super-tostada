@@ -6,6 +6,7 @@ import {
   Banknote,
   ClipboardList,
   Factory,
+  LayoutDashboard,
   Menu,
   MessageCircle,
   Package,
@@ -42,6 +43,13 @@ type NavItem = {
 
 const NAV: readonly NavItem[] = [
   { href: "/hoy", id: "hoy", label: "Hoy", icon: Sun },
+  {
+    href: "/tablero",
+    id: "tablero",
+    label: "Tablero",
+    icon: LayoutDashboard,
+    mobile: false,
+  },
   { href: "/pedidos", id: "pedidos", label: "Pedidos", icon: ClipboardList },
   { href: "/produccion", id: "produccion", label: "Producción", icon: Factory },
   { href: "/reparto", id: "reparto", label: "Reparto", icon: Truck },

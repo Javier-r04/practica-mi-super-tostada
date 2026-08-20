@@ -267,3 +267,33 @@ export function horaEnZona(instant: Date): string {
 export function fechaDeInstante(instant: Date): FechaCalendario {
   return aFechaCalendario(enZona(instant));
 }
+
+/** Inicio del día de calendario en America/Guatemala, como instante UTC. */
+export function instanteDeFecha(fecha: FechaCalendario): Date {
+  return parseFecha(fecha).toJSDate();
+}
+
+/** Suma (o resta) días de calendario en zona GT. El reloj no interviene. */
+export function desplazarFecha(
+  fecha: FechaCalendario,
+  dias: number,
+): FechaCalendario {
+  const dt = parseFecha(fecha);
+  return aFechaCalendario(dt.plus({ days: dias }));
+}
+
+/**
+ * Lunes–domingo de la semana ISO que contiene `fecha`, en America/Guatemala.
+ * Luxon weekday: 1 = lunes … 7 = domingo.
+ */
+export function rangoSemanaIsoGT(fecha: FechaCalendario): {
+  desde: FechaCalendario;
+  hasta: FechaCalendario;
+} {
+  const dt = parseFecha(fecha);
+  const lunes = dt.minus({ days: dt.weekday - 1 });
+  return {
+    desde: aFechaCalendario(lunes),
+    hasta: aFechaCalendario(lunes.plus({ days: 6 })),
+  };
+}

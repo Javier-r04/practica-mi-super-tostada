@@ -65,13 +65,13 @@ export class CierreService {
       .select({
         origen: pedido.origen,
         estado: pedido.estado,
+        clienteId: pedido.clienteId,
       })
       .from(pedido)
       .where(
         and(
           eq(pedido.organizacionId, actor.organizacionId),
           eq(pedido.fechaOperacion, fecha),
-          isNull(pedido.anuladoAt),
         ),
       );
 
@@ -82,6 +82,12 @@ export class CierreService {
       (p) => p.estado === "CONFIRMADO" || p.estado === "EN_PRODUCCION",
     ).length;
     const borradores = vivos.filter((p) => p.estado === "BORRADOR").length;
+    const ruta = {
+      confirmados: vivos.filter((p) => p.estado === "CONFIRMADO").length,
+      enProduccion: vivos.filter((p) => p.estado === "EN_PRODUCCION").length,
+      entregados: vivos.filter((p) => p.estado === "ENTREGADO").length,
+      anulados: pedidos.filter((p) => p.estado === "ANULADO").length,
+    };
 
     const [libras] = await this.db
       .select({
@@ -100,6 +106,35 @@ export class CierreService {
           eq(producto.unidadMedida, "LIBRA"),
         ),
       );
+
+    const [monto] = await this.db
+      .select({
+        total: sql<number>`coalesce(sum(${pedidoItem.cantidadPedida} * ${pedidoItem.precioUnitarioCentavos}), 0)::int`,
+      })
+      .from(pedidoItem)
+      .innerJoin(pedido, eq(pedido.id, pedidoItem.pedidoId))
+      .where(
+        and(
+          eq(pedido.organizacionId, actor.organizacionId),
+          eq(pedido.fechaOperacion, fecha),
+          isNull(pedido.anuladoAt),
+          sql`${pedido.estado} <> 'ANULADO'`,
+        ),
+      );
+
+    const activos = await this.db
+      .select({ clienteId: cliente.id, nombre: cliente.nombre })
+      .from(cliente)
+      .where(
+        and(
+          eq(cliente.organizacionId, actor.organizacionId),
+          eq(cliente.activo, true),
+        ),
+      );
+    const conPedido = new Set(vivos.map((p) => p.clienteId));
+    const clientesSinPedido = activos
+      .filter((c) => !conPedido.has(c.clienteId))
+      .map((c) => ({ clienteId: c.clienteId, nombre: c.nombre }));
 
     const destinos = await this.destinatariosOutbox(actor.organizacionId);
     const outboxRows =
@@ -134,6 +169,9 @@ export class CierreService {
       pedidosPortal,
       pedidosManual,
       librasTortilla: Number(libras?.total ?? 0),
+      montoPedidosCentavos: Number(monto?.total ?? 0),
+      ruta,
+      clientesSinPedido,
       outboxPendientes: outboxRows.filter((r) => r.estado === "PENDIENTE").length,
       outboxEnviados: outboxRows.filter((r) => r.estado === "ENVIADO").length,
       outboxError: outboxRows.filter((r) => r.estado === "ERROR").length,

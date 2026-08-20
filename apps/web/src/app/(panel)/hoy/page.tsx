@@ -2,8 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type ReactNode } from "react";
 import {
   tienePermiso,
   type ActorPublico,
@@ -15,10 +15,12 @@ import {
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import { PanelShell } from "@/components/layout/panel-shell";
+import { PageToolbar } from "@/components/layout/page-header";
 import { usePedidosSse } from "@/hooks/use-pedidos-sse";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DialogoCierre } from "@/components/fulfillment/dialogo-cierre";
 import { DialogoReabrir } from "@/components/fulfillment/dialogo-reabrir";
@@ -50,9 +52,28 @@ function Metric({
   );
 }
 
-export default function HoyPage() {
+function ChipRuta({
+  label,
+  valor,
+}: {
+  label: string;
+  valor: number;
+}) {
+  return (
+    <span className="inline-flex min-h-11 items-center gap-2 rounded-campo border border-[var(--border-subtle)] bg-blanco px-3 text-sm">
+      <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+        {label}
+      </span>
+      <span className="font-semibold tabular-nums text-tinta-900">{valor}</span>
+    </span>
+  );
+}
+
+function HoyInner() {
   const qc = useQueryClient();
   const router = useRouter();
+  const sp = useSearchParams();
+  const fechaQuery = sp.get("fechaOperacion") ?? "";
   const [cerrando, setCerrando] = useState(false);
   const [reabriendo, setReabriendo] = useState(false);
   const [errorReabrir, setErrorReabrir] = useState<string>();
@@ -67,8 +88,11 @@ export default function HoyPage() {
     enabled: Boolean(me.data),
   });
   const operacion = useQuery({
-    queryKey: ["operacion"],
-    queryFn: () => api<OperacionResumen>("/operacion"),
+    queryKey: ["operacion", fechaQuery],
+    queryFn: () =>
+      api<OperacionResumen>(
+        `/operacion${fechaQuery ? `?fechaOperacion=${fechaQuery}` : ""}`,
+      ),
     enabled: Boolean(me.data),
   });
   const fecha = operacion.data?.fechaOperacion ?? calendario.data?.fechaOperacion;
@@ -98,7 +122,9 @@ export default function HoyPage() {
     mutationFn: () =>
       api<CierreResultado>("/operacion/cerrar", {
         method: "POST",
-        body: "{}",
+        body: JSON.stringify({
+          fechaOperacion: operacion.data?.fechaOperacion,
+        }),
       }),
     onSuccess: () => {
       setCerrando(false);
@@ -113,7 +139,10 @@ export default function HoyPage() {
     mutationFn: (motivo: string) =>
       api("/operacion/reabrir", {
         method: "POST",
-        body: JSON.stringify({ motivo }),
+        body: JSON.stringify({
+          motivo,
+          fechaOperacion: operacion.data?.fechaOperacion,
+        }),
       }),
     onSuccess: () => {
       setReabriendo(false);
@@ -128,13 +157,35 @@ export default function HoyPage() {
     },
   });
 
+  function elegirFecha(value: string) {
+    if (!value) {
+      router.replace("/hoy");
+      return;
+    }
+    router.replace(`/hoy?fechaOperacion=${value}`);
+  }
+
   const data = operacion.data;
   const cerrado = data?.diaEstado === "CERRADO";
   const reabierto = data?.diaEstado === "REABIERTO";
+  const valorFecha =
+    fechaQuery || data?.fechaOperacion || calendario.data?.fechaOperacion || "";
 
   return (
     <PanelShell title="Hoy">
       <div className="grid gap-4">
+        <PageToolbar
+          description="Esta noche: pedidos, monto con snapshot y quién aún no pide. El análisis de quincena vive en Tablero."
+          actions={
+            <Input
+              id="hoy-fecha-operacion"
+              label="Fecha de operación"
+              type="date"
+              value={valorFecha}
+              onChange={(e) => elegirFecha(e.target.value)}
+            />
+          }
+        />
         {operacion.isLoading && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Skeleton className="h-24" />
@@ -159,6 +210,12 @@ export default function HoyPage() {
                 {data.pedidosPortal + data.pedidosManual}
               </Metric>
               <Metric
+                label="Monto de la noche"
+                hint="Pedido × snapshot. Aún no es la factura."
+              >
+                <Money centavos={data.montoPedidosCentavos} />
+              </Metric>
+              <Metric
                 label="Libras de tortilla"
                 hint={calendario.data?.esSabado ? "Planta: todo · sábado" : "Tortilla No. 16 / 14 / 12"}
               >
@@ -180,7 +237,15 @@ export default function HoyPage() {
               </Metric>
             </div>
 
+            <div className="flex flex-wrap gap-2">
+              <ChipRuta label="Confirmados" valor={data.ruta.confirmados} />
+              <ChipRuta label="En producción" valor={data.ruta.enProduccion} />
+              <ChipRuta label="Entregados" valor={data.ruta.entregados} />
+              <ChipRuta label="Anulados" valor={data.ruta.anulados} />
+            </div>
+
             <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:items-start">
+              <div className="grid gap-4">
               <Card
                 title="Pedidos de la noche"
                 subtitle={`Fecha de operación: ${data.fechaOperacion}`}
@@ -225,6 +290,32 @@ export default function HoyPage() {
                   </div>
                 )}
               </Card>
+
+              <Card
+                title="Aún no piden"
+                subtitle="Activos sin pedido vivo en esta fecha de operación"
+                flush
+              >
+                {data.clientesSinPedido.length === 0 ? (
+                  <p className="px-5 pb-5 text-sm text-tinta-500">
+                    Todos los activos ya pidieron
+                  </p>
+                ) : (
+                  <ul>
+                    {data.clientesSinPedido.map((c) => (
+                      <li key={c.clienteId}>
+                        <Link
+                          href="/pedidos"
+                          className="flex min-h-11 items-center px-4 text-sm font-semibold text-marca"
+                        >
+                          {c.nombre}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+              </div>
 
               <div className="grid gap-4">
               <Card
@@ -343,5 +434,19 @@ export default function HoyPage() {
         onConfirm={(motivo) => reabrir.mutate(motivo)}
       />
     </PanelShell>
+  );
+}
+
+export default function HoyPage() {
+  return (
+    <Suspense
+      fallback={
+        <PanelShell title="Hoy">
+          <Skeleton className="h-48" />
+        </PanelShell>
+      }
+    >
+      <HoyInner />
+    </Suspense>
   );
 }
