@@ -1,8 +1,27 @@
 import { DateTime } from "luxon";
+import { z } from "zod";
 import type { PuntoCarga } from "./estados";
 
 /** Zona del negocio. UTC−6, sin horario de verano. */
 export const ZONA_NEGOCIO = "America/Guatemala";
+
+/** Snapshot de calendario para el chrome del panel. Lo calcula el servidor. */
+export const calendarioAhoraSchema = z.object({
+  fechaOperacion: z.string().min(10),
+  ventanaAbierta: z.boolean(),
+  esSabado: z.boolean(),
+});
+export type CalendarioAhora = z.infer<typeof calendarioAhoraSchema>;
+
+/** Fecha larga en español de Guatemala: "jueves 20 de agosto". */
+export function formatearFechaLarga(fecha: FechaCalendario): string {
+  const dt = DateTime.fromISO(String(fecha), { zone: ZONA_NEGOCIO }).setLocale(
+    "es-GT",
+  );
+  if (!dt.isValid) return String(fecha);
+  const texto = dt.toFormat("cccc d 'de' LLLL");
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
 
 export type FechaCalendario = `${number}-${number}-${number}` | string;
 
@@ -23,6 +42,12 @@ export type BusinessCalendar = {
     punto: PuntoCarga,
     fecha: Date | FechaCalendario,
   ): PuntoCarga;
+  /** Instantáneo UTC del próximo cierre (exclusivo). */
+  getCierreVentana(now: Date): Date;
+  /** Instantáneo UTC de la próxima apertura. */
+  getProximaApertura(now: Date): Date;
+  /** Días de calendario en zona GT entre dos instantes (antigüedad de factura). */
+  diasCalendarioEntre(desde: Date, hasta: Date): number;
 };
 
 const VENTANA_DEFAULT: VentanaHoraria = {
@@ -120,6 +145,65 @@ export function createBusinessCalendar(opts?: {
     fecha: Date | FechaCalendario,
   ): PuntoCarga => (isSabado(fecha) ? "PLANTA" : punto);
 
+  const aperturaDelDia = (dt: DateTime): DateTime =>
+    dt.startOf("day").plus({ minutes: ventana.aperturaMinutos });
+
+  const cierreTrasApertura = (apertura: DateTime): DateTime => {
+    if (ventana.cierreMinutos === 0) {
+      return apertura.startOf("day").plus({ days: 1 });
+    }
+    if (ventana.aperturaMinutos < ventana.cierreMinutos) {
+      return apertura.startOf("day").plus({ minutes: ventana.cierreMinutos });
+    }
+    return apertura.startOf("day").plus({
+      days: 1,
+      minutes: ventana.cierreMinutos,
+    });
+  };
+
+  const getProximaApertura = (now: Date): Date => {
+    const dt = enZona(now);
+    if (!isVentanaAbierta(now)) {
+      const hoy = aperturaDelDia(dt);
+      if (dt < hoy) return hoy.toJSDate();
+      return aperturaDelDia(dt.plus({ days: 1 })).toJSDate();
+    }
+    return aperturaDelDia(dt.plus({ days: 1 })).toJSDate();
+  };
+
+  const getCierreVentana = (now: Date): Date => {
+    const dt = enZona(now);
+    if (isVentanaAbierta(now)) {
+      if (ventana.cierreMinutos === 0) {
+        return dt.startOf("day").plus({ days: 1 }).toJSDate();
+      }
+      if (ventana.aperturaMinutos < ventana.cierreMinutos) {
+        return dt
+          .startOf("day")
+          .plus({ minutes: ventana.cierreMinutos })
+          .toJSDate();
+      }
+      const minutos = minutosDelDia(dt);
+      if (minutos >= ventana.aperturaMinutos) {
+        return dt
+          .startOf("day")
+          .plus({ days: 1, minutes: ventana.cierreMinutos })
+          .toJSDate();
+      }
+      return dt.startOf("day").plus({ minutes: ventana.cierreMinutos }).toJSDate();
+    }
+    const proxima = DateTime.fromJSDate(getProximaApertura(now), {
+      zone: ZONA_NEGOCIO,
+    });
+    return cierreTrasApertura(proxima).toJSDate();
+  };
+
+  const diasCalendarioEntre = (desde: Date, hasta: Date): number => {
+    const a = enZona(desde).startOf("day");
+    const b = enZona(hasta).startOf("day");
+    return Math.round(b.diff(a, "days").days);
+  };
+
   return {
     isVentanaAbierta,
     getFechaOperacion,
@@ -127,5 +211,23 @@ export function createBusinessCalendar(opts?: {
     isDiaNoLaborable,
     isSabado,
     puntoCargaEfectivo,
+    getCierreVentana,
+    getProximaApertura,
+    diasCalendarioEntre,
   };
+}
+
+export function instanteAIso(instant: Date): string {
+  return (
+    DateTime.fromJSDate(instant, { zone: ZONA_NEGOCIO }).toISO() ??
+    instant.toISOString()
+  );
+}
+
+export function horaEnZona(instant: Date): string {
+  return DateTime.fromJSDate(instant, { zone: ZONA_NEGOCIO }).toFormat("HH:mm");
+}
+
+export function fechaDeInstante(instant: Date): FechaCalendario {
+  return aFechaCalendario(enZona(instant));
 }

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { LoggerModule } from "nestjs-pino";
+import { stdSerializers } from "pino";
 import { HealthModule } from "./health/health.module";
 import { SharedModule } from "./modules/shared/shared.module";
 import { IdentityModule } from "./modules/identity/identity.module";
@@ -9,6 +10,7 @@ import { FulfillmentModule } from "./modules/fulfillment/fulfillment.module";
 import { ReceivablesModule } from "./modules/receivables/receivables.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { redactPortalPath } from "./modules/shared/pino-redact";
 
 @Module({
   imports: [
@@ -20,6 +22,15 @@ import { AnalyticsModule } from "./modules/analytics/analytics.module";
           "req.headers.cookie",
           "req.headers['x-portal-token']",
         ],
+        serializers: {
+          req(req) {
+            const serialized = stdSerializers.req(req);
+            if (typeof serialized.url === "string") {
+              serialized.url = redactPortalPath(serialized.url);
+            }
+            return serialized;
+          },
+        },
         transport:
           process.env.NODE_ENV === "production"
             ? undefined

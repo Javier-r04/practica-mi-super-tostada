@@ -212,48 +212,48 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 ### E1 — Catálogo y clientes *(semana 2)*
 
 **F-101 · CRUD de productos**
-- [ ] Campos de `CLAUDE.md` §5; foto opcional; orden arrastrable
-- [ ] Desactivación en lugar de borrado
-- [ ] Agrupación visual por `familia`
+- [x] Campos de `AGENTS.md` §5; foto opcional; orden arrastrable
+- [x] Desactivación en lugar de borrado
+- [x] Agrupación visual por `familia`
 
 **F-102 · CRUD de clientes**
-- [ ] Datos, teléfono WA, `horario_entrega_fijo`, `notas_permanentes`, `limite_facturas_pendientes`
-- [ ] Generación y rotación del token de portal
+- [x] Datos, teléfono WA, `horario_entrega_fijo`, `notas_permanentes`, `limite_facturas_pendientes`
+- [x] Generación y rotación del token de portal
 
 **F-103 · Alias y precios por cliente**
-- [ ] `ClienteProducto` con alias, precio, `nota_produccion`, favorito y orden
-- [ ] Se auto-crea la primera vez que el cliente pide un producto
-- [ ] Vista de gestión rápida: un cliente, todos sus productos, edición en línea
+- [x] `ClienteProducto` con alias, precio, `nota_produccion`, favorito y orden
+- [x] El portal no auto-crea ligas: solo se pide un producto con precio cargado (D3)
+- [x] Vista de gestión rápida: un cliente, todos sus productos, edición en línea
 
 **F-104 · Importador CSV**
-- [ ] Plantilla descargable para clientes y para productos
-- [ ] Validación por fila con vista previa y reporte de errores antes de confirmar
-- [ ] Importación parcial permitida (para que carguen por partes)
+- [x] Plantilla descargable para clientes y para productos
+- [x] Validación por fila con vista previa y reporte de errores antes de confirmar
+- [x] Importación parcial permitida (para que carguen por partes)
 
 ### E2 — Portal del cliente *(semanas 3–4)*
 
 **F-201 · Acceso por token**
-- [ ] `/p/{token}`, sin login; token hasheado en BD; rate limit por token e IP
-- [ ] Cada apertura registrada en `audit_log`
-- [ ] Token revocado ⇒ 404 genérico, sin filtrar información
+- [x] `/p/{token}`, sin login; token hasheado en BD; rate limit por token e IP
+- [x] Cada apertura registrada en `audit_log`
+- [x] Token revocado ⇒ 404 genérico, sin filtrar información
 
 **F-202 · Captura de pedido**
-- [ ] Favoritos del cliente arriba con **su** alias y **su** precio; catálogo completo debajo
-- [ ] Solo se captura cantidad
-- [ ] Confirmación con subtotal antes de enviar
-- [ ] Mobile-first, usable en menos de un minuto
+- [x] Favoritos del cliente arriba con **su** alias y **su** precio; catálogo completo debajo
+- [x] Solo se captura cantidad
+- [x] Confirmación con subtotal antes de enviar
+- [x] Mobile-first, usable en menos de un minuto
 
 **F-203 · Ventana horaria**
-- [ ] Validada en servidor; fuera de horario informa la próxima ventana disponible
-- [ ] Nunca confiar en el reloj del navegador
+- [x] Validada en servidor; fuera de horario informa la próxima ventana disponible
+- [x] Nunca confiar en el reloj del navegador
 
 **F-204 · Edición hasta el cierre**
-- [ ] El cliente puede editar su pedido mientras la ventana esté abierta
-- [ ] Cada edición al `audit_log` con diff; el pedido **no** se versiona
-- [ ] Cancelar no está permitido desde el portal (debe llamar)
+- [x] El cliente puede editar su pedido mientras la ventana esté abierta
+- [x] Cada edición al `audit_log` con diff; el pedido **no** se versiona
+- [x] Cancelar no está permitido desde el portal (debe llamar)
 
 **F-205 · Estado de cuenta del cliente**
-- [ ] Facturas pendientes, montos, antigüedad, desde el mismo enlace
+- [x] Facturas pendientes, montos, antigüedad, desde el mismo enlace
 
 ### E3 — Panel de pedidos *(semana 4)*
 

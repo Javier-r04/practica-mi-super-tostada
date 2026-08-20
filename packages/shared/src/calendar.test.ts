@@ -91,4 +91,57 @@ describe("BusinessCalendar", () => {
     const vispera = instanteGT("2026-09-14T16:00:00");
     expect(calendar.getFechaOperacion(vispera)).toBe("2026-09-16");
   });
+
+  test("formatearFechaLarga usa español de Guatemala sin new Date()", async () => {
+    const { formatearFechaLarga } = await import("./calendar");
+    expect(formatearFechaLarga("2026-08-20")).toBe("Jueves 20 de agosto");
+  });
+
+  test("14:59: próxima apertura es hoy 15:00 GT", () => {
+    const now = instanteGT("2026-08-20T14:59:00");
+    const proxima = calendar.getProximaApertura(now);
+    expect(
+      DateTime.fromJSDate(proxima, { zone: ZONA_NEGOCIO }).toISO({
+        suppressMilliseconds: true,
+      }),
+    ).toBe("2026-08-20T15:00:00-06:00");
+  });
+
+  test("15:00: cierre de ventana es medianoche del día siguiente", () => {
+    const now = instanteGT("2026-08-20T15:00:00");
+    const cierre = calendar.getCierreVentana(now);
+    expect(
+      DateTime.fromJSDate(cierre, { zone: ZONA_NEGOCIO }).toISO({
+        suppressMilliseconds: true,
+      }),
+    ).toBe("2026-08-21T00:00:00-06:00");
+  });
+
+  test("00:00: próxima apertura es hoy 15:00 GT", () => {
+    const now = instanteGT("2026-08-21T00:00:00");
+    const proxima = calendar.getProximaApertura(now);
+    expect(
+      DateTime.fromJSDate(proxima, { zone: ZONA_NEGOCIO }).toISO({
+        suppressMilliseconds: true,
+      }),
+    ).toBe("2026-08-21T15:00:00-06:00");
+    expect(calendar.isVentanaAbierta(now)).toBe(false);
+  });
+
+  test("23:59: cierre sigue siendo la medianoche inmediata", () => {
+    const now = instanteGT("2026-08-20T23:59:00");
+    const cierre = calendar.getCierreVentana(now);
+    expect(
+      DateTime.fromJSDate(cierre, { zone: ZONA_NEGOCIO }).toISO({
+        suppressMilliseconds: true,
+      }),
+    ).toBe("2026-08-21T00:00:00-06:00");
+  });
+
+  test("días de calendario GT entre emitida_at y now (antigüedad de factura)", () => {
+    const emitida = instanteGT("2026-08-05T10:00:00");
+    const ahora = instanteGT("2026-08-20T22:00:00");
+    expect(calendar.diasCalendarioEntre(emitida, ahora)).toBe(15);
+    expect(calendar.diasCalendarioEntre(ahora, ahora)).toBe(0);
+  });
 });

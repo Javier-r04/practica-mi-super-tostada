@@ -27,6 +27,8 @@ theme: { extend: {
 
 4. Los componentes de `docs/design/components/` son **referencia de apariencia**, no librería de producción: se reimplementan como componentes shadcn/ui con estos valores exactos. Copia los números, no los redondees. Iconos: `lucide-react`, no el CDN.
 
+**Chrome del panel (2026-08):** la barra lateral es **clara** (`--surface-nav`), no verde a sangre. El verde profundo queda para el sello MST, las tarjetas `brand` de resumen, el portal del cliente y el encabezado de reparto. El ítem activo lleva filo `--nav-rail` (amarillo) sobre `--surface-nav-active`.
+
 **Regla de oro:** ningún color, radio, sombra ni tamaño de fuente literal en el código de pantalla. Si necesitas un valor que no existe como token, falta un token.
 
 ---
@@ -43,6 +45,9 @@ theme: { extend: {
 | Texto apagado | `--ink-500` | `#767A69` |
 | Borde de tarjeta | `--ink-200` | `#DEDFD6` |
 | Fondo de página | `--ink-50` | `#F7F7F4` |
+| Barra lateral (panel) | `--surface-nav` | blanco |
+| Ítem de nav activo | `--surface-nav-active` | `--green-50` |
+| Filo de nav activo | `--nav-rail` | `--yellow-400` |
 | Papel (lectura/impresión) | `--cream-300` | `#F6F1E4` |
 | Vencido / anulado | `--red-600` | `#B3231C` |
 | Pendiente / cola offline | `--amber-600` | `#C77A02` |
@@ -63,8 +68,8 @@ Medidas fijas: barra superior 56 px · barra inferior 64 px · lateral 248 px ·
 
 ## 3. Reglas visuales no negociables
 
-1. **Un solo amarillo por pantalla.** Es la acción que cierra la noche, cobra o confirma. Todo lo demás es verde, contorno o fantasma.
-2. **El verde profundo va a sangre**, nunca como fondo de formulario.
+1. **Un solo amarillo por pantalla.** Es la acción que cierra la noche, cobra, confirma o entra al panel. Todo lo demás es verde, contorno o fantasma.
+2. **El verde profundo no es el chrome del panel.** Va a sangre en portal, reparto y tarjetas `brand` de resumen. Nunca como fondo de un formulario.
 3. **Sin gradientes decorativos, sin `backdrop-filter`, sin emoji.** Sobre foto va degradado de protección (`--scrim-*`), no cápsula translúcida.
 4. **Nada rebota.** 130 ms controles, 200 ms superficies, 320 ms máximo, `--ease-out`. Press = `scale(.985)`.
 5. **Hover cambia color, no opacidad.** Opacidad solo indica deshabilitado (`.45`).
@@ -110,7 +115,11 @@ Primitivas: `Button`, `Icon`, `Card`, `Badge`, `Tag`, `Tabs`, `Input`/`Field`, `
 
 ### 6.1 Panel interno (escritorio, `ui_kits/panel/`)
 
-Estructura: `SidebarNav` verde profundo (248 px) + barra superior blanca de 56 px con **título · fecha de operación · `VentanaBadge` · contador de outbox** + `main` con canal de 24 px sobre `--ink-50`.
+Estructura: `SidebarNav` clara (248 px, `--surface-nav`) + barra superior blanca de 56 px con **título · fecha de operación · `VentanaBadge`** + `main` con canal de 16 px móvil / 24 px escritorio sobre `--ink-50`, ancho máximo `--page-max`. En `< lg` la lateral se convierte en cajón; abajo, `BottomNav` de 64 px con las vistas vivas.
+
+La navegación lista **todas** las vistas del sistema. Las que aún no existen se muestran deshabilitadas con el rótulo `Pronto` (no se esconden: el producto no debe parecer un CRUD de dos páginas).
+
+`GET /calendario/ahora` alimenta la fecha de operación y el `VentanaBadge` del chrome. La verdad la calcula `BusinessCalendar` en el servidor; el navegador no usa `new Date()` para esto.
 
 | Vista | Contenido obligatorio |
 |---|---|

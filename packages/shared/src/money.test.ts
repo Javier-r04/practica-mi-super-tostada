@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { centavosSchema, formatearCentavos, redondearBancario } from "./money";
+import {
+  centavosSchema,
+  formatearCentavos,
+  quetzalesTextoACentavos,
+  redondearBancario,
+} from "./money";
 
 describe("formatearCentavos", () => {
   test("formatea 1250 como Q 12.50", () => {
@@ -43,6 +48,23 @@ describe("centavosSchema", () => {
 
   test("rechaza decimales", () => {
     expect(centavosSchema.safeParse(12.5).success).toBe(false);
+  });
+});
+
+describe("quetzalesTextoACentavos", () => {
+  test("12.50 y Q 12.50 son 1250 centavos", () => {
+    expect(quetzalesTextoACentavos("12.50")).toBe(1250);
+    expect(quetzalesTextoACentavos("Q 12.50")).toBe(1250);
+    expect(quetzalesTextoACentavos("12,50")).toBe(1250);
+    expect(quetzalesTextoACentavos("12")).toBe(1200);
+    expect(quetzalesTextoACentavos("12.5")).toBe(1250);
+  });
+
+  test("rechaza más de dos decimales, letras y vacío", () => {
+    expect(() => quetzalesTextoACentavos("12.555")).toThrow(/inválido/);
+    expect(() => quetzalesTextoACentavos("12.5.0")).toThrow(/inválido/);
+    expect(() => quetzalesTextoACentavos("abc")).toThrow(/inválido/);
+    expect(() => quetzalesTextoACentavos("")).toThrow(/vacío/);
   });
 });
 

@@ -59,8 +59,9 @@ Este sistema de diseño cubre dos territorios que comparten paleta pero no tono:
 Verde profundo de maíz y amarillo rótulo, muestreados del material entregado (`#002e03` → `#005002` de fondo, `#fcfa0a` de titular, `#e9d145` del relieve dorado). El sistema los normaliza en escalas: `--green-800 #0E4E15` es el verde de marca en interfaz, `--yellow-400 #FFE100` el acento, `--gold-500 #D8B437` el oro del relieve promocional.
 
 Reglas de uso:
-- **Un solo amarillo por pantalla.** El amarillo es la acción que cierra la noche, la que cobra, la que confirma. Si hay dos, ninguna destaca.
-- El verde profundo se usa a sangre (barra lateral, encabezado móvil, tarjeta de resumen), **nunca** como fondo de un formulario.
+- **Un solo amarillo por pantalla.** El amarillo es la acción que cierra la noche, la que cobra, la que confirma, la que entra al panel. Si hay dos, ninguna destaca.
+- El verde profundo se usa a sangre en **portal, encabezado de reparto y tarjetas `brand`**, **nunca** como fondo de un formulario ni como barra lateral del panel interno.
+- El panel interno es claro: `--surface-nav` blanco, ítem activo con filo `--nav-rail` sobre `--green-50`. Cristian trabaja tres horas de noche; el bunker verde cansaba la vista y hacía ver el producto como un admin de 2014.
 - Neutros cálidos tintados hacia el papel (`--ink-*`, base `#17190F`). Nada de gris azulado.
 - Crema `#F6F1E4` es "papel": recrea el corte de ola del material impreso y viste las tarjetas de contenido para leer/imprimir.
 - Semánticos: rojo `#B3231C` mora y anulación, ámbar `#C77A02` pendiente y cola offline, azul `#1D6A8C` informativo. El verde ya significa "pagado / entregado", así que no se usa para "activo" genérico.
@@ -81,7 +82,7 @@ Los montos usan Plex Sans con `font-variant-numeric: tabular-nums`. Rótulos: 12
 Escala de 4 px; 8/12/16 hacen el 80% del trabajo. Canal de 16 px en móvil, 24 px en escritorio. Ancho máximo de contenido 1240 px; barra lateral fija de 248 px; barra superior de 56 px; barra inferior móvil de 64 px. Fila de tabla o lista: 52 px. **Mínimo táctil 44 px**, 52 px en acciones de reparto. Nada fijo salvo las barras y el pie de acción del móvil (el total del pedido siempre visible sobre el catálogo).
 
 ### Fondos, imagen y textura
-La aplicación es plana: `--surface-page #F7F7F4` y tarjetas blancas. Sin gradientes decorativos, sin ruido, sin patrones.
+La aplicación es plana: `--surface-page #F7F7F4`, chrome de panel blanco y tarjetas blancas. Sin gradientes decorativos, sin ruido, sin patrones.
 
 El material promocional sí tiene textura: verde a sangre con un rayado vertical sutilísimo, fotografía de planta y de mazorcas a sangre en la mitad del lienzo, y el corte de papel crema irregular separando foto de titular. La fotografía disponible es cálida y saturada: verde institucional, amarillo de maíz, blanco de uniforme e higiene. Producto en primer plano, personas de la planta en uniforme, maquinaria limpia. Nada en blanco y negro, nada con grano.
 

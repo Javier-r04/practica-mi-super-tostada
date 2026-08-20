@@ -18,6 +18,6 @@ Abre `index.html`. Requiere `_ds_bundle.js` compilado en la raíz del proyecto (
 Datos de demostración en `data.js`. Nada llama a un servidor: es una recreación visual, no código de producción.
 
 ## Notas de diseño
-- Barra lateral verde profundo, ítem activo con filo amarillo; el resto de la interfaz es blanca sobre `--surface-page`.
+- Barra lateral clara (`--surface-nav`), ítem activo con filo amarillo; el resto de la interfaz es blanca sobre `--surface-page`. Las vistas no construidas aparecen como `Pronto`.
 - La única acción amarilla por pantalla es la que cierra la noche.
 - Todo monto viene en centavos y pasa por `Money`.

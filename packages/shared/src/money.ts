@@ -21,6 +21,25 @@ export function redondearBancario(valor: number): number {
   return signo * (entero % 2 === 0 ? entero : entero + 1);
 }
 
+/**
+ * Convierte texto de quetzales (`12.50`, `Q 12.50`, `12,50`) a centavos enteros.
+ * No acepta miles ni más de dos decimales. El float no entra al stack.
+ */
+export function quetzalesTextoACentavos(texto: string): number {
+  const recortado = texto.trim().replace(/^Q\s*/i, "");
+  if (recortado === "") {
+    throw new Error("El precio está vacío");
+  }
+  const normalizado = recortado.includes(".")
+    ? recortado
+    : recortado.replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(normalizado)) {
+    throw new Error(`Precio inválido: ${texto.trim()}`);
+  }
+  const [entero, dec = ""] = normalizado.split(".");
+  return Number(entero) * 100 + Number(dec.padEnd(2, "0"));
+}
+
 export function formatearCentavos(
   centavos: number,
   { simbolo = true }: { simbolo?: boolean } = {},

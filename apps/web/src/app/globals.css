@@ -42,5 +42,6 @@
   --height-campo: var(--field-height);
   --height-fila: var(--row-height);
   --height-topbar: var(--topbar-height);
+  --height-bottombar: var(--bottombar-height);
   --width-sidebar: var(--sidebar-width);
 }

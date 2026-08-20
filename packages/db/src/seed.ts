@@ -1,9 +1,11 @@
 /**
  * Seed de desarrollo con los datos de CONTEXT.md §5.
  * Idempotente: se puede correr dos veces sin duplicar.
- * No inventa precios (precio_centavos queda null).
+ * En producción no hay precios ni token de portal.
+ * En desarrollo (D5) Tabasco Casa Vieja recibe precios de demo y un token conocido.
  */
 import { resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq, and } from "drizzle-orm";
@@ -359,6 +361,98 @@ export async function seed(databaseUrl: string) {
           })),
         )
         .onConflictDoNothing();
+    }
+
+    if (tabascoCasaVieja && process.env.NODE_ENV !== "production") {
+      const demoTortilla: Record<
+        string,
+        { alias: string; precioCentavos: number; favorito: boolean }
+      > = {
+        "TORT-16": {
+          alias: "tortilla grande",
+          precioCentavos: 1250,
+          favorito: true,
+        },
+        "TORT-14": {
+          alias: "tortilla mediana",
+          precioCentavos: 1100,
+          favorito: true,
+        },
+        "TORT-12": {
+          alias: "tortilla pequeña",
+          precioCentavos: 1000,
+          favorito: true,
+        },
+      };
+      for (const t of tortillas) {
+        const demo = demoTortilla[t.sku];
+        if (!demo) continue;
+        await db
+          .update(schema.clienteProducto)
+          .set({
+            alias: demo.alias,
+            precioCentavos: demo.precioCentavos,
+            favorito: demo.favorito,
+            notaProduccion: "GRUESA",
+          })
+          .where(
+            and(
+              eq(schema.clienteProducto.clienteId, tabascoCasaVieja.id),
+              eq(schema.clienteProducto.productoId, t.id),
+            ),
+          );
+      }
+
+      const [nachosBlancos] = await db
+        .select()
+        .from(schema.producto)
+        .where(
+          and(
+            eq(schema.producto.organizacionId, ORG_ID),
+            eq(schema.producto.sku, "NACH-B"),
+          ),
+        );
+      if (nachosBlancos) {
+        await db
+          .insert(schema.clienteProducto)
+          .values({
+            clienteId: tabascoCasaVieja.id,
+            productoId: nachosBlancos.id,
+            alias: "nachos blancos",
+            precioCentavos: 1500,
+            favorito: false,
+            orden: 10,
+          })
+          .onConflictDoNothing();
+        await db
+          .update(schema.clienteProducto)
+          .set({
+            alias: "nachos blancos",
+            precioCentavos: 1500,
+          })
+          .where(
+            and(
+              eq(schema.clienteProducto.clienteId, tabascoCasaVieja.id),
+              eq(schema.clienteProducto.productoId, nachosBlancos.id),
+            ),
+          );
+      }
+
+      const tokenPortal = "dev-tabasco-casa-vieja-portal-token";
+      await db
+        .update(schema.cliente)
+        .set({
+          tokenPortalHash: createHash("sha256")
+            .update(tokenPortal)
+            .digest("hex"),
+        })
+        .where(eq(schema.cliente.id, tabascoCasaVieja.id));
+      console.log(
+        `[seed] Portal Tabasco Casa Vieja: http://localhost:3000/p/${tokenPortal}`,
+      );
+      console.log(
+        "[seed] Precios de demo (no reales) en tortillas No. 16/14/12 y nachos blancos.",
+      );
     }
 
     const [kraken] = await db

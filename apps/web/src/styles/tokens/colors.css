@@ -16,6 +16,7 @@
 /* ============ ALIAS SEMÁNTICOS ============ */
 /* Superficies */
 --surface-page:var(--ink-50);--surface-card:var(--white);--surface-sunken:var(--ink-100);--surface-inverse:var(--green-900);--surface-brand:var(--green-800);--surface-brand-soft:var(--green-50);--surface-accent:var(--yellow-400);--surface-paper:var(--cream-300);--surface-overlay:rgba(3,28,6,.55);
+--surface-nav:var(--white);--surface-nav-hover:var(--ink-50);--surface-nav-active:var(--green-50);--nav-rail:var(--yellow-400);
 /* Texto */
 --text-body:var(--ink-800);--text-strong:var(--ink-900);--text-muted:var(--ink-500);--text-subtle:var(--ink-400);--text-on-brand:var(--white);--text-on-accent:var(--green-900);--text-brand:var(--green-800);--text-link:var(--green-700);--text-link-hover:var(--green-600);--text-danger:var(--red-600);--text-warning:var(--amber-700);--text-money:var(--ink-900);
 /* Bordes */

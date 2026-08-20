@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-/** Navegación lateral del panel interno: verde profundo, ítem activo con filo amarillo de 3px. */
+/** Navegación lateral del panel interno: clara, ítem activo con filo amarillo de 3px. */
 export interface SidebarItem {
   id: string;
   label: string;
@@ -8,6 +8,8 @@ export interface SidebarItem {
   icon: string;
   /** Contador a la derecha: pendientes, no leídos. */
   badge?: number | string;
+  /** Vista aún no construida: se muestra, no se esconde. */
+  soon?: boolean;
 }
 export interface SidebarNavProps {
   items: SidebarItem[];

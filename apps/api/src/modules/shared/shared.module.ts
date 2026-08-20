@@ -15,11 +15,12 @@ import { R2StorageAdapter } from "./storage/r2.storage";
 import { AssetVariantsJob } from "./storage/variants.job";
 import { AssetsService } from "./storage/assets.service";
 import { AssetsController } from "./storage/assets.controller";
+import { CalendarioController } from "./calendario.controller";
 
 @Global()
 @Module({
   imports: [DatabaseModule],
-  controllers: [AssetsController],
+  controllers: [AssetsController, CalendarioController],
   providers: [
     clockProvider,
     BusinessCalendarService,
