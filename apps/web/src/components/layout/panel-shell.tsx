@@ -18,6 +18,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   formatearFechaLarga,
+  MENSAJE_COLA_SESION,
   type ActorPublico,
   type CalendarioAhora,
 } from "@misupertostada/shared";
@@ -30,6 +31,8 @@ import { VentanaBadge } from "@/components/domain/ventana-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ReactNode } from "react";
 import { useEffect, useId, useState } from "react";
+import { OfflineBanner } from "@/components/feedback/offline-banner";
+import { useColaOffline } from "@/hooks/use-cola-offline";
 
 type NavItem = {
   href?: string;
@@ -78,6 +81,10 @@ export function PanelShell({
   const qc = useQueryClient();
   const mainId = useId();
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const cola = useColaOffline();
+  const mostrarBanner =
+    pathname.startsWith("/reparto") || cola.cola.length > 0;
+  const sesionCola = cola.cola.some((f) => f.estado === "sesion");
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -217,6 +224,27 @@ export function PanelShell({
             )}
           </div>
         </header>
+        {mostrarBanner && (
+          <OfflineBanner
+            online={cola.online}
+            pendientes={cola.cola.length}
+            sincronizando={cola.sincronizando}
+            onReintentar={cola.enviarAhora}
+          />
+        )}
+        {sesionCola && (
+          <div
+            role="status"
+            className="bg-[var(--amber-100)] px-4 py-2 text-xs font-semibold text-[var(--amber-700)]"
+          >
+            {MENSAJE_COLA_SESION}
+          </div>
+        )}
+        {cola.errorApertura && (
+          <div role="alert" className="bg-[var(--red-100)] px-4 py-2 text-xs font-semibold text-peligro">
+            {cola.errorApertura}
+          </div>
+        )}
         <main
           id={mainId}
           className="relative flex-1 overflow-auto px-4 py-4 pb-[calc(var(--bottombar-height)+1rem)] lg:px-6 lg:py-6 lg:pb-6"

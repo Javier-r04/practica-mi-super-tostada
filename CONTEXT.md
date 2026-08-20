@@ -369,9 +369,9 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 ### E8 — Offline *(semana 7)*
 
 **F-801 · PWA con cola local**
-- [ ] Instalable; acciones de reparto encoladas en IndexedDB
-- [ ] Sincronización al recuperar señal, con `idempotency_key` de cliente
-- [ ] **UI honesta**: indicador de pendiente-de-sincronizar; nunca mostrar éxito sin confirmación
+- [x] Instalable; acciones de reparto encoladas en IndexedDB
+- [x] Sincronización al recuperar señal, con `idempotency_key` de cliente
+- [x] **UI honesta**: indicador de pendiente-de-sincronizar; nunca mostrar éxito sin confirmación
 
 ### E9 — Puesta en marcha *(semana 8)*
 

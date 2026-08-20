@@ -29,6 +29,7 @@ import { BusinessCalendarService } from "../shared/calendar.service";
 import { PedidoEvents } from "../shared/panel-events";
 import { DomainException } from "../shared/domain.exception";
 import { parseBody } from "../shared/zod-body";
+import { esViolacionUnica } from "../shared/pg-error";
 import type { Actor } from "../identity/actor";
 import {
   FACTURA_AL_ENTREGAR,
@@ -99,7 +100,18 @@ export class EntregaService {
         return { item, cantidadEntregada };
       });
 
+      if (ped.entregaIdempotencyKey === input.idempotencyKey) {
+        return { pedidoId: ped.id, idempotente: true };
+      }
+
       if (ped.estado === "ENTREGADO") {
+        if (ped.entregaIdempotencyKey) {
+          throw new DomainException(
+            "PEDIDO_NO_ENTREGABLE",
+            MENSAJE_PEDIDO_NO_ENTREGABLE,
+            409,
+          );
+        }
         const igual = cantidades.every(
           (c) => c.item.cantidadEntregada === c.cantidadEntregada,
         );
@@ -121,6 +133,24 @@ export class EntregaService {
         );
       }
 
+      const [keyAjena] = await tx
+        .select({ id: pedido.id })
+        .from(pedido)
+        .where(
+          and(
+            eq(pedido.entregaIdempotencyKey, input.idempotencyKey),
+            eq(pedido.organizacionId, actor.organizacionId),
+          ),
+        )
+        .limit(1);
+      if (keyAjena) {
+        throw new DomainException(
+          "PEDIDO_NO_ENTREGABLE",
+          MENSAJE_PEDIDO_NO_ENTREGABLE,
+          409,
+        );
+      }
+
       for (const c of cantidades) {
         await tx
           .update(pedidoItem)
@@ -133,10 +163,24 @@ export class EntregaService {
           precioUnitarioCentavos: c.item.precioUnitarioCentavos,
         })),
       );
-      await tx
-        .update(pedido)
-        .set({ estado: "ENTREGADO" })
-        .where(eq(pedido.id, ped.id));
+      try {
+        await tx
+          .update(pedido)
+          .set({
+            estado: "ENTREGADO",
+            entregaIdempotencyKey: input.idempotencyKey,
+          })
+          .where(eq(pedido.id, ped.id));
+      } catch (err) {
+        if (esViolacionUnica(err)) {
+          throw new DomainException(
+            "PEDIDO_NO_ENTREGABLE",
+            MENSAJE_PEDIDO_NO_ENTREGABLE,
+            409,
+          );
+        }
+        throw err;
+      }
       await this.facturas.crearEnTx(tx, { pedidoId: ped.id, montoCentavos: monto });
       await this.events.insert(
         TIPO_EVENTO_PEDIDO_ENTREGADO,

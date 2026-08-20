@@ -210,7 +210,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p, prod } = await catalogo(f, { precioCentavos: 1250, cantidad: 50 });
-      const r = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const r = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       expect(r.estado).toBe("ENTREGADO");
       expect(r.factura.montoCentavos).toBe(62500);
       expect(r.factura.estado).toBe("PENDIENTE");
@@ -231,6 +231,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       });
       const r = await f.entregas.entregar(
         {
+          idempotencyKey: crypto.randomUUID(),
           pedidoId: p.id,
           items: [{ productoId: prod.id, cantidadEntregada: 40 }],
         },
@@ -267,7 +268,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 10 }] },
         f.actor,
       );
-      await expect(f.entregas.entregar({ pedidoId: p.id }, f.actorReparto)).rejects.toMatchObject({
+      await expect(f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto)).rejects.toMatchObject({
         code: "PEDIDO_NO_ENTREGABLE",
         httpStatus: 409,
       });
@@ -280,12 +281,13 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p, prod } = await catalogo(f);
+      const key = `entrega-retry-${p.id.slice(0, 8)}`;
       const a = await f.entregas.entregar(
-        { pedidoId: p.id, items: [{ productoId: prod.id, cantidadEntregada: 50 }] },
+        { idempotencyKey: key, pedidoId: p.id, items: [{ productoId: prod.id, cantidadEntregada: 50 }] },
         f.actorReparto,
       );
       const b = await f.entregas.entregar(
-        { pedidoId: p.id, items: [{ productoId: prod.id, cantidadEntregada: 50 }] },
+        { idempotencyKey: key, pedidoId: p.id, items: [{ productoId: prod.id, cantidadEntregada: 50 }] },
         f.actorReparto,
       );
       expect(a.idempotente).toBe(false);
@@ -298,12 +300,105 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     }
   });
 
+  test("F-801 misma key dos veces (cantidades distintas en el retry) → una factura, no duplica", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p, prod } = await catalogo(f, { cantidad: 50 });
+      const key = `entrega-offline-${p.id.slice(0, 8)}`;
+      const a = await f.entregas.entregar(
+        {
+          idempotencyKey: key,
+          pedidoId: p.id,
+          items: [{ productoId: prod.id, cantidadEntregada: 50 }],
+        },
+        f.actorReparto,
+      );
+      const b = await f.entregas.entregar(
+        {
+          idempotencyKey: key,
+          pedidoId: p.id,
+          items: [{ productoId: prod.id, cantidadEntregada: 40 }],
+        },
+        f.actorReparto,
+      );
+      expect(a.idempotente).toBe(false);
+      expect(b.idempotente).toBe(true);
+      expect(b.factura.id).toBe(a.factura.id);
+      expect(b.factura.montoCentavos).toBe(a.factura.montoCentavos);
+      const item = b.items.find((i) => i.productoId === prod.id);
+      expect(item?.cantidadEntregada).toBe(50);
+      const facs = await f.db.select().from(factura).where(eq(factura.pedidoId, p.id));
+      expect(facs).toHaveLength(1);
+      const audits = await f.db
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.accion, "pedidos.entregar"));
+      expect(audits.filter((row) => row.entidadId === p.id)).toHaveLength(1);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-801 ENTREGADO + key distinta + cantidad distinta → 409", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p, prod } = await catalogo(f, { cantidad: 50 });
+      await f.entregas.entregar(
+        {
+          idempotencyKey: `entrega-primera-${p.id.slice(0, 8)}`,
+          pedidoId: p.id,
+          items: [{ productoId: prod.id, cantidadEntregada: 50 }],
+        },
+        f.actorReparto,
+      );
+      await expect(
+        f.entregas.entregar(
+          {
+            idempotencyKey: `entrega-otra-${p.id.slice(0, 8)}`,
+            pedidoId: p.id,
+            items: [{ productoId: prod.id, cantidadEntregada: 40 }],
+          },
+          f.actorReparto,
+        ),
+      ).rejects.toMatchObject({ code: "PEDIDO_NO_ENTREGABLE", httpStatus: 409 });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-801 ENTREGADO + key distinta aunque las cantidades coincidan → 409", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { pedido: p, prod } = await catalogo(f, { cantidad: 50 });
+      await f.entregas.entregar(
+        {
+          idempotencyKey: `entrega-a-${p.id.slice(0, 8)}`,
+          pedidoId: p.id,
+          items: [{ productoId: prod.id, cantidadEntregada: 50 }],
+        },
+        f.actorReparto,
+      );
+      await expect(
+        f.entregas.entregar(
+          {
+            idempotencyKey: `entrega-b-${p.id.slice(0, 8)}`,
+            pedidoId: p.id,
+            items: [{ productoId: prod.id, cantidadEntregada: 50 }],
+          },
+          f.actorReparto,
+        ),
+      ).rejects.toMatchObject({ code: "PEDIDO_NO_ENTREGABLE", httpStatus: 409 });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
   test("F-403 PRODUCCION POST entregar → 403; GET ruta → 200", async () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p } = await catalogo(f);
       await expect(
-        f.entregas.entregar({ pedidoId: p.id }, f.actorProduccion),
+        f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorProduccion),
       ).rejects.toMatchObject({ code: "PERMISO_DENEGADO", httpStatus: 403 });
       const ruta = await f.entregas.ruta({}, f.actorProduccion);
       expect(ruta.paradas.length).toBeGreaterThan(0);
@@ -344,8 +439,8 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      const ea = await f.entregas.entregar({ pedidoId: pA.id }, f.actorReparto);
-      const eb = await f.entregas.entregar({ pedidoId: pB.id }, f.actorReparto);
+      const ea = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pA.id }, f.actorReparto);
+      const eb = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pB.id }, f.actorReparto);
       const dte = `DTE-${crypto.randomUUID().slice(0, 8)}`;
       await expect(
         f.facturas.capturarDte(ea.factura.id, { numeroDte: dte }, f.actorReparto),
@@ -368,7 +463,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
-      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       expect(e.factura.montoCentavos).toBe(10000);
       const a1 = await f.pagos.registrar(
         {
@@ -405,7 +500,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
-      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await expect(
         f.pagos.registrar(
           {
@@ -452,8 +547,8 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      const e1 = await f.entregas.entregar({ pedidoId: p1.id }, f.actorReparto);
-      const e2 = await f.entregas.entregar({ pedidoId: p2.id }, f.actorReparto);
+      const e1 = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p1.id }, f.actorReparto);
+      const e2 = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p2.id }, f.actorReparto);
       const r = await f.pagos.registrar(
         {
           id: crypto.randomUUID(),
@@ -482,7 +577,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
-      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await expect(
         f.pagos.registrar(
           {
@@ -515,7 +610,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
-      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       const body = {
         id: crypto.randomUUID(),
         idempotencyKey: `dup-${crypto.randomUUID()}`,
@@ -567,7 +662,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       }
       await f.cierre.cerrar({}, f.actor);
       for (let i = 0; i < 3; i++) {
-        await f.entregas.entregar({ pedidoId: pedidos[i]!.id }, f.actorReparto);
+        await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pedidos[i]!.id }, f.actorReparto);
       }
       const antes = await f.db
         .select()
@@ -579,7 +674,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
           ),
         );
       expect(antes).toHaveLength(0);
-      await f.entregas.entregar({ pedidoId: pedidos[3]!.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pedidos[3]!.id }, f.actorReparto);
       const media = await f.db
         .select()
         .from(outbox)
@@ -590,7 +685,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
           ),
         );
       expect(media).toHaveLength(1);
-      await f.entregas.entregar({ pedidoId: pedidos[4]!.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pedidos[4]!.id }, f.actorReparto);
       const despues = await f.db
         .select()
         .from(outbox)
@@ -611,7 +706,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(clock);
     try {
       const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
-      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       const dteCap = await f.facturas.capturarDte(e.factura.id, { numeroDte: `V-${crypto.randomUUID().slice(0, 8)}` }, f.actorTienda);
       expect(dteCap.emitidaAt).toBeTruthy();
       expect(dteCap.antiguedadDias).toBe(0);
@@ -631,7 +726,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(clock);
     try {
       const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
-      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await f.pagos.registrar(
         {
           id: crypto.randomUUID(),
@@ -729,12 +824,12 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       );
       await f.cierre.cerrar({}, f.actor);
       const cero = await f.entregas.entregar(
-        { pedidoId: p1.id, items: [{ productoId: prod.id, cantidadEntregada: 0 }] },
+        { idempotencyKey: crypto.randomUUID(), pedidoId: p1.id, items: [{ productoId: prod.id, cantidadEntregada: 0 }] },
         f.actorReparto,
       );
       expect(cero.factura.montoCentavos).toBe(0);
       expect(cero.factura.estado).toBe("PAGADO");
-      await f.entregas.entregar({ pedidoId: p2.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p2.id }, f.actorReparto);
       const alertas = await f.db
         .select()
         .from(outbox)
@@ -756,7 +851,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p } = await catalogo(f);
-      await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await expect(
         f.pedidos.anular(p.id, { motivo: "Ya lo llevamos" }, f.actor),
       ).rejects.toMatchObject({ code: "PEDIDO_ENTREGADO", httpStatus: 409 });
@@ -769,7 +864,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
-      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await f.facturas.capturarDte(
         e.factura.id,
         { numeroDte: `AUD-${crypto.randomUUID().slice(0, 6)}` },

@@ -229,11 +229,15 @@ export const pedido = pgTable(
     capturadoPor: uuid("capturado_por").references(() => usuario.id),
     anuladoAt: timestamp("anulado_at", { withTimezone: true, mode: "date" }),
     motivoAnulacion: text("motivo_anulacion"),
+    entregaIdempotencyKey: text("entrega_idempotency_key"),
     ...timestamps,
   },
   (t) => [
     unique("pedido_org_correlativo_unique").on(t.organizacionId, t.correlativo),
     index("pedido_fecha_operacion_idx").on(t.fechaOperacion),
+    uniqueIndex("pedido_entrega_idempotency_key_unique")
+      .on(t.entregaIdempotencyKey)
+      .where(sql`${t.entregaIdempotencyKey} is not null`),
   ],
 );
 

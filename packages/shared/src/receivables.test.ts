@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   ANTIGUEDAD_VENCIDA_DIAS,
   aplicarFifo,
+  entregarPedidoRequestSchema,
   estadoFactura,
   montoFacturaCentavos,
   registrarPagoRequestSchema,
@@ -144,6 +145,22 @@ describe("aplicarFifo", () => {
     const r = aplicarFifo([], 5000);
     expect(r.asignaciones).toEqual([]);
     expect(r.sobra).toBe(5000);
+  });
+});
+
+describe("entregarPedidoRequestSchema", () => {
+  test("E8 exige idempotencyKey; sin ella el retry duplicaría factura", () => {
+    expect(
+      entregarPedidoRequestSchema.safeParse({
+        pedidoId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      }).success,
+    ).toBe(false);
+    expect(
+      entregarPedidoRequestSchema.safeParse({
+        pedidoId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        idempotencyKey: "entrega-tony-01",
+      }).success,
+    ).toBe(true);
   });
 });
 

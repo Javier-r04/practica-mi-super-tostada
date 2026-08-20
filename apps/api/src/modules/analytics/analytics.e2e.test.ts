@@ -271,7 +271,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
       );
       await f.pedidos.anular(pc.id, { motivo: "Cliente se equivocó" }, f.actor);
       await f.cierre.cerrar({}, f.actor);
-      await f.entregas.entregar({ pedidoId: pa.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pa.id }, f.actorReparto);
 
       const op = await f.cierre.resumen(f.actor);
       expect(op.ruta).toEqual({
@@ -298,7 +298,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      const e = await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await f.pagos.registrar(
         {
           id: crypto.randomUUID(),
@@ -350,7 +350,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      const e15 = await f.entregas.entregar({ pedidoId: p15.id }, f.actorReparto);
+      const e15 = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p15.id }, f.actorReparto);
       await f.facturas.capturarDte(
         e15.factura.id,
         { numeroDte: `D15-${crypto.randomUUID().slice(0, 6)}` },
@@ -363,7 +363,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      const e10 = await f.entregas.entregar({ pedidoId: p10.id }, f.actorReparto);
+      const e10 = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p10.id }, f.actorReparto);
       await f.facturas.capturarDte(
         e10.factura.id,
         { numeroDte: `D10-${crypto.randomUUID().slice(0, 6)}` },
@@ -398,7 +398,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      await f.entregas.entregar({ pedidoId: prev.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: prev.id }, f.actorReparto);
 
       clock.set(instanteGT("2026-08-20T22:00:00"));
       const pa = await f.pedidos.crearManual(
@@ -410,8 +410,8 @@ describe.skipIf(!listo)("E6 tablero", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      await f.entregas.entregar({ pedidoId: pa.id }, f.actorReparto);
-      await f.entregas.entregar({ pedidoId: pb.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pa.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pb.id }, f.actorReparto);
 
       const tab = await f.tablero.consultar(f.actor, { periodo: "quincena" });
       expect(tab.filtrosAplicados.desde).toBe("2026-08-16");
@@ -578,6 +578,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
       await f.cierre.cerrar({}, f.actor);
       await f.entregas.entregar(
         {
+          idempotencyKey: crypto.randomUUID(),
           pedidoId: p1.id,
           items: [{ productoId: t16.id, cantidadEntregada: 1 }],
         },
@@ -585,6 +586,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
       );
       await f.entregas.entregar(
         {
+          idempotencyKey: crypto.randomUUID(),
           pedidoId: p2.id,
           items: [{ productoId: t16.id, cantidadEntregada: 0 }],
         },
@@ -676,7 +678,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      await f.entregas.entregar({ pedidoId: p.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
 
       const full = await f.tablero.consultar(f.actor, { periodo: "hoy" });
       const recorte = await f.tablero.consultar(f.actor, {
@@ -715,8 +717,8 @@ describe.skipIf(!listo)("E6 tablero", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      await f.entregas.entregar({ pedidoId: pp.id }, f.actorReparto);
-      await f.entregas.entregar({ pedidoId: pm.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pp.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: pm.id }, f.actorReparto);
 
       const tab = await f.tablero.consultar(f.actor, {
         periodo: "hoy",

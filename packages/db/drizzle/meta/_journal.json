@@ -43,6 +43,13 @@
       "when": 1787240000000,
       "tag": "0006_mensajeria",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787250000000,
+      "tag": "0007_offline",
+      "breakpoints": true
     }
   ]
 }

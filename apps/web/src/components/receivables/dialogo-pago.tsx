@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import {
   formatearCentavos,
   quetzalesTextoACentavos,
+  MENSAJE_COMPROBANTE_REQUERIDO,
+  MENSAJE_GUARDAR_TELEFONO,
   type PagoMetodo,
 } from "@misupertostada/shared";
 import { Banknote, ArrowLeftRight, Camera } from "lucide-react";
@@ -22,6 +24,7 @@ export function DialogoPago({
   online,
   loading,
   error,
+  permitirOffline = false,
   onClose,
   onConfirm,
 }: {
@@ -32,19 +35,23 @@ export function DialogoPago({
   online: boolean;
   loading?: boolean;
   error?: string;
+  /** Solo /reparto. Cartera no lo pasa: sigue exigiendo señal. */
+  permitirOffline?: boolean;
   onClose: () => void;
   onConfirm: (input: {
     id: string;
     montoCentavos: number;
     metodo: PagoMetodo;
     comprobanteAssetId?: string;
+    archivo?: File;
+    blobLocal?: boolean;
   }) => void;
 }) {
   const [monto, setMonto] = useState(() => formatearCentavos(saldoCentavos, { simbolo: false }));
   const [metodo, setMetodo] = useState<PagoMetodo>("EFECTIVO");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string>();
-  const sinSenal = avisoSinSenal(online);
+  const sinSenal = permitirOffline ? undefined : avisoSinSenal(online);
 
   useEffect(() => {
     if (!open) return;
@@ -56,8 +63,8 @@ export function DialogoPago({
 
   async function guardar() {
     setLocalError(undefined);
-    if (!online) {
-      setLocalError(sinSenal);
+    if (!online && !permitirOffline) {
+      setLocalError(avisoSinSenal(online));
       return;
     }
     let montoCentavos: number;
@@ -68,10 +75,24 @@ export function DialogoPago({
       return;
     }
     if (metodo === "TRANSFERENCIA" && !archivo) {
-      setLocalError("La transferencia requiere foto del comprobante.");
+      setLocalError(MENSAJE_COMPROBANTE_REQUERIDO);
       return;
     }
     const id = crypto.randomUUID();
+    if (permitirOffline) {
+      onConfirm({
+        id,
+        montoCentavos,
+        metodo,
+        archivo: archivo ?? undefined,
+        blobLocal: true,
+      });
+      return;
+    }
+    if (!online) {
+      setLocalError(avisoSinSenal(online));
+      return;
+    }
     let comprobanteAssetId: string | undefined;
     try {
       if (archivo) comprobanteAssetId = await subirComprobantePago(archivo, id);
@@ -96,11 +117,11 @@ export function DialogoPago({
           <Button
             variant="accent"
             loading={loading}
-            disabled={!online}
+            disabled={!online && !permitirOffline}
             title={sinSenal}
             onClick={() => void guardar()}
           >
-            Guardar cobro
+            {permitirOffline && !online ? MENSAJE_GUARDAR_TELEFONO : "Guardar cobro"}
           </Button>
         </>
       }

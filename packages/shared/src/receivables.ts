@@ -30,8 +30,8 @@ export const MENSAJE_COMPROBANTE_REQUERIDO =
   "La transferencia requiere foto del comprobante.";
 export const MENSAJE_PAGO_OBJETIVO =
   "Indique exactamente una factura o un cliente.";
-export const MENSAJE_SIN_SENAL =
-  "Sin señal no se guarda todavía (E8).";
+export const MENSAJE_SIN_SENAL = "Sin señal · queda en este teléfono";
+export const idempotencyKeySchema = z.string().trim().min(8).max(128);
 
 export const COBRANZA_SSE_TIPOS = [
   "pedido.entregado",
@@ -132,6 +132,7 @@ export const entregarItemSchema = z.object({
 
 export const entregarPedidoRequestSchema = z.object({
   pedidoId: z.string().uuid(),
+  idempotencyKey: idempotencyKeySchema,
   items: z.array(entregarItemSchema).optional(),
 });
 export type EntregarPedidoRequest = z.infer<typeof entregarPedidoRequestSchema>;
@@ -144,7 +145,7 @@ export type CapturarDteRequest = z.infer<typeof capturarDteRequestSchema>;
 export const registrarPagoRequestSchema = z
   .object({
     id: z.string().uuid(),
-    idempotencyKey: z.string().trim().min(8).max(128),
+    idempotencyKey: idempotencyKeySchema,
     facturaId: z.string().uuid().optional(),
     clienteId: z.string().uuid().optional(),
     montoCentavos: z.number().int().positive(),
