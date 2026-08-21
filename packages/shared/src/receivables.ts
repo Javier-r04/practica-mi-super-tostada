@@ -2,10 +2,14 @@ import { z } from "zod";
 import { PAGO_ESTADOS, PAGO_METODOS, PEDIDO_ESTADOS, UNIDADES_MEDIDA, type PagoEstado } from "./estados";
 import { centavosSchema } from "./money";
 
-function opcionalVacio<T extends z.ZodTypeAny>(schema: T) {
-  return z.union([schema, z.literal(""), z.undefined()]).transform((value) =>
-    value === "" || value === undefined ? undefined : (value as z.infer<T>),
-  );
+/** Query string: `""` y ausente → `undefined`, compatible con `parseBody`/`ZodType<T>`. */
+function opcionalVacio<T extends z.ZodTypeAny>(
+  schema: T,
+): z.ZodType<z.infer<T> | undefined> {
+  return z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    schema.optional(),
+  ) as z.ZodType<z.infer<T> | undefined>;
 }
 
 const fechaCalendarioSchema = z
@@ -166,6 +170,23 @@ export const registrarPagoRequestSchema = z
   });
 export type RegistrarPagoRequest = z.infer<typeof registrarPagoRequestSchema>;
 
+/** Entero desde query string (`"40"` → 40). Ausente/`""` → undefined. */
+function opcionalEnteroQuery(
+  min: number,
+  max: number,
+): z.ZodType<number | undefined> {
+  return z.preprocess((value) => {
+    if (value === "" || value === undefined || value === null) return undefined;
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) ? n : undefined;
+  }, z.number().int().min(min).max(max).optional()) as z.ZodType<
+    number | undefined
+  >;
+}
+
+export const CARTERA_PAGE_SIZE_DEFAULT = 40;
+export const CARTERA_PAGE_SIZE_MAX = 200;
+
 export const carteraQuerySchema = z.object({
   estado: opcionalVacio(z.enum(["todas", "pendientes", "vencidas"])),
   clienteId: opcionalVacio(z.string().uuid()),
@@ -173,6 +194,12 @@ export const carteraQuerySchema = z.object({
   hasta: opcionalVacio(fechaCalendarioSchema),
   metodoPago: opcionalVacio(z.enum(PAGO_METODOS)),
   fechaOperacion: opcionalVacio(fechaCalendarioSchema),
+  /** Nombre, DTE o correlativo. */
+  q: opcionalVacio(z.string().trim().max(80)),
+  /** Solo facturas sin número DTE (por facturar). */
+  sinDte: opcionalVacio(z.enum(["1"])),
+  limit: opcionalEnteroQuery(1, CARTERA_PAGE_SIZE_MAX),
+  offset: opcionalEnteroQuery(0, 100_000),
 });
 export type CarteraQuery = z.infer<typeof carteraQuerySchema>;
 
@@ -246,14 +273,34 @@ export const facturaCarteraSchema = facturaPublicaSchema.extend({
   clienteId: z.string().uuid(),
   clienteNombre: z.string(),
   fechaOperacion: fechaCalendarioSchema,
+  fotoAssetId: z.string().uuid().nullable(),
 });
 export type FacturaCartera = z.infer<typeof facturaCarteraSchema>;
+
+export const carteraCountsSchema = z.object({
+  todas: z.number().int().nonnegative(),
+  pendientes: z.number().int().nonnegative(),
+  vencidas: z.number().int().nonnegative(),
+});
+export type CarteraCounts = z.infer<typeof carteraCountsSchema>;
+
+/** Página de cartera: items + totales de tabs bajo los mismos filtros (sin estado). */
+export const carteraListaSchema = z.object({
+  items: z.array(facturaCarteraSchema),
+  total: z.number().int().nonnegative(),
+  counts: carteraCountsSchema,
+  offset: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  hasMore: z.boolean(),
+});
+export type CarteraLista = z.infer<typeof carteraListaSchema>;
 
 export const clienteSobreLimiteSchema = z.object({
   clienteId: z.string().uuid(),
   nombre: z.string(),
   pendientes: z.number().int().nonnegative(),
   limite: z.number().int().positive(),
+  fotoAssetId: z.string().uuid().nullable(),
 });
 export type ClienteSobreLimite = z.infer<typeof clienteSobreLimiteSchema>;
 

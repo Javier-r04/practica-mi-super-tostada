@@ -2,11 +2,42 @@ import { describe, expect, test } from "bun:test";
 import {
   ANTIGUEDAD_VENCIDA_DIAS,
   aplicarFifo,
+  carteraQuerySchema,
   entregarPedidoRequestSchema,
   estadoFactura,
   montoFacturaCentavos,
   registrarPagoRequestSchema,
 } from "./receivables";
+
+describe("carteraQuerySchema", () => {
+  test("acepta paginación y búsqueda desde query string", () => {
+    const parsed = carteraQuerySchema.parse({
+      estado: "pendientes",
+      q: "Tabascos",
+      sinDte: "1",
+      limit: "40",
+      offset: "80",
+    });
+    expect(parsed.estado).toBe("pendientes");
+    expect(parsed.q).toBe("Tabascos");
+    expect(parsed.sinDte).toBe("1");
+    expect(parsed.limit).toBe(40);
+    expect(parsed.offset).toBe(80);
+  });
+
+  test("vacíos → undefined", () => {
+    const parsed = carteraQuerySchema.parse({
+      estado: "",
+      q: "",
+      limit: "",
+      offset: "",
+    });
+    expect(parsed.estado).toBeUndefined();
+    expect(parsed.q).toBeUndefined();
+    expect(parsed.limit).toBeUndefined();
+    expect(parsed.offset).toBeUndefined();
+  });
+});
 
 describe("estadoFactura", () => {
   test("abonado cubre el monto ⇒ Pagado, nunca un booleano guardado", () => {

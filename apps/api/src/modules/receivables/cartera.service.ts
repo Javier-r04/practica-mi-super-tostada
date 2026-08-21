@@ -8,6 +8,8 @@ import {
   usuario,
 } from "@misupertostada/db";
 import {
+  CARTERA_PAGE_SIZE_DEFAULT,
+  carteraListaSchema,
   carteraQuerySchema,
   carteraResumenSchema,
   cuadreDiaSchema,
@@ -17,6 +19,7 @@ import {
   facturaCarteraSchema,
   instanteAIso,
   portalCuentaSchema,
+  type CarteraLista,
   type CarteraQuery,
   type CarteraResumen,
   type CuadreDia,
@@ -36,6 +39,32 @@ const abonadoSql = sql<number>`coalesce((
   select sum(${pago.montoCentavos}) from ${pago} where ${pago.facturaId} = ${factura.id}
 ), 0)::int`;
 
+function rankEstado(estado: FacturaCartera["estado"]): number {
+  if (estado === "VENCIDO") return 0;
+  if (estado === "ABONO_PARCIAL") return 1;
+  if (estado === "PENDIENTE") return 2;
+  return 3;
+}
+
+function ordenarCartera(a: FacturaCartera, b: FacturaCartera): number {
+  const porEstado = rankEstado(a.estado) - rankEstado(b.estado);
+  if (porEstado !== 0) return porEstado;
+  if (b.antiguedadDias !== a.antiguedadDias) {
+    return b.antiguedadDias - a.antiguedadDias;
+  }
+  const porNombre = a.clienteNombre.localeCompare(b.clienteNombre, "es");
+  if (porNombre !== 0) return porNombre;
+  return a.correlativo - b.correlativo;
+}
+
+function coincideBusqueda(f: FacturaCartera, needle: string): boolean {
+  if (!needle) return true;
+  if (f.clienteNombre.toLowerCase().includes(needle)) return true;
+  if (f.numeroDte?.toLowerCase().includes(needle)) return true;
+  if (String(f.correlativo).includes(needle)) return true;
+  return false;
+}
+
 @Injectable()
 export class CarteraService {
   constructor(
@@ -43,8 +72,44 @@ export class CarteraService {
     private readonly calendar: BusinessCalendarService,
   ) {}
 
-  async listar(actor: Actor, query: unknown): Promise<FacturaCartera[]> {
+  async listar(actor: Actor, query: unknown): Promise<CarteraLista> {
     const q = parseBody(carteraQuerySchema, query ?? {});
+    const limit = q.limit ?? CARTERA_PAGE_SIZE_DEFAULT;
+    const offset = q.offset ?? 0;
+    const lista = await this.materializar(actor, q);
+
+    const counts = {
+      todas: lista.length,
+      pendientes: lista.filter((f) => f.estado !== "PAGADO").length,
+      vencidas: lista.filter((f) => f.estado === "VENCIDO").length,
+    };
+
+    let filtrada = lista;
+    if (q.estado === "pendientes") {
+      filtrada = lista.filter((f) => f.estado !== "PAGADO");
+    } else if (q.estado === "vencidas") {
+      filtrada = lista.filter((f) => f.estado === "VENCIDO");
+    }
+
+    filtrada = [...filtrada].sort(ordenarCartera);
+    const total = filtrada.length;
+    const items = filtrada.slice(offset, offset + limit);
+
+    return carteraListaSchema.parse({
+      items,
+      total,
+      counts,
+      offset,
+      limit,
+      hasMore: offset + items.length < total,
+    });
+  }
+
+  /** Filas candidatas con filtros SQL + q/sinDte; sin paginar ni filtrar por tab de estado. */
+  private async materializar(
+    actor: Actor,
+    q: CarteraQuery,
+  ): Promise<FacturaCartera[]> {
     const condiciones = [eq(pedido.organizacionId, actor.organizacionId)];
     if (q.clienteId) condiciones.push(eq(pedido.clienteId, q.clienteId));
     if (q.fechaOperacion) {
@@ -65,6 +130,9 @@ export class CarteraService {
         sql`exists (select 1 from ${pago} where ${pago.facturaId} = ${factura.id} and ${pago.metodo} = ${q.metodoPago})`,
       );
     }
+    if (q.sinDte === "1") {
+      condiciones.push(sql`${factura.numeroDte} is null`);
+    }
 
     const rows = await this.db
       .select({
@@ -73,6 +141,7 @@ export class CarteraService {
         clienteId: pedido.clienteId,
         clienteNombre: cliente.nombre,
         fechaOperacion: pedido.fechaOperacion,
+        fotoAssetId: cliente.fotoAssetId,
         abonado: abonadoSql,
       })
       .from(factura)
@@ -82,6 +151,7 @@ export class CarteraService {
 
     const cal = await this.calendar.load();
     const now = this.calendar.now();
+    const needle = (q.q ?? "").trim().toLowerCase();
     const lista: FacturaCartera[] = [];
     for (const row of rows) {
       const abonadoCentavos = Number(row.abonado);
@@ -92,25 +162,24 @@ export class CarteraService {
         abonadoCentavos,
         antiguedadDias,
       });
-      if (q.estado === "pendientes" && estado === "PAGADO") continue;
-      if (q.estado === "vencidas" && estado !== "VENCIDO") continue;
-      lista.push(
-        facturaCarteraSchema.parse({
-          id: row.factura.id,
-          pedidoId: row.factura.pedidoId,
-          numeroDte: row.factura.numeroDte ?? null,
-          montoCentavos: row.factura.montoCentavos,
-          abonadoCentavos,
-          saldoCentavos: Math.max(0, row.factura.montoCentavos - abonadoCentavos),
-          emitidaAt: emitida ? instanteAIso(emitida) : null,
-          antiguedadDias,
-          estado,
-          correlativo: row.correlativo,
-          clienteId: row.clienteId,
-          clienteNombre: row.clienteNombre,
-          fechaOperacion: row.fechaOperacion,
-        }),
-      );
+      const item = facturaCarteraSchema.parse({
+        id: row.factura.id,
+        pedidoId: row.factura.pedidoId,
+        numeroDte: row.factura.numeroDte ?? null,
+        montoCentavos: row.factura.montoCentavos,
+        abonadoCentavos,
+        saldoCentavos: Math.max(0, row.factura.montoCentavos - abonadoCentavos),
+        emitidaAt: emitida ? instanteAIso(emitida) : null,
+        antiguedadDias,
+        estado,
+        correlativo: row.correlativo,
+        clienteId: row.clienteId,
+        clienteNombre: row.clienteNombre,
+        fechaOperacion: row.fechaOperacion,
+        fotoAssetId: row.fotoAssetId ?? null,
+      });
+      if (!coincideBusqueda(item, needle)) continue;
+      lista.push(item);
     }
     return lista;
   }
@@ -165,6 +234,7 @@ export class CarteraService {
       .select({
         clienteId: cliente.id,
         nombre: cliente.nombre,
+        fotoAssetId: cliente.fotoAssetId,
         pendientes: sql<number>`count(*)::int`,
         limite: cliente.limiteFacturasPendientes,
       })
@@ -178,7 +248,12 @@ export class CarteraService {
           sql`${factura.montoCentavos} > ${abonadoSql}`,
         ),
       )
-      .groupBy(cliente.id, cliente.nombre, cliente.limiteFacturasPendientes)
+      .groupBy(
+        cliente.id,
+        cliente.nombre,
+        cliente.fotoAssetId,
+        cliente.limiteFacturasPendientes,
+      )
       .having(sql`count(*) > ${cliente.limiteFacturasPendientes}`);
 
     return carteraResumenSchema.parse({
@@ -193,6 +268,7 @@ export class CarteraService {
           nombre: c.nombre,
           pendientes: Number(c.pendientes),
           limite: c.limite!,
+          fotoAssetId: c.fotoAssetId ?? null,
         })),
     });
   }

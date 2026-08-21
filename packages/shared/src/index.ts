@@ -240,6 +240,8 @@ export {
 } from "./fulfillment";
 export {
   ANTIGUEDAD_VENCIDA_DIAS,
+  CARTERA_PAGE_SIZE_DEFAULT,
+  CARTERA_PAGE_SIZE_MAX,
   COBRANZA_SSE_TIPOS,
   MENSAJE_CANTIDAD_ENTREGADA,
   MENSAJE_COMPROBANTE_REQUERIDO,
@@ -252,6 +254,7 @@ export {
   TIPO_EVENTO_PEDIDO_ENTREGADO,
   aplicarFifo,
   capturarDteRequestSchema,
+  carteraListaSchema,
   carteraQuerySchema,
   carteraResumenSchema,
   cuadreDiaSchema,
@@ -268,6 +271,8 @@ export {
   repartoQuerySchema,
   rutaRepartoSchema,
   type CapturarDteRequest,
+  type CarteraCounts,
+  type CarteraLista,
   type CarteraQuery,
   type CarteraResumen,
   type ClienteSobreLimite,

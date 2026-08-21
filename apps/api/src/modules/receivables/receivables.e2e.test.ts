@@ -712,10 +712,10 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       expect(dteCap.antiguedadDias).toBe(0);
       clock.set(instanteGT("2026-08-19T16:00:00"));
       const a14 = await f.cartera.listar(f.actor, { estado: "vencidas" });
-      expect(a14.some((x) => x.id === e.factura.id)).toBe(false);
+      expect(a14.items.some((x) => x.id === e.factura.id)).toBe(false);
       clock.set(instanteGT("2026-08-20T16:00:00"));
       const a15 = await f.cartera.listar(f.actor, { estado: "vencidas" });
-      expect(a15.some((x) => x.id === e.factura.id)).toBe(true);
+      expect(a15.items.some((x) => x.id === e.factura.id)).toBe(true);
     } finally {
       await f.client.end({ timeout: 1 });
     }
