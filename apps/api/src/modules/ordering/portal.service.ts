@@ -1,29 +1,43 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import {
   clienteProducto,
   factura,
   pago,
   pedido,
+  pedidoItem,
   producto,
 } from "@misupertostada/db";
 import {
   instanteAIso,
   portalCuentaSchema,
+  portalHistorialSchema,
+  portalPedidoDetalleClienteSchema,
+  portalPedidoResumenSchema,
   portalProductoSchema,
   portalSesionSchema,
   estadoFactura,
+  saludoPortalDe,
+  totalPedidoCentavos,
+  MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO,
   type PortalCuenta,
+  type PortalHistorial,
+  type PortalPedidoDetalleCliente,
+  type PortalPedidoResumen,
   type PortalSesion,
 } from "@misupertostada/shared";
 import { DRIZZLE } from "../shared/tokens";
 import type { AppDatabase } from "../shared/database.module";
 import { AuditWriter } from "../shared/audit.writer";
 import { BusinessCalendarService } from "../shared/calendar.service";
+import { DomainException } from "../shared/domain.exception";
+import { AssetsService } from "../shared/storage/assets.service";
 import { PedidoService, type PortalMeta } from "./pedido.service";
 import { horarioDe } from "./pedido-reglas";
 import type { ClientePortal } from "./portal-token.service";
 import { leerEstadoDia } from "../shared/dia-operacion";
+
+const HISTORIAL_DEFAULT = 20;
 
 @Injectable()
 export class PortalService {
@@ -32,6 +46,7 @@ export class PortalService {
     private readonly audit: AuditWriter,
     private readonly calendar: BusinessCalendarService,
     private readonly pedidos: PedidoService,
+    private readonly assets: AssetsService,
   ) {}
 
   async abrirSesion(
@@ -57,10 +72,11 @@ export class PortalService {
       clienteRow.organizacionId,
       fechaOperacion,
     );
-    const [catalogo, pedidoAbierto, cuenta] = await Promise.all([
+    const [catalogo, pedidoAbierto, cuenta, ultimoPedido] = await Promise.all([
       this.catalogoDe(clienteRow),
       this.pedidos.portalAbierto(clienteRow.id, fechaOperacion, horario),
       this.cuentaDe(clienteRow),
+      this.ultimoPedidoDe(clienteRow.id),
     ]);
 
     return portalSesionSchema.parse({
@@ -79,6 +95,9 @@ export class PortalService {
       catalogo,
       pedidoAbierto,
       cuenta,
+      ahoraIso: instanteAIso(now),
+      saludo: saludoPortalDe(now),
+      ultimoPedido,
     });
   }
 
@@ -145,6 +164,238 @@ export class PortalService {
     });
   }
 
+  async listarPedidos(
+    clienteRow: ClientePortal,
+    meta: PortalMeta,
+    opts?: { limit?: number; offset?: number },
+  ): Promise<PortalHistorial> {
+    await this.audit.insert({
+      actorTipo: "cliente",
+      actorId: clienteRow.id,
+      accion: "portal.historial",
+      entidad: "cliente",
+      entidadId: clienteRow.id,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+
+    const limit = Math.min(Math.max(opts?.limit ?? HISTORIAL_DEFAULT, 1), 50);
+    const offset = Math.max(opts?.offset ?? 0, 0);
+
+    const rows = await this.db
+      .select({
+        id: pedido.id,
+        correlativo: pedido.correlativo,
+        fechaOperacion: pedido.fechaOperacion,
+        estado: pedido.estado,
+        origen: pedido.origen,
+      })
+      .from(pedido)
+      .where(eq(pedido.clienteId, clienteRow.id))
+      .orderBy(desc(pedido.fechaOperacion), desc(pedido.correlativo))
+      .limit(limit + 1)
+      .offset(offset);
+
+    const page = rows.slice(0, limit);
+    const totales = await this.totalesDe(page.map((r) => r.id));
+    const items = page.map((row) =>
+      portalPedidoResumenSchema.parse({
+        id: row.id,
+        correlativo: row.correlativo,
+        fechaOperacion: row.fechaOperacion,
+        estado: row.estado,
+        totalCentavos: totales.get(row.id) ?? 0,
+        origen: row.origen,
+      }),
+    );
+
+    return portalHistorialSchema.parse({
+      items,
+      nextOffset: rows.length > limit ? offset + limit : null,
+    });
+  }
+
+  async obtenerPedido(
+    clienteRow: ClientePortal,
+    pedidoId: string,
+    meta: PortalMeta,
+  ): Promise<PortalPedidoDetalleCliente> {
+    const [row] = await this.db
+      .select()
+      .from(pedido)
+      .where(eq(pedido.id, pedidoId))
+      .limit(1);
+
+    if (!row || row.clienteId !== clienteRow.id) {
+      throw new DomainException(
+        "NO_ENCONTRADO",
+        MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO,
+        404,
+      );
+    }
+
+    await this.audit.insert({
+      actorTipo: "cliente",
+      actorId: clienteRow.id,
+      accion: "portal.pedido.ver",
+      entidad: "pedido",
+      entidadId: row.id,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+
+    const itemsRows = await this.db
+      .select({
+        item: pedidoItem,
+        fotoAssetId: producto.fotoAssetId,
+      })
+      .from(pedidoItem)
+      .leftJoin(producto, eq(producto.id, pedidoItem.productoId))
+      .where(eq(pedidoItem.pedidoId, row.id));
+
+    const items = itemsRows.map(({ item, fotoAssetId }) => ({
+      productoId: item.productoId,
+      cantidad: item.cantidadPedida,
+      nombreMostrado: item.nombreMostrado,
+      unidadMedida: item.unidadMedida,
+      precioUnitarioCentavos: item.precioUnitarioCentavos,
+      subtotalCentavos: item.cantidadPedida * item.precioUnitarioCentavos,
+      fotoAssetId: fotoAssetId ?? null,
+    }));
+
+    const totalCentavos = totalPedidoCentavos(
+      items.map((i) => ({
+        cantidad: i.cantidad,
+        precioUnitarioCentavos: i.precioUnitarioCentavos,
+      })),
+    );
+
+    const facturaInfo = await this.facturaDePedido(row.id);
+
+    return portalPedidoDetalleClienteSchema.parse({
+      id: row.id,
+      correlativo: row.correlativo,
+      fechaOperacion: row.fechaOperacion,
+      estado: row.estado,
+      totalCentavos,
+      origen: row.origen,
+      items,
+      factura: facturaInfo,
+    });
+  }
+
+  /**
+   * Bytes de un asset solo si es foto de producto activo de la org
+   * o foto del propio cliente. Cualquier otro UUID → 404 genérico.
+   */
+  async assetContent(
+    clienteRow: ClientePortal,
+    assetId: string,
+    variante?: "thumb" | "card",
+  ): Promise<{ bytes: Buffer; mime: string }> {
+    const permitido = await this.assetPermitido(clienteRow, assetId);
+    if (!permitido) {
+      throw new DomainException("NO_ENCONTRADO", "Archivo no encontrado", 404);
+    }
+    return this.assets.getContent(assetId, variante);
+  }
+
+  private async assetPermitido(
+    clienteRow: ClientePortal,
+    assetId: string,
+  ): Promise<boolean> {
+    if (clienteRow.fotoAssetId === assetId) return true;
+
+    const [prod] = await this.db
+      .select({ id: producto.id })
+      .from(producto)
+      .where(
+        and(
+          eq(producto.fotoAssetId, assetId),
+          eq(producto.organizacionId, clienteRow.organizacionId),
+          eq(producto.activo, true),
+        ),
+      )
+      .limit(1);
+    return Boolean(prod);
+  }
+
+  private async ultimoPedidoDe(
+    clienteId: string,
+  ): Promise<PortalPedidoResumen | null> {
+    const [row] = await this.db
+      .select({
+        id: pedido.id,
+        correlativo: pedido.correlativo,
+        fechaOperacion: pedido.fechaOperacion,
+        estado: pedido.estado,
+        origen: pedido.origen,
+      })
+      .from(pedido)
+      .where(eq(pedido.clienteId, clienteId))
+      .orderBy(desc(pedido.fechaOperacion), desc(pedido.correlativo))
+      .limit(1);
+    if (!row) return null;
+    const totales = await this.totalesDe([row.id]);
+    return portalPedidoResumenSchema.parse({
+      id: row.id,
+      correlativo: row.correlativo,
+      fechaOperacion: row.fechaOperacion,
+      estado: row.estado,
+      totalCentavos: totales.get(row.id) ?? 0,
+      origen: row.origen,
+    });
+  }
+
+  private async totalesDe(ids: string[]): Promise<Map<string, number>> {
+    const totales = new Map<string, number>();
+    if (ids.length === 0) return totales;
+    const items = await this.db
+      .select()
+      .from(pedidoItem)
+      .where(inArray(pedidoItem.pedidoId, ids));
+    for (const item of items) {
+      const prev = totales.get(item.pedidoId) ?? 0;
+      totales.set(
+        item.pedidoId,
+        prev + item.cantidadPedida * item.precioUnitarioCentavos,
+      );
+    }
+    return totales;
+  }
+
+  private async facturaDePedido(pedidoId: string) {
+    const [fac] = await this.db
+      .select()
+      .from(factura)
+      .where(eq(factura.pedidoId, pedidoId))
+      .limit(1);
+    if (!fac) return null;
+
+    const pagos = await this.db
+      .select()
+      .from(pago)
+      .where(eq(pago.facturaId, fac.id));
+    const abonado = pagos.reduce((acc, p) => acc + p.montoCentavos, 0);
+    const saldo = Math.max(0, fac.montoCentavos - abonado);
+    const cal = await this.calendar.load();
+    const now = this.calendar.now();
+    const emitida = fac.emitidaAt ?? fac.createdAt;
+    const antiguedadDias = emitida ? cal.diasCalendarioEntre(emitida, now) : 0;
+    const estado = estadoFactura({
+      montoCentavos: fac.montoCentavos,
+      abonadoCentavos: abonado,
+      antiguedadDias,
+    });
+
+    return {
+      id: fac.id,
+      numeroDte: fac.numeroDte ?? null,
+      saldoCentavos: saldo,
+      estado,
+    };
+  }
+
   private async catalogoDe(clienteRow: ClientePortal) {
     const productos = await this.db
       .select()
@@ -177,6 +428,7 @@ export class PortalService {
         familia: p.familia,
         orden: liga?.orden ?? p.orden,
         pedible: precioCentavos != null,
+        fotoAssetId: p.fotoAssetId ?? null,
       });
     });
 

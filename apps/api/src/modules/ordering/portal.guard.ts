@@ -42,7 +42,14 @@ export class PortalTokenGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<RequestWithPortal>();
     const token = String(req.params.token ?? "");
     const ip = req.ip ?? "unknown";
-    this.rate.consume(ip, hashPortalToken(token), this.clock.now());
+    const hash = hashPortalToken(token);
+    const now = this.clock.now();
+    const path = req.path ?? req.url ?? "";
+    if (path.includes("/assets/")) {
+      this.rate.consumeAsset(ip, hash, now);
+    } else {
+      this.rate.consume(ip, hash, now);
+    }
     req.clientePortal = await this.tokens.resolver(token);
     return true;
   }

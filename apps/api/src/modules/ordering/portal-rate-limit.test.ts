@@ -7,6 +7,8 @@ describe("PortalRateLimit", () => {
     const limiter = new PortalRateLimit(
       new SlidingWindowRateLimiter(5, 60_000),
       new SlidingWindowRateLimiter(30, 60_000),
+      new SlidingWindowRateLimiter(120, 60_000),
+      new SlidingWindowRateLimiter(120, 60_000),
     );
     const now = new Date("2026-08-20T16:00:00-06:00");
     for (let i = 0; i < 5; i++) {
@@ -14,6 +16,27 @@ describe("PortalRateLimit", () => {
     }
     try {
       limiter.consume("10.0.0.9", "hash-final", now);
+      throw new Error("debía lanzar");
+    } catch (err) {
+      expect(err).toMatchObject({ code: "LIMITE_TASA", httpStatus: 429 });
+    }
+  });
+
+  test("assets usan cuota aparte (no agotan la de sesión/pedido)", () => {
+    const limiter = new PortalRateLimit(
+      new SlidingWindowRateLimiter(2, 60_000),
+      new SlidingWindowRateLimiter(2, 60_000),
+      new SlidingWindowRateLimiter(5, 60_000),
+      new SlidingWindowRateLimiter(5, 60_000),
+    );
+    const now = new Date("2026-08-20T16:00:00-06:00");
+    for (let i = 0; i < 5; i++) {
+      limiter.consumeAsset("10.0.0.9", "hash-a", now);
+    }
+    // Sesión sigue disponible
+    limiter.consume("10.0.0.9", "hash-a", now);
+    try {
+      limiter.consumeAsset("10.0.0.9", "hash-a", now);
       throw new Error("debía lanzar");
     } catch (err) {
       expect(err).toMatchObject({ code: "LIMITE_TASA", httpStatus: 429 });

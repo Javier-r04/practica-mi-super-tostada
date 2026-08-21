@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { and, eq } from "drizzle-orm";
 import { DateTime } from "luxon";
 import {
+  asset,
   auditLog,
   diaOperacion,
   factura,
@@ -10,9 +11,11 @@ import {
   pago,
   pedido,
   pedidoItem,
+  producto,
   usuario,
 } from "@misupertostada/db";
 import {
+  MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO,
   MENSAJE_PORTAL_NO_ENCONTRADO,
   ZONA_NEGOCIO,
   fixedClock,
@@ -22,6 +25,9 @@ import {
 import { AuditWriter } from "../shared/audit.writer";
 import { OutboxWriter } from "../shared/outbox.writer";
 import { BusinessCalendarService } from "../shared/calendar.service";
+import { AssetsService } from "../shared/storage/assets.service";
+import { AssetVariantsJob } from "../shared/storage/variants.job";
+import { FakeStorageAdapter } from "../shared/storage/fake.storage";
 import { openTestDb, postgresListo } from "../../test/db";
 import type { Actor } from "../identity/actor";
 import { ProductosService } from "../catalog/productos.service";
@@ -61,7 +67,10 @@ async function fixture(clock: Clock) {
   const tokens = new PortalTokenService(db);
   const events = new PedidoEvents();
   const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
-  const portal = new PortalService(db, audit, calendar, pedidos);
+  const storage = new FakeStorageAdapter();
+  const variants = new AssetVariantsJob(db, storage);
+  const assets = new AssetsService(db, storage, variants);
+  const portal = new PortalService(db, audit, calendar, pedidos, assets);
 
   const [org] = await db
     .insert(organizacion)
@@ -102,10 +111,13 @@ async function fixture(clock: Clock) {
     pedidos,
     portal,
     calendar,
+    assets,
+    storage,
   };
 }
 
 const meta = { ip: "10.0.0.2", userAgent: "Mozilla/5.0 portal-test" };
+
 
 describe.skipIf(!listo)("portal E2", () => {
   test("token basura, rotado e inactivo responden el mismo 404 genérico", async () => {
@@ -160,6 +172,10 @@ describe.skipIf(!listo)("portal E2", () => {
       expect(JSON.stringify(sesion)).not.toContain(token);
       expect(sesion.catalogo.every((p) => !("sku" in p))).toBe(true);
       expect(sesion.catalogo.every((p) => !("puntoCarga" in p))).toBe(true);
+      expect(sesion.catalogo.every((p) => "fotoAssetId" in p)).toBe(true);
+      expect(sesion.saludo).toBe("tardes");
+      expect(sesion.ahoraIso.length).toBeGreaterThanOrEqual(20);
+      expect(sesion.ultimoPedido).toBeNull();
 
       const audits = await f.db
         .select()
@@ -498,6 +514,215 @@ describe.skipIf(!listo)("portal E2", () => {
           meta,
         ),
       ).rejects.toMatchObject({ code: "DIA_CERRADO", httpStatus: 409 });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("historial: MANUAL y ANULADO propios; 404 cruzado; sin notasAdmin ni sku", async () => {
+    const f = await fixture(fixedClock(instanteGT("2026-08-20T16:00:00")));
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `HIS-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla historial",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "PLANTA",
+        },
+        f.actor,
+      );
+      const cliA = await f.clientes.crear(
+        { nombre: `Hist A ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      const cliB = await f.clientes.crear(
+        { nombre: `Hist B ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(cliA.id, prod.id, { precioCentavos: 1000 }, f.actor);
+
+      const [manual] = await f.db
+        .insert(pedido)
+        .values({
+          organizacionId: f.orgId,
+          correlativo: 101,
+          fechaOperacion: "2026-08-10",
+          clienteId: cliA.id,
+          estado: "CONFIRMADO",
+          origen: "MANUAL",
+          notasAdmin: "secreto interno",
+        })
+        .returning();
+      await f.db.insert(pedidoItem).values({
+        pedidoId: manual!.id,
+        productoId: prod.id,
+        cantidadPedida: 5,
+        cantidadEntregada: 5,
+        precioUnitarioCentavos: 1000,
+        nombreMostrado: "tortilla",
+        unidadMedida: "LIBRA",
+      });
+
+      const [anulado] = await f.db
+        .insert(pedido)
+        .values({
+          organizacionId: f.orgId,
+          correlativo: 102,
+          fechaOperacion: "2026-08-11",
+          clienteId: cliA.id,
+          estado: "ANULADO",
+          origen: "PORTAL",
+          anuladoAt: instanteGT("2026-08-11T10:00:00"),
+          motivoAnulacion: "error",
+        })
+        .returning();
+      await f.db.insert(pedidoItem).values({
+        pedidoId: anulado!.id,
+        productoId: prod.id,
+        cantidadPedida: 2,
+        cantidadEntregada: 2,
+        precioUnitarioCentavos: 1000,
+        nombreMostrado: "tortilla",
+        unidadMedida: "LIBRA",
+      });
+
+      const [ajeno] = await f.db
+        .insert(pedido)
+        .values({
+          organizacionId: f.orgId,
+          correlativo: 103,
+          fechaOperacion: "2026-08-12",
+          clienteId: cliB.id,
+          estado: "CONFIRMADO",
+          origen: "MANUAL",
+        })
+        .returning();
+
+      const { token } = await f.clientes.rotarTokenPortal(cliA.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+
+      const historial = await f.portal.listarPedidos(clienteRow, meta, {
+        limit: 20,
+        offset: 0,
+      });
+      expect(historial.items).toHaveLength(2);
+      expect(historial.items.map((i) => i.estado).sort()).toEqual([
+        "ANULADO",
+        "CONFIRMADO",
+      ]);
+      expect(historial.items.some((i) => i.origen === "MANUAL")).toBe(true);
+      expect(JSON.stringify(historial)).not.toContain("notasAdmin");
+      expect(JSON.stringify(historial)).not.toContain("secreto");
+      expect(JSON.stringify(historial)).not.toContain("sku");
+      expect(JSON.stringify(historial)).not.toContain("puntoCarga");
+      expect(JSON.stringify(historial)).not.toContain(token);
+
+      const detalle = await f.portal.obtenerPedido(
+        clienteRow,
+        manual!.id,
+        meta,
+      );
+      expect(detalle.correlativo).toBe(101);
+      expect(detalle.items).toHaveLength(1);
+      expect(JSON.stringify(detalle)).not.toContain("notasAdmin");
+      expect(JSON.stringify(detalle)).not.toContain("textoConfirmacion");
+
+      await expect(
+        f.portal.obtenerPedido(clienteRow, ajeno!.id, meta),
+      ).rejects.toMatchObject({
+        code: "NO_ENCONTRADO",
+        httpStatus: 404,
+        message: MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO,
+      });
+
+      const sesion = await f.portal.abrirSesion(clienteRow, meta);
+      expect(sesion.ultimoPedido?.id).toBe(anulado!.id);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("asset portal: foto de producto 200; UUID ajeno/otro org 404", async () => {
+    const f = await fixture(fixedClock(instanteGT("2026-08-20T16:00:00")));
+    try {
+      const bytes = Buffer.from("fake-png-bytes");
+      const sha = `sha-${crypto.randomUUID()}`;
+      await f.storage.put(sha, bytes, "image/png");
+      const [assetRow] = await f.db
+        .insert(asset)
+        .values({
+          key: sha,
+          bucket: "fake",
+          mime: "image/png",
+          size: bytes.length,
+          ownerType: "producto",
+          ownerId: crypto.randomUUID(),
+        })
+        .returning();
+
+      const prod = await f.productos.crear(
+        {
+          sku: `FOTO-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Con foto",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "PLANTA",
+          fotoAssetId: assetRow!.id,
+        },
+        f.actor,
+      );
+      expect(prod.fotoAssetId).toBe(assetRow!.id);
+
+      const cli = await f.clientes.crear(
+        { nombre: `Foto ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+
+      const content = await f.portal.assetContent(
+        clienteRow,
+        assetRow!.id,
+        "thumb",
+      );
+      expect(content.bytes.equals(bytes)).toBe(true);
+      expect(content.mime).toBe("image/png");
+
+      await expect(
+        f.portal.assetContent(clienteRow, crypto.randomUUID()),
+      ).rejects.toMatchObject({ code: "NO_ENCONTRADO", httpStatus: 404 });
+
+      const [orgB] = await f.db
+        .insert(organizacion)
+        .values({ nombre: `org-b-${crypto.randomUUID()}` })
+        .returning({ id: organizacion.id });
+      const shaB = `sha-b-${crypto.randomUUID()}`;
+      await f.storage.put(shaB, Buffer.from("otro"), "image/png");
+      const [assetB] = await f.db
+        .insert(asset)
+        .values({
+          key: shaB,
+          bucket: "fake",
+          mime: "image/png",
+          size: 4,
+          ownerType: "producto",
+          ownerId: crypto.randomUUID(),
+        })
+        .returning();
+      await f.db.insert(producto).values({
+        organizacionId: orgB!.id,
+        sku: `OTRO-${crypto.randomUUID().slice(0, 6)}`,
+        nombreCanonico: "Ajeno",
+        familia: "TORTILLA",
+        unidadMedida: "LIBRA",
+        puntoCarga: "PLANTA",
+        fotoAssetId: assetB!.id,
+      });
+
+      await expect(
+        f.portal.assetContent(clienteRow, assetB!.id),
+      ).rejects.toMatchObject({ code: "NO_ENCONTRADO", httpStatus: 404 });
     } finally {
       await f.client.end({ timeout: 1 });
     }
