@@ -264,6 +264,16 @@ export function horaEnZona(instant: Date): string {
   return DateTime.fromJSDate(instant, { zone: ZONA_NEGOCIO }).toFormat("HH:mm");
 }
 
+/**
+ * Saludo del portal según hora de Guatemala.
+ * Antes de las 18:00 → "tardes"; desde las 18:00 → "noches".
+ * Lo decide el servidor; el browser no elige.
+ */
+export function saludoPortalDe(instant: Date): "tardes" | "noches" {
+  const hour = DateTime.fromJSDate(instant, { zone: ZONA_NEGOCIO }).hour;
+  return hour < 18 ? "tardes" : "noches";
+}
+
 export function fechaDeInstante(instant: Date): FechaCalendario {
   return aFechaCalendario(enZona(instant));
 }

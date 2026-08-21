@@ -69,6 +69,8 @@ export const portalProductoSchema = z.object({
   familia: z.enum(FAMILIAS),
   orden: z.number().int(),
   pedible: z.boolean(),
+  /** Foto del producto activo; null si no hay. Nunca SKU ni punto de carga. */
+  fotoAssetId: z.string().uuid().nullable(),
 });
 
 export type PortalProducto = z.infer<typeof portalProductoSchema>;
@@ -129,6 +131,63 @@ export const portalCuentaSchema = z.object({
 
 export type PortalCuenta = z.infer<typeof portalCuentaSchema>;
 
+/** Resumen liviano para historial / último pedido del home. No reusar portalPedidoSchema. */
+export const portalPedidoResumenSchema = z.object({
+  id: z.string().uuid(),
+  correlativo: z.number().int().positive(),
+  fechaOperacion: z.string(),
+  estado: z.enum(PEDIDO_ESTADOS),
+  totalCentavos: centavosSchema,
+  origen: z.enum(PEDIDO_ORIGENES),
+});
+
+export type PortalPedidoResumen = z.infer<typeof portalPedidoResumenSchema>;
+
+export const portalHistorialSchema = z.object({
+  items: z.array(portalPedidoResumenSchema),
+  nextOffset: z.number().int().nonnegative().nullable(),
+});
+
+export type PortalHistorial = z.infer<typeof portalHistorialSchema>;
+
+export const portalPedidoDetalleItemSchema = z.object({
+  productoId: z.string().uuid(),
+  cantidad: z.number().int().positive(),
+  nombreMostrado: z.string(),
+  unidadMedida: z.enum(UNIDADES_MEDIDA),
+  precioUnitarioCentavos: centavosSchema,
+  subtotalCentavos: centavosSchema,
+  fotoAssetId: z.string().uuid().nullable(),
+});
+
+export type PortalPedidoDetalleItem = z.infer<
+  typeof portalPedidoDetalleItemSchema
+>;
+
+export const portalPedidoDetalleFacturaSchema = z.object({
+  id: z.string().uuid(),
+  numeroDte: z.string().nullable(),
+  saldoCentavos: centavosSchema,
+  estado: z.enum(["PENDIENTE", "ABONO_PARCIAL", "VENCIDO", "PAGADO"]),
+});
+
+export type PortalPedidoDetalleFactura = z.infer<
+  typeof portalPedidoDetalleFacturaSchema
+>;
+
+export const portalPedidoDetalleClienteSchema = portalPedidoResumenSchema.extend({
+  items: z.array(portalPedidoDetalleItemSchema),
+  factura: portalPedidoDetalleFacturaSchema.nullable(),
+});
+
+export type PortalPedidoDetalleCliente = z.infer<
+  typeof portalPedidoDetalleClienteSchema
+>;
+
+export const portalSaludoSchema = z.enum(["tardes", "noches"]);
+
+export type PortalSaludo = z.infer<typeof portalSaludoSchema>;
+
 export const portalSesionSchema = z.object({
   cliente: z.object({
     id: z.string().uuid(),
@@ -139,6 +198,11 @@ export const portalSesionSchema = z.object({
   catalogo: z.array(portalProductoSchema),
   pedidoAbierto: portalPedidoSchema.nullable(),
   cuenta: portalCuentaSchema,
+  /** Instantáneo del servidor (GT) — solo presentación. */
+  ahoraIso: z.string().min(20),
+  /** < 18:00 GT → tardes; si no → noches. Lo calcula el servidor. */
+  saludo: portalSaludoSchema,
+  ultimoPedido: portalPedidoResumenSchema.nullable(),
 });
 
 export type PortalSesion = z.infer<typeof portalSesionSchema>;
@@ -158,6 +222,7 @@ export function textoConfirmacionPedido(input: {
 }
 
 export const MENSAJE_PORTAL_NO_ENCONTRADO = "No encontramos esa página.";
+export const MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO = "No encontramos ese pedido.";
 export const MENSAJE_VENTANA_CERRADA =
   "La ventana de pedido está cerrada. Abre de nuevo a la hora indicada.";
 export const MENSAJE_PRECIO_AUSENTE =

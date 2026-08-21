@@ -5,9 +5,17 @@ import {
   crearPedidoManualRequestSchema,
   listarPedidosQuerySchema,
   pedidoSseEventSchema,
+  portalHistorialSchema,
+  portalPedidoDetalleClienteSchema,
+  portalPedidoResumenSchema,
+  portalProductoSchema,
+  portalSesionSchema,
   textoConfirmacionPedido,
   totalPedidoCentavos,
 } from "./ordering";
+import { saludoPortalDe } from "./calendar";
+import { DateTime } from "luxon";
+import { ZONA_NEGOCIO } from "./calendar";
 
 describe("totalPedidoCentavos", () => {
   test("50 × 1250 + 8 × 1500 = 74500, solo enteros", () => {
@@ -162,5 +170,135 @@ describe("textoConfirmacionPedido", () => {
     ).toBe(
       "Recibimos su pedido 1042 para el Viernes 21 de agosto. Total Q 745.00. Entrega a las 08:30.",
     );
+  });
+});
+
+const PRODUCTO_ID = "00000000-0000-4000-a000-000000000010";
+const PEDIDO_ID = "00000000-0000-4000-a000-000000000020";
+const ASSET_ID = "00000000-0000-4000-a000-000000000030";
+const CLIENTE_ID = "00000000-0000-4000-a000-000000000001";
+
+describe("portalProductoSchema", () => {
+  const base = {
+    productoId: PRODUCTO_ID,
+    alias: "tortilla grande",
+    nombreCanonico: "Tortilla No. 16",
+    unidadMedida: "LIBRA" as const,
+    precioCentavos: 1250,
+    favorito: true,
+    familia: "TORTILLA" as const,
+    orden: 1,
+    pedible: true,
+  };
+
+  test("exige fotoAssetId (uuid o null)", () => {
+    expect(portalProductoSchema.safeParse(base).success).toBe(false);
+    expect(
+      portalProductoSchema.parse({ ...base, fotoAssetId: null }),
+    ).toMatchObject({ fotoAssetId: null });
+    expect(
+      portalProductoSchema.parse({ ...base, fotoAssetId: ASSET_ID }),
+    ).toMatchObject({ fotoAssetId: ASSET_ID });
+  });
+});
+
+describe("portalSesionSchema", () => {
+  const sesionBase = {
+    cliente: {
+      id: CLIENTE_ID,
+      nombre: "Tabasco",
+      horarioEntregaFijo: "08:30",
+    },
+    ventana: {
+      abierta: true,
+      fechaOperacion: "2026-08-21",
+      cierraAt: "2026-08-21T00:00:00.000-06:00",
+      proximaAperturaAt: "2026-08-21T15:00:00.000-06:00",
+      horarioEntregaFijo: "08:30",
+    },
+    catalogo: [],
+    pedidoAbierto: null,
+    cuenta: {
+      facturasPendientes: 0,
+      limiteFacturasPendientes: null,
+      saldoCentavos: 0,
+      facturas: [],
+    },
+  };
+
+  test("exige ahoraIso, saludo y ultimoPedido", () => {
+    expect(portalSesionSchema.safeParse(sesionBase).success).toBe(false);
+    const ok = portalSesionSchema.parse({
+      ...sesionBase,
+      ahoraIso: "2026-08-20T16:00:00.000-06:00",
+      saludo: "tardes",
+      ultimoPedido: null,
+    });
+    expect(ok.saludo).toBe("tardes");
+    expect(ok.ultimoPedido).toBeNull();
+  });
+});
+
+describe("portalPedidoResumenSchema / historial / detalle", () => {
+  const resumen = {
+    id: PEDIDO_ID,
+    correlativo: 42,
+    fechaOperacion: "2026-08-21",
+    estado: "CONFIRMADO" as const,
+    totalCentavos: 12500,
+    origen: "PORTAL" as const,
+  };
+
+  test("resumen acepta MANUAL y ANULADO", () => {
+    expect(portalPedidoResumenSchema.parse(resumen).origen).toBe("PORTAL");
+    expect(
+      portalPedidoResumenSchema.parse({
+        ...resumen,
+        origen: "MANUAL",
+        estado: "ANULADO",
+      }),
+    ).toMatchObject({ origen: "MANUAL", estado: "ANULADO" });
+  });
+
+  test("historial pagina con nextOffset nullable", () => {
+    expect(
+      portalHistorialSchema.parse({ items: [resumen], nextOffset: 20 }),
+    ).toEqual({ items: [resumen], nextOffset: 20 });
+    expect(
+      portalHistorialSchema.parse({ items: [], nextOffset: null }),
+    ).toEqual({ items: [], nextOffset: null });
+  });
+
+  test("detalle de cliente no exige textoConfirmacion", () => {
+    const detalle = portalPedidoDetalleClienteSchema.parse({
+      ...resumen,
+      items: [
+        {
+          productoId: PRODUCTO_ID,
+          cantidad: 10,
+          nombreMostrado: "tortilla grande",
+          unidadMedida: "LIBRA",
+          precioUnitarioCentavos: 1250,
+          subtotalCentavos: 12500,
+          fotoAssetId: null,
+        },
+      ],
+      factura: null,
+    });
+    expect(detalle).not.toHaveProperty("textoConfirmacion");
+    expect(detalle.items[0]?.fotoAssetId).toBeNull();
+  });
+});
+
+describe("saludoPortalDe", () => {
+  test("antes de las 18:00 GT es tardes; desde las 18:00 es noches", () => {
+    const tarde = DateTime.fromISO("2026-08-20T17:59:00", {
+      zone: ZONA_NEGOCIO,
+    }).toJSDate();
+    const noche = DateTime.fromISO("2026-08-20T18:00:00", {
+      zone: ZONA_NEGOCIO,
+    }).toJSDate();
+    expect(saludoPortalDe(tarde)).toBe("tardes");
+    expect(saludoPortalDe(noche)).toBe("noches");
   });
 });

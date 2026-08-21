@@ -7,6 +7,8 @@ import {
   estadoFactura,
   montoFacturaCentavos,
   registrarPagoRequestSchema,
+  rutaParadaSchema,
+  rutaRepartoSchema,
 } from "./receivables";
 
 describe("carteraQuerySchema", () => {
@@ -218,5 +220,77 @@ describe("registrarPagoRequestSchema", () => {
         facturaId: "22222222-2222-2222-2222-222222222222",
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("rutaRepartoSchema", () => {
+  const paradaBase = {
+    pedidoId: "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+    correlativo: 12,
+    clienteId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+    clienteNombre: "Tabascos",
+    horarioEntregaFijo: "07:30",
+    telefonoWa: null,
+    estado: "EN_PRODUCCION" as const,
+    totalEstimadoCentavos: 22500,
+    saldoAnteriorCentavos: 0,
+    facturasPendientes: 0,
+    items: [
+      {
+        productoId: "cccccccc-cccc-4ccc-cccc-cccccccccccc",
+        nombreMostrado: "Tortilla 16",
+        unidadMedida: "LIBRA" as const,
+        cantidadPedida: 50,
+        cantidadEntregada: 50,
+        precioUnitarioCentavos: 450,
+        notaProduccion: null,
+      },
+    ],
+    factura: null,
+  };
+
+  test("acepta foto, notas y cobradoHoy; ítem con fotoAssetId", () => {
+    const parsed = rutaRepartoSchema.parse({
+      fechaOperacion: "2026-08-21",
+      cobradoHoyCentavos: 15000,
+      paradas: [
+        {
+          ...paradaBase,
+          fotoAssetId: "dddddddd-dddd-4ddd-dddd-dddddddddddd",
+          notasPermanentes: "grosor especial",
+          items: [
+            {
+              ...paradaBase.items[0]!,
+              fotoAssetId: "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee",
+            },
+          ],
+        },
+      ],
+    });
+    expect(parsed.cobradoHoyCentavos).toBe(15000);
+    expect(parsed.paradas[0]!.fotoAssetId).toBe(
+      "dddddddd-dddd-4ddd-dddd-dddddddddddd",
+    );
+    expect(parsed.paradas[0]!.notasPermanentes).toBe("grosor especial");
+    expect(parsed.paradas[0]!.items[0]!.fotoAssetId).toBe(
+      "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee",
+    );
+  });
+
+  test("snapshot IndexedDB viejo sin foto/cobradoHoy sigue parseando", () => {
+    const parsed = rutaRepartoSchema.parse({
+      fechaOperacion: "2026-08-20",
+      paradas: [paradaBase],
+    });
+    expect(parsed.cobradoHoyCentavos).toBe(0);
+    expect(parsed.paradas[0]!.fotoAssetId).toBeNull();
+    expect(parsed.paradas[0]!.notasPermanentes).toBeNull();
+    expect(parsed.paradas[0]!.items[0]!.fotoAssetId).toBeNull();
+  });
+
+  test("rutaParadaSchema exige correlativo positivo", () => {
+    expect(
+      rutaParadaSchema.safeParse({ ...paradaBase, correlativo: 0 }).success,
+    ).toBe(false);
   });
 });

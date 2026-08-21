@@ -226,6 +226,14 @@ export const facturaPublicaSchema = z.object({
 });
 export type FacturaPublica = z.infer<typeof facturaPublicaSchema>;
 
+/** Snapshot viejo en IndexedDB puede omitir foto; default null. */
+const fotoAssetIdSnapshotSchema = z
+  .string()
+  .uuid()
+  .nullable()
+  .optional()
+  .transform((v) => v ?? null);
+
 export const entregaItemPublicoSchema = z.object({
   productoId: z.string().uuid(),
   nombreMostrado: z.string(),
@@ -234,6 +242,7 @@ export const entregaItemPublicoSchema = z.object({
   cantidadEntregada: z.number().int().nonnegative(),
   precioUnitarioCentavos: centavosSchema,
   notaProduccion: z.string().nullable(),
+  fotoAssetId: fotoAssetIdSnapshotSchema,
 });
 export type EntregaItemPublico = z.infer<typeof entregaItemPublicoSchema>;
 
@@ -253,6 +262,13 @@ export const rutaParadaSchema = z.object({
   clienteNombre: z.string(),
   horarioEntregaFijo: z.string().nullable(),
   telefonoWa: z.string().nullable(),
+  fotoAssetId: fotoAssetIdSnapshotSchema,
+  /** Snapshot viejo puede omitir; default null. */
+  notasPermanentes: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
   estado: z.enum(PEDIDO_ESTADOS),
   totalEstimadoCentavos: centavosSchema,
   saldoAnteriorCentavos: centavosSchema,
@@ -264,6 +280,11 @@ export type RutaParada = z.infer<typeof rutaParadaSchema>;
 
 export const rutaRepartoSchema = z.object({
   fechaOperacion: fechaCalendarioSchema,
+  /** KPI de calle; snapshot offline antiguo sin el campo → 0. */
+  cobradoHoyCentavos: z.preprocess(
+    (v) => (v === undefined || v === null ? 0 : v),
+    centavosSchema,
+  ),
   paradas: z.array(rutaParadaSchema),
 });
 export type RutaReparto = z.infer<typeof rutaRepartoSchema>;
