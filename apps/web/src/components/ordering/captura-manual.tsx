@@ -14,7 +14,8 @@ import { api, ApiError } from "@/lib/api";
 import { Money } from "@/components/domain/money";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Select, Textarea } from "@/components/ui/field";
+import { Droplist } from "@/components/ui/droplist";
+import { Textarea } from "@/components/ui/field";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { SearchField } from "@/components/ui/search-field";
 
@@ -118,24 +119,24 @@ export function CapturaManual({
       }
     >
       <div className="grid gap-4">
-        <Select
+        <Droplist
           id="captura-cliente"
           label="Cliente"
           required
           value={clienteId}
-          onChange={(e) => {
-            setClienteId(e.target.value);
+          searchable
+          searchPlaceholder="Buscar restaurante"
+          placeholder="Elegir restaurante"
+          onChange={(next) => {
+            setClienteId(next);
             setCantidades({});
             setError(null);
           }}
-        >
-          <option value="">Elegir restaurante</option>
-          {activos.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre}
-            </option>
-          ))}
-        </Select>
+          options={activos.map((c) => ({
+            value: c.id,
+            label: c.nombre,
+          }))}
+        />
 
         {clienteId && (
           <>
@@ -143,7 +144,7 @@ export function CapturaManual({
               value={q}
               onChange={setQ}
               label="Buscar producto"
-              placeholder="Alias o nombre canónico"
+              placeholder="Alias o nombre"
             />
             <div className="max-h-[40vh] overflow-auto rounded-campo border border-[var(--border-subtle)]">
               {filas.map((fila) => (
@@ -179,7 +180,7 @@ export function CapturaManual({
               hint="Horario, grosor y punto de carga salen del catálogo. Aquí solo lo de hoy."
             />
             <p className="flex items-baseline justify-between text-sm">
-              <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+              <span className="mst-label">
                 Total
               </span>
               <Money centavos={total} className="text-lg" />

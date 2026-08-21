@@ -1,9 +1,9 @@
-/* Caras self-hosted vía @fontsource (IBM Plex Sans / Mono).
-   next/font/google no se usa: el build no alcanza fonts.gstatic.com. */
+/* Caras self-hosted vía @fontsource (Nunito Sans).
+   next/font/google no se usa: el build no alcanza fonts.gstatic.com.
+   Nunito Sans: redondeada y legible; reemplaza el corte técnico de Plex + versalitas. */
 :root {
-  --font-plex-sans: "IBM Plex Sans";
-  --font-plex-mono: "IBM Plex Mono";
-  --font-core: var(--font-plex-sans), system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-nunito: "Nunito Sans";
+  --font-core: var(--font-nunito), system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-display: var(--font-core);
 }

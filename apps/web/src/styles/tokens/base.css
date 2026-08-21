@@ -1,3 +1,5 @@
+/* @layer base: sin esto, color:inherit en button pisa text-* de Tailwind (utilities). */
+@layer base {
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 body{margin:0;font-family:var(--font-core);font-size:var(--text-base);font-weight:var(--weight-regular);line-height:var(--leading-relaxed);color:var(--text-body);background:var(--surface-page)}
@@ -8,8 +10,10 @@ h3{font-size:var(--type-h3-size)}
 p{margin:0;text-wrap:pretty}
 a{color:var(--text-link);text-decoration:none;font-weight:var(--weight-semibold)}
 a:hover{color:var(--text-link-hover);text-decoration:underline}
-button,input,select,textarea{font:inherit;color:inherit}
+button{font-family:inherit;font-size:inherit;line-height:inherit}
+input,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--border-focus);outline-offset:2px;box-shadow:var(--shadow-focus)}
 .mst-num{font-variant-numeric:tabular-nums}
-.mst-label{font-size:var(--type-label-size);font-weight:var(--type-label-weight);letter-spacing:var(--type-label-tracking);text-transform:uppercase;color:var(--text-muted)}
+.mst-label{font-size:var(--type-label-size);font-weight:var(--type-label-weight);letter-spacing:var(--type-label-tracking);text-transform:none;color:var(--text-muted)}
 .mst-promo{font-family:var(--font-core);font-weight:var(--weight-semibold);line-height:var(--type-promo-leading);letter-spacing:var(--tracking-display)}
+}

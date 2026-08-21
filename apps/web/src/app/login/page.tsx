@@ -3,47 +3,46 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { Eye, EyeOff, Lock, User } from "lucide-react";
 import { loginRequestSchema } from "@misupertostada/shared";
-import { api, ApiError } from "@/lib/api";
+import { toastError, toastFromError } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
 import { Wordmark } from "@/components/brand/wordmark";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+type LoginValues = { username: string; password: string };
+
+const control =
+  "h-campo w-full rounded-campo border border-[var(--border-default)] bg-blanco pl-10 pr-3 text-sm text-tinta-800 shadow-[var(--shadow-inset-field)] transition-[border-color,box-shadow] duration-control ease-out placeholder:text-tinta-500 focus:border-[var(--border-focus)] focus:shadow-foco focus:outline-none";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const form = useForm({ defaultValues: { username: "", password: "" } });
+  const [showPassword, setShowPassword] = useState(false);
+  const form = useForm<LoginValues>({
+    defaultValues: { username: "", password: "" },
+  });
 
   return (
-    <main className="grid min-h-[100dvh] bg-[var(--surface-page)] lg:grid-cols-[minmax(0,22rem)_1fr]">
-      <section className="hidden flex-col justify-between border-r border-[var(--border-subtle)] bg-blanco px-8 py-10 lg:flex">
-        <Wordmark />
-        <div>
-          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-marca">
-            Panel interno
-          </p>
-          <p className="mt-2 max-w-[16ch] text-2xl font-semibold text-wrap text-tinta-900">
-            El pedido de esta noche, sin transcribir dos veces.
-          </p>
-          <p className="mt-3 max-w-[36ch] text-sm leading-relaxed text-pretty text-tinta-500">
-            Cada persona entra con su cuenta. La cobranza se rastrea por quien
-            registró el cobro, no por un rol compartido.
-          </p>
-        </div>
-        <p className="text-xs text-tinta-500">Quetzaltenango · America/Guatemala</p>
-      </section>
+    <main className="grid min-h-[100dvh] place-items-center bg-[var(--surface-paper)] px-4 py-8 sm:px-6">
+      <div className="mx-auto w-full max-w-[22rem] overflow-hidden rounded-tarjeta border border-[var(--border-subtle)] bg-blanco shadow-[var(--shadow-lg)] sm:max-w-[24rem]">
+        <header className="flex items-center justify-center overflow-hidden bg-marca px-2 pt-4 pb-2 sm:px-3 sm:pt-5 sm:pb-3">
+          <Wordmark
+            onBrand
+            className="mx-auto h-[11.5rem] w-auto max-w-none object-center sm:h-[13.5rem]"
+          />
+        </header>
 
-      <section className="grid place-items-center p-4 sm:p-8">
         <form
-          className="w-full max-w-[400px] rounded-tarjeta border border-[var(--border-subtle)] bg-blanco p-6 shadow-tarjeta sm:p-8"
+          className="px-6 pt-7 pb-8 text-center sm:px-8 sm:pt-8 sm:pb-9"
           noValidate
           onSubmit={form.handleSubmit(async (values) => {
             const parsed = loginRequestSchema.safeParse(values);
             if (!parsed.success) {
-              setError("Revise usuario y contraseña");
+              toastError("Revise usuario y contraseña");
               return;
             }
-            setError(null);
             try {
               await api("/auth/login", {
                 method: "POST",
@@ -51,57 +50,78 @@ export default function LoginPage() {
               });
               router.replace("/hoy");
             } catch (err) {
-              setError(
-                err instanceof ApiError ? err.message : "No se pudo entrar",
-              );
+              toastFromError(err, "No se pudo entrar");
             }
           })}
         >
-          <div className="mb-6 lg:hidden">
-            <Wordmark />
-          </div>
-          <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-marca lg:hidden">
-            Panel interno
-          </p>
-          <h1 className="mt-1 text-xl font-semibold text-tinta-900">
-            Entrar al panel
+          <h1 className="mb-6 text-xl font-semibold text-tinta-900">
+            Iniciar sesión
           </h1>
-          <p className="mt-1 mb-6 text-sm text-pretty text-tinta-500">
-            Usuario y contraseña de su cuenta. Nunca se comparte el acceso por
-            rol.
-          </p>
-          <div className="grid gap-4">
-            <Input
-              id="username"
-              label="Usuario"
-              autoComplete="username"
-              required
-              {...form.register("username")}
-            />
-            <Input
-              id="password"
-              label="Contraseña"
-              type="password"
-              autoComplete="current-password"
-              required
-              {...form.register("password")}
-            />
-            {error && (
-              <p id="login-error" className="text-sm text-peligro" role="alert">
-                {error}
-              </p>
-            )}
+
+          <div className="grid gap-4 text-left">
+            <Field label="Usuario" htmlFor="username">
+              <div className="relative">
+                <User
+                  aria-hidden
+                  className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-tinta-500"
+                  strokeWidth={1.75}
+                />
+                <input
+                  id="username"
+                  autoComplete="username"
+                  autoFocus
+                  required
+                  placeholder="Ingresa tu usuario"
+                  className={control}
+                  {...form.register("username")}
+                />
+              </div>
+            </Field>
+
+            <Field label="Contraseña" htmlFor="password">
+              <div className="relative">
+                <Lock
+                  aria-hidden
+                  className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-tinta-500"
+                  strokeWidth={1.75}
+                />
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  placeholder="Ingresa tu contraseña"
+                  className={cn(control, "pr-11")}
+                  {...form.register("password")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute top-1/2 right-2.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-campo text-tinta-500 transition-colors hover:text-tinta-800 focus-visible:outline-none focus-visible:shadow-foco"
+                  aria-label={
+                    showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                  }
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-[18px]" strokeWidth={1.75} />
+                  ) : (
+                    <Eye className="size-[18px]" strokeWidth={1.75} />
+                  )}
+                </button>
+              </div>
+            </Field>
+
             <Button
               type="submit"
-              variant="accent"
-              className="mt-1 w-full"
+              variant="primary"
+              className="mt-2 w-full"
               loading={form.formState.isSubmitting}
             >
-              Entrar al panel
+              Ingresar
             </Button>
           </div>
         </form>
-      </section>
+      </div>
     </main>
   );
 }

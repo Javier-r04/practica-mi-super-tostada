@@ -208,7 +208,7 @@ export function PedidoDetalle({
               <span />
             )}
             <span className="ml-auto flex items-baseline gap-3">
-              <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+              <span className="mst-label">
                 Total del pedido
               </span>
               <Money centavos={total} className="text-lg" />

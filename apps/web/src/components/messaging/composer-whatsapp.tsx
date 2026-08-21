@@ -11,7 +11,8 @@ import {
 import { Send, Sparkles } from "lucide-react";
 import { MensajePreview } from "@/components/domain/mensaje-preview";
 import { Button } from "@/components/ui/button";
-import { Select, Textarea, Input } from "@/components/ui/field";
+import { Droplist } from "@/components/ui/droplist";
+import { Textarea, Input } from "@/components/ui/field";
 
 export function ComposerWhatsapp({
   conversacion,
@@ -121,21 +122,21 @@ export function ComposerWhatsapp({
         <>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">
-              <Select
+              <Droplist
                 id="plantilla-aprobada"
                 label="Plantilla aprobada"
                 value={seleccionada?.id ?? ""}
-                onChange={(e) => {
-                  setPlantillaId(e.target.value);
+                searchable={aprobadas.length > 6}
+                searchPlaceholder="Buscar plantilla"
+                onChange={(next) => {
+                  setPlantillaId(next);
                   setParams([]);
                 }}
-              >
-                {aprobadas.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} · {p.category.toLowerCase()}
-                  </option>
-                ))}
-              </Select>
+                options={aprobadas.map((p) => ({
+                  value: p.id,
+                  label: `${p.name} · ${p.category.toLowerCase()}`,
+                }))}
+              />
             </div>
             <Button
               size="md"

@@ -152,10 +152,16 @@ export function PanelShell({
           "lg:static lg:translate-x-0",
         )}
       >
-        <div className="flex h-topbar items-center px-4">
-          <Wordmark />
+        <div className="flex shrink-0 items-center justify-center border-b border-[var(--border-subtle)] px-2 py-3">
+          <Link
+            href="/hoy"
+            className="flex w-full items-center justify-center rounded-campo no-underline hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+            aria-label="Mi Súper Tostada · Hoy"
+          >
+            <Wordmark className="h-24 w-auto max-w-full" />
+          </Link>
         </div>
-        <nav aria-label="Principal" className="grid flex-1 content-start gap-0.5 px-2 pb-3">
+        <nav aria-label="Principal" className="grid flex-1 content-start gap-0.5 overflow-y-auto px-2 py-3">
           {NAV.map((item) => (
             <NavLink key={item.id} item={item} pathname={pathname} />
           ))}
@@ -168,7 +174,7 @@ export function PanelShell({
             <span className="block truncate text-sm font-semibold text-tinta-900">
               {usuario.username}
             </span>
-            <span className="block text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+            <span className="block mst-label">
               {usuario.rol}
             </span>
           </span>
@@ -210,7 +216,7 @@ export function PanelShell({
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             {fecha && (
               <p className="hidden min-w-0 truncate text-right sm:block">
-                <span className="block text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+                <span className="block mst-label">
                   Fecha de operación
                 </span>
             <span className="block text-sm font-semibold tabular-nums text-tinta-900">
@@ -266,8 +272,8 @@ export function PanelShell({
               href={item.href!}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-tap min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-[11px] font-semibold leading-tight",
-                active ? "text-marca" : "text-tinta-500",
+                "flex min-h-tap min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-[11px] font-semibold leading-tight no-underline hover:no-underline",
+                active ? "text-marca hover:text-marca" : "text-tinta-500 hover:text-tinta-500",
               )}
             >
               <Icon size={22} aria-hidden />
@@ -285,11 +291,11 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const active = itemActivo(pathname, item);
   const clase = cn(
     "flex min-h-11 items-center gap-3 rounded-campo px-3 text-sm transition-[background-color,color,border-color] duration-control ease-out",
-    "border-l-[3px]",
+    "border-l-[3px] no-underline hover:no-underline",
     item.soon && "cursor-not-allowed opacity-45",
     active
-      ? "border-[var(--nav-rail)] bg-[var(--surface-nav-active)] font-semibold text-marca"
-      : "border-transparent font-medium text-tinta-800 hover:bg-[var(--surface-nav-hover)]",
+      ? "border-[var(--nav-rail)] bg-[var(--surface-nav-active)] font-semibold text-marca hover:text-marca"
+      : "border-transparent font-medium text-tinta-800 hover:bg-[var(--surface-nav-hover)] hover:text-tinta-800",
   );
 
   if (item.soon || !item.href) {
@@ -297,7 +303,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       <span className={clase} title="Disponible en la siguiente etapa">
         <Icon size={17} aria-hidden />
         <span className="flex-1">{item.label}</span>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+        <span className="mst-label text-[11px]">
           Pronto
         </span>
       </span>
@@ -315,9 +321,11 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 function ShellSkeleton() {
   return (
     <div className="flex min-h-[100dvh] bg-[var(--surface-page)]">
-      <div className="hidden w-sidebar border-r border-[var(--border-subtle)] bg-blanco p-4 lg:block">
-        <Skeleton className="h-9 w-40" />
-        <div className="mt-6 grid gap-2">
+      <div className="hidden w-sidebar border-r border-[var(--border-subtle)] bg-blanco lg:block">
+        <div className="border-b border-[var(--border-subtle)] px-3 py-3">
+          <Skeleton className="mx-auto size-24 rounded-full" />
+        </div>
+        <div className="grid gap-2 p-4">
           <Skeleton className="h-11 w-full" />
           <Skeleton className="h-11 w-full" />
           <Skeleton className="h-11 w-full" />

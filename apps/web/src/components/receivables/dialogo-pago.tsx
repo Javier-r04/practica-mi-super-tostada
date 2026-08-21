@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   formatearCentavos,
   quetzalesTextoACentavos,
@@ -8,10 +8,11 @@ import {
   MENSAJE_GUARDAR_TELEFONO,
   type PagoMetodo,
 } from "@misupertostada/shared";
-import { Banknote, ArrowLeftRight, Camera } from "lucide-react";
+import { Camera } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Money } from "@/components/domain/money";
 import { subirComprobantePago } from "@/lib/upload-asset";
 import { avisoSinSenal } from "@/hooks/use-online";
@@ -51,10 +52,12 @@ export function DialogoPago({
   const [metodo, setMetodo] = useState<PagoMetodo>("EFECTIVO");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string>();
+  const pagoIdRef = useRef(crypto.randomUUID());
   const sinSenal = permitirOffline ? undefined : avisoSinSenal(online);
 
   useEffect(() => {
     if (!open) return;
+    pagoIdRef.current = crypto.randomUUID();
     setMonto(formatearCentavos(saldoCentavos, { simbolo: false }));
     setMetodo("EFECTIVO");
     setArchivo(null);
@@ -78,7 +81,7 @@ export function DialogoPago({
       setLocalError(MENSAJE_COMPROBANTE_REQUERIDO);
       return;
     }
-    const id = crypto.randomUUID();
+    const id = pagoIdRef.current;
     if (permitirOffline) {
       onConfirm({
         id,
@@ -140,28 +143,18 @@ export function DialogoPago({
           hint="Puede ser un abono parcial. Se aplica a la factura más antigua si cobra al cliente."
         />
         <Field label="Método">
-          <div className="grid grid-cols-2 gap-2">
-            {(
+          <SegmentedControl
+            label="Método de pago"
+            value={metodo}
+            onChange={setMetodo}
+            fullWidth
+            options={
               [
-                ["EFECTIVO", "Efectivo", Banknote],
-                ["TRANSFERENCIA", "Transferencia", ArrowLeftRight],
+                { id: "EFECTIVO", label: "Efectivo" },
+                { id: "TRANSFERENCIA", label: "Transferencia" },
               ] as const
-            ).map(([value, label, Icon]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setMetodo(value)}
-                className={`flex min-h-[52px] items-center justify-center gap-2 rounded-campo border text-sm font-semibold ${
-                  metodo === value
-                    ? "border-marca bg-marca-soft text-marca"
-                    : "border-[var(--border-default)] bg-blanco"
-                }`}
-              >
-                <Icon size={18} aria-hidden />
-                {label}
-              </button>
-            ))}
-          </div>
+            }
+          />
         </Field>
         <Field
           label="Comprobante"

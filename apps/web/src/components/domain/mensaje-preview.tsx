@@ -25,7 +25,7 @@ export function MensajePreview({
   return (
     <div className={cn("grid gap-1.5", className)}>
       <div className="flex items-center gap-2">
-        <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+        <span className="mst-label">
           {esPlantilla ? "Plantilla aprobada" : "Mensaje libre"}
         </span>
         {plantilla ? (

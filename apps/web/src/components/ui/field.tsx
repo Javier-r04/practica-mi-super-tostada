@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { ChevronDown } from "lucide-react";
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 
 export function Field({
   label,
@@ -21,10 +27,7 @@ export function Field({
   return (
     <div className="grid gap-1.5">
       {label && (
-        <label
-          htmlFor={htmlFor}
-          className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500"
-        >
+        <label htmlFor={htmlFor} className="mst-label">
           {label}
           {required ? (
             <span className="text-peligro" aria-hidden>
@@ -49,8 +52,8 @@ export function Field({
   );
 }
 
-const control =
-  "h-campo w-full rounded-campo border border-[var(--border-default)] bg-blanco px-3 text-sm text-tinta-800 shadow-[var(--shadow-inset-field)] transition-[border-color,box-shadow] duration-control ease-out placeholder:text-tinta-500 focus:border-[var(--border-focus)] focus:shadow-foco focus:outline-none";
+export const controlClassName =
+  "mst-control h-campo w-full rounded-campo border border-[var(--border-default)] bg-blanco px-3 text-sm text-tinta-800 shadow-[var(--shadow-inset-field)] transition-[border-color,box-shadow] duration-control ease-out placeholder:text-tinta-500 focus:border-[var(--border-focus)] focus:shadow-foco focus:outline-none";
 
 export function Input({
   label,
@@ -75,13 +78,14 @@ export function Input({
         aria-describedby={
           error && id ? `${id}-error` : hint && id ? `${id}-hint` : undefined
         }
-        className={cn(control, error && "border-peligro", className)}
+        className={cn(controlClassName, error && "border-peligro", className)}
         {...rest}
       />
     </Field>
   );
 }
 
+/** Select nativo estilizado (droplist corto). Preferir Droplist si hay búsqueda o listas largas. */
 export function Select({
   label,
   hint,
@@ -98,16 +102,28 @@ export function Select({
 }) {
   return (
     <Field label={label} hint={hint} error={error} required={required} htmlFor={id}>
-      <select
-        id={id}
-        required={required}
-        aria-required={required || undefined}
-        aria-invalid={error ? true : undefined}
-        className={cn(control, error && "border-peligro", className)}
-        {...rest}
-      >
-        {children}
-      </select>
+      <div className="relative">
+        <select
+          id={id}
+          required={required}
+          aria-required={required || undefined}
+          aria-invalid={error ? true : undefined}
+          className={cn(
+            controlClassName,
+            "appearance-none pr-10",
+            error && "border-peligro",
+            className,
+          )}
+          {...rest}
+        >
+          {children}
+        </select>
+        <ChevronDown
+          size={16}
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-subtle)]"
+          aria-hidden
+        />
+      </div>
     </Field>
   );
 }
@@ -133,7 +149,7 @@ export function Textarea({
         aria-required={required || undefined}
         aria-invalid={error ? true : undefined}
         className={cn(
-          control,
+          controlClassName,
           "h-auto min-h-[88px] py-2",
           error && "border-peligro",
           className,

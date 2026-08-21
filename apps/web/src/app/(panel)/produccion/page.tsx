@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RowSkeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { HojaGrupos } from "@/components/fulfillment/hoja-grupos";
 import { ConsolidadoPreview } from "@/components/fulfillment/consolidado-preview";
 
@@ -98,14 +99,14 @@ export default function ProduccionPage() {
                   <Badge tone="amber">Reabierto</Badge>
                 )}
                 {v2 && (
-                  <label className="flex items-center gap-2 text-xs font-semibold text-tinta-800">
-                    <input
-                      type="checkbox"
-                      checked={soloCambios}
-                      onChange={(e) => setSoloCambios(e.target.checked)}
-                    />
-                    Solo cambios
-                  </label>
+                  <Checkbox
+                    id="solo-cambios"
+                    label="Solo cambios"
+                    size="sm"
+                    checked={soloCambios}
+                    onChange={(e) => setSoloCambios(e.target.checked)}
+                    className="[&_label]:min-h-0 [&_label]:items-center"
+                  />
                 )}
                 <Button size="sm" variant="secondary" onClick={imprimir}>
                   <Printer size={15} aria-hidden />

@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { FileDown } from "lucide-react";
 import {
@@ -24,20 +24,31 @@ import { Money } from "@/components/domain/money";
 import {
   FiltrosTableroBarra,
   filtrosDesdeSearch,
+  mismosFiltros,
   queryDeFiltros,
+  type FiltrosTablero,
 } from "@/components/analytics/filtros-tablero";
 import { KpiStrip } from "@/components/analytics/kpi-strip";
 import { ChartLinea } from "@/components/analytics/charts/linea";
 import { ChartBarrasH } from "@/components/analytics/charts/barras-h";
 import { ChartBarrasApiladas } from "@/components/analytics/charts/barras-apiladas";
 import { ChartAnillo } from "@/components/analytics/charts/anillo";
+import { cn } from "@/lib/utils";
 
 function TableroInner() {
   const sp = useSearchParams();
-  const filtros = filtrosDesdeSearch(sp);
+  const [filtros, setFiltros] = useState<FiltrosTablero>(() =>
+    filtrosDesdeSearch(sp),
+  );
   const qs = queryDeFiltros(filtros);
   const [descargando, setDescargando] = useState(false);
   const [errorPdf, setErrorPdf] = useState<string>();
+
+  const spKey = sp.toString();
+  useEffect(() => {
+    const fromUrl = filtrosDesdeSearch(new URLSearchParams(spKey));
+    setFiltros((prev) => (mismosFiltros(prev, fromUrl) ? prev : fromUrl));
+  }, [spKey]);
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -54,6 +65,7 @@ function TableroInner() {
     queryKey: ["tablero", filtros],
     queryFn: () => api<Tablero>(`/tablero${qs}`),
     enabled: Boolean(me.data),
+    placeholderData: keepPreviousData,
   });
 
   async function descargar() {
@@ -79,6 +91,7 @@ function TableroInner() {
   }
 
   const data = tablero.data;
+  const mostrandoPrevios = tablero.isPlaceholderData;
   const topClientes = (data?.ventas.porCliente ?? []).slice(0, 8);
   const otros = (data?.ventas.porCliente ?? []).slice(8);
   const otrosMonto = otros.reduce((acc, c) => acc + c.montoCentavos, 0);
@@ -117,20 +130,31 @@ function TableroInner() {
     <PanelShell title="Tablero">
       <FiltrosTableroBarra
         clientes={clientes.data ?? []}
-        aplicados={data?.filtrosAplicados}
+        aplicados={mostrandoPrevios ? undefined : data?.filtrosAplicados}
+        value={filtros}
+        onChange={setFiltros}
       />
-      <div className="mt-4 grid gap-4">
+      <div
+        className={cn(
+          "mt-4 grid gap-4 transition-opacity duration-surface ease-out",
+          tablero.isFetching && data ? "opacity-55" : "opacity-100",
+        )}
+        aria-busy={tablero.isFetching || undefined}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <p className="max-w-[62ch] text-sm text-pretty text-tinta-500">
-            {data?.filtrosAplicados.etiqueta ??
-              "Cierre de quincena y recortes de la operación."}{" "}
-            Pagado cuando la suma de abonos cubre la factura.
+            {mostrandoPrevios
+              ? "Actualizando el recorte…"
+              : (data?.filtrosAplicados.etiqueta ??
+                "Cierre de quincena y recortes de la operación.")}{" "}
+            {!mostrandoPrevios &&
+              "Pagado cuando la suma de abonos cubre la factura."}
           </p>
           <Button
             variant="accent"
             onClick={() => void descargar()}
             loading={descargando}
-            disabled={!data}
+            disabled={!data || mostrandoPrevios}
           >
             <FileDown size={15} aria-hidden />
             Descargar cierre de quincena
@@ -142,7 +166,7 @@ function TableroInner() {
           </p>
         )}
 
-        {tablero.isLoading && (
+        {tablero.isLoading && !data && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Skeleton className="h-24" />
             <Skeleton className="h-24" />
@@ -292,7 +316,7 @@ function TableroInner() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead>
-                        <tr className="border-b border-[var(--border-subtle)] text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+                        <tr className="border-b border-[var(--border-subtle)] mst-label">
                           <th scope="col" className="px-4 py-2">Cliente</th>
                           <th scope="col" className="px-4 py-2">Pedidos</th>
                           <th scope="col" className="px-4 py-2">Ticket</th>

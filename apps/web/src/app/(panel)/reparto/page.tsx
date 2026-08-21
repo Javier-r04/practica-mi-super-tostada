@@ -113,7 +113,7 @@ export default function RepartoPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Card>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+              <div className="mst-label">
                 Entregas
               </div>
               <div className="font-display text-3xl text-marca">
@@ -121,7 +121,7 @@ export default function RepartoPage() {
               </div>
             </Card>
             <Card>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+              <div className="mst-label">
                 Fecha
               </div>
               <div className="text-sm font-semibold">

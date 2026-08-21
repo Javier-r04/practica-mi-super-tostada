@@ -1,9 +1,14 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState, type ReactNode } from "react";
+import { Suspense, startTransition, useEffect, useState, type ReactNode } from "react";
 import {
   tienePermiso,
   type ActorPublico,
@@ -20,7 +25,7 @@ import { usePedidosSse } from "@/hooks/use-pedidos-sse";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/field";
+import { DateField } from "@/components/ui/date-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DialogoCierre } from "@/components/fulfillment/dialogo-cierre";
 import { DialogoReabrir } from "@/components/fulfillment/dialogo-reabrir";
@@ -41,7 +46,7 @@ function Metric({
 }) {
   return (
     <div className="flex-1 rounded-tarjeta border border-[var(--border-subtle)] bg-blanco p-4 shadow-tarjeta">
-      <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+      <div className="mst-label">
         {label}
       </div>
       <div className="mt-1.5 font-display text-3xl leading-none text-marca">
@@ -61,7 +66,7 @@ function ChipRuta({
 }) {
   return (
     <span className="inline-flex min-h-11 items-center gap-2 rounded-campo border border-[var(--border-subtle)] bg-blanco px-3 text-sm">
-      <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+      <span className="mst-label">
         {label}
       </span>
       <span className="font-semibold tabular-nums text-tinta-900">{valor}</span>
@@ -73,10 +78,15 @@ function HoyInner() {
   const qc = useQueryClient();
   const router = useRouter();
   const sp = useSearchParams();
-  const fechaQuery = sp.get("fechaOperacion") ?? "";
+  const fechaFromUrl = sp.get("fechaOperacion") ?? "";
+  const [fechaLocal, setFechaLocal] = useState(fechaFromUrl);
   const [cerrando, setCerrando] = useState(false);
   const [reabriendo, setReabriendo] = useState(false);
   const [errorReabrir, setErrorReabrir] = useState<string>();
+
+  useEffect(() => {
+    setFechaLocal(fechaFromUrl);
+  }, [fechaFromUrl]);
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -88,19 +98,23 @@ function HoyInner() {
     enabled: Boolean(me.data),
   });
   const operacion = useQuery({
-    queryKey: ["operacion", fechaQuery],
+    queryKey: ["operacion", fechaLocal],
     queryFn: () =>
       api<OperacionResumen>(
-        `/operacion${fechaQuery ? `?fechaOperacion=${fechaQuery}` : ""}`,
+        `/operacion${fechaLocal ? `?fechaOperacion=${fechaLocal}` : ""}`,
       ),
     enabled: Boolean(me.data),
+    placeholderData: keepPreviousData,
   });
-  const fecha = operacion.data?.fechaOperacion ?? calendario.data?.fechaOperacion;
+  const fecha = operacion.isPlaceholderData
+    ? fechaLocal || calendario.data?.fechaOperacion
+    : (operacion.data?.fechaOperacion ?? calendario.data?.fechaOperacion);
   const pedidos = useQuery({
     queryKey: ["pedidos", { fechaOperacion: fecha }],
     queryFn: () =>
       api<PedidoBandeja[]>(`/pedidos?fechaOperacion=${fecha}`),
     enabled: Boolean(fecha),
+    placeholderData: keepPreviousData,
   });
   const cartera = useQuery({
     queryKey: ["cartera", "resumen"],
@@ -158,35 +172,45 @@ function HoyInner() {
   });
 
   function elegirFecha(value: string) {
-    if (!value) {
-      router.replace("/hoy");
-      return;
-    }
-    router.replace(`/hoy?fechaOperacion=${value}`);
+    setFechaLocal(value);
+    startTransition(() => {
+      if (!value) {
+        router.replace("/hoy", { scroll: false });
+        return;
+      }
+      router.replace(`/hoy?fechaOperacion=${value}`, { scroll: false });
+    });
   }
 
   const data = operacion.data;
   const cerrado = data?.diaEstado === "CERRADO";
   const reabierto = data?.diaEstado === "REABIERTO";
   const valorFecha =
-    fechaQuery || data?.fechaOperacion || calendario.data?.fechaOperacion || "";
-
+    fechaLocal || data?.fechaOperacion || calendario.data?.fechaOperacion || "";
+  const actualizando = operacion.isFetching && Boolean(data);
   return (
     <PanelShell title="Hoy">
-      <div className="grid gap-4">
+      <div
+        className={cn(
+          "grid gap-4 transition-opacity duration-surface ease-out",
+          actualizando ? "opacity-55" : "opacity-100",
+        )}
+        aria-busy={actualizando || undefined}
+      >
         <PageToolbar
           description="Esta noche: pedidos, monto con snapshot y quién aún no pide. El análisis de quincena vive en Tablero."
           actions={
-            <Input
+            <DateField
               id="hoy-fecha-operacion"
               label="Fecha de operación"
-              type="date"
               value={valorFecha}
-              onChange={(e) => elegirFecha(e.target.value)}
+              onChange={elegirFecha}
+              clearable={false}
+              className="min-w-[220px]"
             />
           }
         />
-        {operacion.isLoading && (
+        {operacion.isLoading && !data && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Skeleton className="h-24" />
             <Skeleton className="h-24" />
@@ -260,7 +284,9 @@ function HoyInner() {
                   </Button>
                 }
               >
-                {pedidos.isLoading && <Skeleton className="mx-4 mb-4 h-32" />}
+                {pedidos.isLoading && !pedidos.data && (
+                  <Skeleton className="mx-4 mb-4 h-32" />
+                )}
                 {pedidos.data && pedidos.data.length === 0 && (
                   <EmptyState
                     title="Todavía no hay pedidos"

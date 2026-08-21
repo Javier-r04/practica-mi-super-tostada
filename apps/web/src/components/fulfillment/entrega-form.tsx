@@ -52,7 +52,7 @@ export function EntregaForm({
         >
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 text-sm font-semibold">{it.nombreMostrado}</span>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+            <span className="mst-label text-[11px]">
               pedido {it.cantidadPedida}
             </span>
           </div>
@@ -68,7 +68,7 @@ export function EntregaForm({
         </div>
       ))}
       <div className="flex items-baseline justify-between bg-tinta-50 px-4 py-3">
-        <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+        <span className="mst-label">
           {ajustes > 0 ? `${ajustes} ajuste${ajustes > 1 ? "s" : ""}` : "Sin ajustes"}
         </span>
         <Money centavos={total} className="text-lg" />

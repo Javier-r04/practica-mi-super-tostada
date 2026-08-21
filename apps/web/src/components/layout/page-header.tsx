@@ -26,7 +26,7 @@ export function PageToolbar({
           </p>
         )}
         {meta && (
-          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-tinta-500">
+          <p className={cn("mst-label", description && "mt-1")}>
             {meta}
           </p>
         )}

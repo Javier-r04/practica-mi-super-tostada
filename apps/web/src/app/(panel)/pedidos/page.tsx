@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ClipboardList, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   PEDIDO_ESTADOS,
   ESTADO_PRESENTACION,
@@ -25,7 +26,8 @@ import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Select } from "@/components/ui/field";
+import { DateField } from "@/components/ui/date-field";
+import { Droplist } from "@/components/ui/droplist";
 import { SearchField } from "@/components/ui/search-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RowSkeleton } from "@/components/ui/skeleton";
@@ -33,6 +35,9 @@ import { cn } from "@/lib/utils";
 
 export default function PedidosPage() {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const clienteIdUrl = searchParams.get("clienteId") ?? "";
+  const historialUrl = searchParams.get("historial") === "1";
   const me = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => api<{ usuario: ActorPublico }>("/auth/me"),
@@ -48,13 +53,17 @@ export default function PedidosPage() {
   );
 
   const [fecha, setFecha] = useState("");
-  const [clienteId, setClienteId] = useState("");
+  const [clienteId, setClienteId] = useState(clienteIdUrl);
+  const [historialMode, setHistorialMode] = useState(historialUrl && Boolean(clienteIdUrl));
   const [estado, setEstado] = useState<"" | PedidoEstado>("");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<string | null>(null);
   const [captura, setCaptura] = useState(false);
 
-  const fechaOperacion = fecha || calendario.data?.fechaOperacion || "";
+  const historialCliente = Boolean(clienteId) && historialMode && !fecha;
+  const fechaOperacion = historialCliente
+    ? ""
+    : fecha || calendario.data?.fechaOperacion || "";
   usePedidosSse(Boolean(me.data));
 
   const clientes = useQuery({
@@ -63,16 +72,18 @@ export default function PedidosPage() {
     enabled: Boolean(me.data),
   });
   const pedidos = useQuery({
-    queryKey: ["pedidos", { fechaOperacion, clienteId, estado }],
+    queryKey: ["pedidos", { fechaOperacion, clienteId, estado, historialCliente }],
     queryFn: () =>
       api<PedidoBandeja[]>(
         `/pedidos${queryString({
-          fechaOperacion,
+          fechaOperacion: fechaOperacion || undefined,
           clienteId: clienteId || undefined,
           estado: estado || undefined,
+          historial: historialCliente ? "1" : undefined,
         })}`,
       ),
-    enabled: Boolean(fechaOperacion),
+    enabled: historialCliente || Boolean(fechaOperacion),
+    placeholderData: keepPreviousData,
   });
   const detalle = useQuery({
     queryKey: ["pedidos", sel],
@@ -91,11 +102,25 @@ export default function PedidosPage() {
     );
   }, [pedidos.data, q]);
 
+  function onFechaChange(next: string) {
+    setFecha(next);
+    if (next) setHistorialMode(false);
+    else if (clienteId) setHistorialMode(true);
+  }
+
+  function onClienteChange(next: string) {
+    setClienteId(next);
+    if (!next) setHistorialMode(false);
+  }
   return (
     <PanelShell title="Pedidos">
       <div className="grid gap-4">
         <PageToolbar
-          description="Bandeja del día de operación. Varios pedidos del mismo cliente caben: el extra de una llamada es otro correlativo."
+          description={
+            historialCliente
+              ? "Historial del restaurante (sin filtrar por día). Elija una fecha para volver a la bandeja diaria."
+              : "Bandeja del día de operación. Varios pedidos del mismo cliente caben: el extra de una llamada es otro correlativo."
+          }
           meta={
             pedidos.data
               ? `${pedidos.data.length} pedido${pedidos.data.length === 1 ? "" : "s"}`
@@ -112,50 +137,55 @@ export default function PedidosPage() {
         />
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className="grid gap-1.5">
-            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
-              Fecha de operación
-            </span>
-            <input
-              type="date"
-              value={fechaOperacion}
-              onChange={(e) => setFecha(e.target.value)}
-              className="h-campo w-full rounded-campo border border-[var(--border-default)] bg-blanco px-3 text-sm tabular-nums text-tinta-800 shadow-[var(--shadow-inset-field)] focus:border-[var(--border-focus)] focus:shadow-foco focus:outline-none"
-            />
-          </label>
-          <Select
+          <DateField
+            id="filtro-fecha-operacion"
+            label="Fecha de operación"
+            value={
+              fecha ||
+              (historialCliente ? "" : (calendario.data?.fechaOperacion ?? ""))
+            }
+            onChange={onFechaChange}
+            clearable={Boolean(clienteId)}
+          />
+          <Droplist
             id="filtro-cliente"
             label="Cliente"
             value={clienteId}
-            onChange={(e) => setClienteId(e.target.value)}
-          >
-            <option value="">Todos</option>
-            {(clientes.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </Select>
-          <Select
+            onChange={onClienteChange}
+            searchable
+            searchPlaceholder="Buscar restaurante"
+            options={[
+              { value: "", label: "Todos" },
+              ...(clientes.data ?? []).map((c) => ({
+                value: c.id,
+                label: c.nombre,
+              })),
+            ]}
+          />
+          <Droplist
             id="filtro-estado"
             label="Estado"
             value={estado}
-            onChange={(e) => setEstado(e.target.value as "" | PedidoEstado)}
-          >
-            <option value="">Todos</option>
-            {PEDIDO_ESTADOS.map((e) => (
-              <option key={e} value={e}>
-                {ESTADO_PRESENTACION[e].label}
-              </option>
-            ))}
-          </Select>
+            onChange={(v) => setEstado(v as "" | PedidoEstado)}
+            options={[
+              { value: "", label: "Todos" },
+              ...PEDIDO_ESTADOS.map((e) => ({
+                value: e,
+                label: ESTADO_PRESENTACION[e].label,
+              })),
+            ]}
+          />
         </div>
 
         <div className="grid items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
           <Card
             flush
             title="Pedidos"
-            subtitle={fechaOperacion || "Fecha de operación"}
+            subtitle={
+              historialCliente
+                ? "Historial del cliente"
+                : fechaOperacion || "Fecha de operación"
+            }
             className={cn(sel && "hidden lg:block")}
           >
             <div className="px-4 pb-3">
@@ -166,8 +196,14 @@ export default function PedidosPage() {
                 label="Buscar pedido"
               />
             </div>
-            <div className="border-t border-[var(--border-subtle)]">
-              {pedidos.isLoading ? (
+            <div
+              className={cn(
+                "border-t border-[var(--border-subtle)] transition-opacity duration-surface ease-out",
+                pedidos.isFetching && pedidos.data ? "opacity-55" : "opacity-100",
+              )}
+              aria-busy={pedidos.isFetching || undefined}
+            >
+              {pedidos.isLoading && !pedidos.data ? (
                 <RowSkeleton rows={8} />
               ) : lista.length === 0 ? (
                 <EmptyState

@@ -28,9 +28,9 @@
   --shadow-tarjeta: var(--shadow-sm);
   --shadow-modal: var(--shadow-lg);
   --shadow-foco: var(--shadow-focus);
-  --font-display: "IBM Plex Sans", system-ui, sans-serif;
-  --font-core: "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-display: "Nunito Sans", system-ui, sans-serif;
+  --font-core: "Nunito Sans", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-weight-bold: 600;
   --text-xs: 13px;
   --text-sm: 14px;

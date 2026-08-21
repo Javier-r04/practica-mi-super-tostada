@@ -15,7 +15,7 @@ export function EstadoBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-pill font-semibold uppercase tracking-[0.08em]",
+        "inline-flex items-center rounded-pill font-medium tracking-normal",
         size === "sm" ? "h-[18px] px-1.5 text-[11px]" : "h-[22px] px-2 text-[12px]",
       )}
       style={{ background: e.bg, color: e.fg }}

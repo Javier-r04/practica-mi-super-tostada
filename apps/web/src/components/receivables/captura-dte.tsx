@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 
 export function CapturaDte({
   id = "numero-dte",
@@ -10,6 +11,7 @@ export function CapturaDte({
   disabled,
   hint,
   loading,
+  compact,
   onSave,
 }: {
   id?: string;
@@ -17,12 +19,17 @@ export function CapturaDte({
   disabled?: boolean;
   hint?: string;
   loading?: boolean;
+  /** Sin label de campo; pensado para celdas de tabla / cards. */
+  compact?: boolean;
   onSave: (numeroDte: string) => void;
 }) {
   const [valor, setValor] = useState(numeroDte ?? "");
   return (
     <form
-      className="flex flex-wrap items-end gap-2"
+      className={cn(
+        "flex flex-wrap items-end gap-2",
+        compact && "items-center",
+      )}
       onSubmit={(e) => {
         e.preventDefault();
         const recortado = valor.trim();
@@ -30,15 +37,16 @@ export function CapturaDte({
         onSave(recortado);
       }}
     >
-      <div className="min-w-[160px] flex-1">
+      <div className={cn("min-w-[140px] flex-1", compact && "min-w-0")}>
         <Input
           id={id}
-          label="Número de DTE"
+          label={compact ? undefined : "Número de DTE"}
+          aria-label={compact ? "Número de DTE" : undefined}
           value={valor}
           disabled={disabled}
           title={hint}
           className="font-mono"
-          placeholder="Sin DTE"
+          placeholder="Número DTE"
           onChange={(e) => setValor(e.target.value)}
         />
       </div>
@@ -49,7 +57,7 @@ export function CapturaDte({
         title={hint}
         loading={loading}
       >
-        Guardar DTE
+        {compact ? "Guardar" : "Guardar DTE"}
       </Button>
     </form>
   );

@@ -23,6 +23,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     credentials: "include",
     headers,
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
   });
   const contentType = res.headers.get("content-type") ?? "";
   if (contentType.includes("text/csv") || contentType.includes("text/plain")) {

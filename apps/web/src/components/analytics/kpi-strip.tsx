@@ -23,7 +23,7 @@ function Kpi({
       }
       className="flex-1 rounded-tarjeta border border-[var(--border-subtle)] bg-blanco p-4 text-left shadow-tarjeta"
     >
-      <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+      <div className="mst-label">
         {label}
       </div>
       <div className="mt-1.5 font-display text-3xl leading-none text-marca">

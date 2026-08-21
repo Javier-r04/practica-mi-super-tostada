@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <rect x="12" y="12" width="168" height="168" rx="28" fill="#0E4E15"/>
-  <rect x="12" y="140" width="168" height="40" rx="0" fill="#FACC15"/>
-  <rect x="12" y="128" width="168" height="24" fill="#0E4E15"/>
-  <text x="96" y="108" text-anchor="middle" font-family="system-ui,sans-serif" font-size="42" font-weight="700" fill="#ffffff">MST</text>
-</svg>

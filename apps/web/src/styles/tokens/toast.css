@@ -1,0 +1,83 @@
+/* Toasts globales (sonner). Misma cápsula; el texto lo pone cada llamada. */
+[data-sonner-toaster].mst-toaster {
+  --normal-bg: var(--white);
+  --normal-border: var(--border-subtle);
+  --normal-text: var(--ink-900);
+  --success-bg: var(--green-50);
+  --success-border: var(--green-200);
+  --success-text: var(--green-850);
+  --error-bg: var(--red-100);
+  --error-border: #f0c5c1;
+  --error-text: var(--red-700);
+  --warning-bg: var(--amber-100);
+  --warning-border: #f5dfa3;
+  --warning-text: var(--amber-700);
+  --info-bg: var(--blue-100);
+  --info-border: #b9d7e6;
+  --info-text: var(--blue-700);
+  font-family: var(--font-core);
+  z-index: var(--z-toast) !important;
+}
+
+[data-sonner-toast].mst-toast {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid var(--normal-border) !important;
+  box-shadow: var(--shadow-lg) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  padding: 12px 14px !important;
+  gap: 10px !important;
+}
+
+[data-sonner-toast].mst-toast-error {
+  background: var(--error-bg) !important;
+  border-color: var(--error-border) !important;
+  color: var(--error-text) !important;
+}
+
+[data-sonner-toast].mst-toast-success {
+  background: var(--success-bg) !important;
+  border-color: var(--success-border) !important;
+  color: var(--success-text) !important;
+}
+
+[data-sonner-toast].mst-toast-warning {
+  background: var(--warning-bg) !important;
+  border-color: var(--warning-border) !important;
+  color: var(--warning-text) !important;
+}
+
+[data-sonner-toast].mst-toast-info {
+  background: var(--info-bg) !important;
+  border-color: var(--info-border) !important;
+  color: var(--info-text) !important;
+}
+
+.mst-toast-title {
+  text-wrap: pretty;
+}
+
+.mst-toast-description {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  opacity: 0.85;
+  text-wrap: pretty;
+}
+
+.mst-toast-icon {
+  margin-top: 1px;
+}
+
+.mst-toast-close {
+  background: var(--white) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--ink-500) !important;
+  transition: color 120ms ease-out, background-color 120ms ease-out;
+}
+
+.mst-toast-close:hover {
+  background: var(--ink-50) !important;
+  color: var(--ink-900) !important;
+}

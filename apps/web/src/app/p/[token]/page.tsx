@@ -174,7 +174,7 @@ function PortalPageInner({ token }: { token: string }) {
           <Card tone="brand">
             <div className="grid justify-items-start gap-2">
               <CheckCircle2 size={30} className="text-acento" aria-hidden />
-              <h1 className="font-display text-2xl uppercase leading-none text-acento">
+              <h1 className="font-display text-2xl leading-none text-acento">
                 Pedido
                 <br />
                 confirmado
@@ -268,7 +268,7 @@ function PortalPageInner({ token }: { token: string }) {
               />
             ))}
             <div className="flex items-baseline justify-between bg-[var(--ink-50)] px-4 py-3">
-              <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+              <span className="mst-label">
                 Total
               </span>
               <Money centavos={totalCentavos} />

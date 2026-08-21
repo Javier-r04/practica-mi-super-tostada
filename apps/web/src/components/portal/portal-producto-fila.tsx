@@ -70,7 +70,7 @@ export function PortalSeccion({
 }) {
   return (
     <section className="grid gap-2">
-      <h2 className="px-4 text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+      <h2 className="px-4 mst-label">
         {titulo}
       </h2>
       <div className="border-y border-[var(--border-subtle)] bg-blanco">

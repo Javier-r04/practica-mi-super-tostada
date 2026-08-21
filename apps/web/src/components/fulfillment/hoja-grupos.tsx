@@ -31,7 +31,7 @@ export function HojaGrupos({
         <div key={grupo.puntoCarga}>
           <div className="flex items-center gap-2 border-y border-[var(--border-subtle)] bg-tinta-50 px-4 py-2">
             <EstadoBadge estado={grupo.puntoCarga} size="sm" />
-            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+            <span className="mst-label">
               punto de carga
             </span>
           </div>

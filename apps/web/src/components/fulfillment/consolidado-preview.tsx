@@ -10,7 +10,7 @@ export function ConsolidadoPreview({
   return (
     <div className="grid gap-1.5">
       <div className="flex items-center gap-2">
-        <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+        <span className="mst-label">
           Consolidado
         </span>
         <code className="rounded-pill bg-tinta-50 px-2 py-0.5 font-mono text-[11px] text-tinta-800">

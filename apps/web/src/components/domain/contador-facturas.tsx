@@ -34,7 +34,7 @@ export function ContadorFacturas({
         ) : null}
       </span>
       <div className="grid gap-0.5">
-        <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
+        <span className="mst-label">
           {etiqueta}
         </span>
         {montoCentavos != null ? (

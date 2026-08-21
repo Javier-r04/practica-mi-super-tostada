@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ClipboardList, Receipt } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   FAMILIA_ETIQUETA,
   crearClienteRequestSchema,
@@ -14,25 +14,42 @@ import {
   type ActorPublico,
   type ClienteProductoFila,
   type ClientePublico,
+  type PedidoBandeja,
+  type PortalCuenta,
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
+import { toastFromError, toastSuccess } from "@/lib/toast";
+import { subirFotoCliente } from "@/lib/upload-asset";
 import { PanelShell } from "@/components/layout/panel-shell";
-import { PageToolbar } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Textarea } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Money } from "@/components/domain/money";
+import { ContadorFacturas } from "@/components/domain/contador-facturas";
+import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CsvImportDialog } from "@/components/catalog/csv-import-dialog";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { RowSkeleton } from "@/components/ui/skeleton";
+import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
+import { FotoPicker } from "@/components/catalog/foto-picker";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { cn } from "@/lib/utils";
+
+type Seccion = "operacion" | "precios" | "datos";
 
 export default function ClienteFichaPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const qc = useQueryClient();
-  const [importOpen, setImportOpen] = useState(false);
+  const [seccion, setSeccion] = useState<Seccion>("operacion");
   const [tokenVisible, setTokenVisible] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [clearFoto, setClearFoto] = useState(false);
+  const [fotoBusy, setFotoBusy] = useState(false);
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -48,6 +65,18 @@ export default function ClienteFichaPage() {
   const filas = useQuery({
     queryKey: ["clientes", id, "productos"],
     queryFn: () => api<ClienteProductoFila[]>(`/clientes/${id}/productos`),
+    enabled: seccion === "precios",
+  });
+  const cuenta = useQuery({
+    queryKey: ["clientes", id, "cuenta"],
+    queryFn: () => api<PortalCuenta>(`/clientes/${id}/cuenta`),
+    enabled: Boolean(cliente.data),
+  });
+  const historial = useQuery({
+    queryKey: ["pedidos", { clienteId: id, historial: true }],
+    queryFn: () =>
+      api<PedidoBandeja[]>(`/pedidos?clienteId=${id}&historial=1`),
+    enabled: Boolean(cliente.data),
   });
 
   const rotar = useMutation({
@@ -75,14 +104,47 @@ export default function ClienteFichaPage() {
       <PanelShell title="Cliente">
         <div className="grid gap-4">
           <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-28 w-full rounded-tarjeta" />
           <Skeleton className="h-48 w-full rounded-tarjeta" />
-          <Skeleton className="h-64 w-full rounded-tarjeta" />
         </div>
       </PanelShell>
     );
   }
 
   const c = cliente.data;
+  const fotoMostrada = clearFoto ? null : c.fotoAssetId;
+  const enProgreso = (cuenta.data?.facturas ?? []).filter((f) => !f.numeroDte).length;
+
+  async function guardarFoto() {
+    if (!canWrite) return;
+    if (!fotoFile && !clearFoto) return;
+    setFotoBusy(true);
+    setError(null);
+    try {
+      if (fotoFile) {
+        const assetId = await subirFotoCliente(fotoFile, id);
+        await api(`/clientes/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ fotoAssetId: assetId }),
+        });
+      } else if (clearFoto) {
+        await api(`/clientes/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ fotoAssetId: null }),
+        });
+      }
+      setFotoFile(null);
+      setClearFoto(false);
+      toastSuccess("Foto actualizada");
+      await qc.invalidateQueries({ queryKey: ["clientes", id] });
+      await qc.invalidateQueries({ queryKey: ["clientes"] });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo actualizar la foto");
+      toastFromError(err, "No se pudo actualizar la foto");
+    } finally {
+      setFotoBusy(false);
+    }
+  }
 
   return (
     <PanelShell title={c.nombre}>
@@ -90,162 +152,356 @@ export default function ClienteFichaPage() {
         <div>
           <Link
             href="/clientes"
-            className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-marca hover:text-marca-hover"
+            className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-marca no-underline hover:text-marca-hover hover:no-underline"
           >
             <ChevronLeft size={16} aria-hidden />
             Clientes
           </Link>
-          <PageToolbar
-            className="mt-2"
-            description="Notas fijas y horario. El grosor y el punto de carga salen del catálogo, no se escriben a mano."
-            meta={
-              <>
-                {c.horarioEntregaFijo ? `Entrega ${c.horarioEntregaFijo}` : "Sin horario fijo"}
-                {c.limiteFacturasPendientes != null
-                  ? ` · límite ${c.limiteFacturasPendientes} facturas`
-                  : ""}
-                {c.tieneTokenPortal ? " · portal activo" : ""}
-                {!c.activo ? " · inactivo" : ""}
-              </>
-            }
-            actions={
-              canWrite ? (
-                <>
-                  <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
-                    Importar precios
-                  </Button>
-                  <Button size="sm" onClick={() => rotar.mutate()} loading={rotar.isPending}>
-                    {c.tieneTokenPortal ? "Rotar token del portal" : "Generar token del portal"}
-                  </Button>
-                </>
-              ) : null
-            }
-          />
-        </div>
-        <Card title="Ficha">
-          <FichaForm cliente={c} canWrite={canWrite} />
-          {error && <p className="mt-3 text-sm text-peligro">{error}</p>}
-          {canWrite && (
-            <div className="mt-4">
-              {c.activo ? (
-                <Button variant="danger" size="sm" onClick={() => desactivar.mutate()}>
-                  Desactivar cliente
-                </Button>
-              ) : (
-                <Button variant="secondary" size="sm" onClick={() => activar.mutate()}>
-                  Reactivar cliente
-                </Button>
-              )}
-            </div>
-          )}
-        </Card>
 
-        <Card
-          flush
-          title="Productos de este cliente"
-          subtitle="Alias, precio y nota de producción · edición en línea"
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-tinta-50 text-left text-[12px] font-semibold uppercase tracking-[0.08em] text-tinta-500">
-                  {["Producto", "Familia", "Alias", "Precio", "Nota producción", "Favorito"].map(
-                    (h) => (
-                      <th key={h} className="px-4 py-2.5 sm:px-5">
-                        {h}
-                      </th>
-                    ),
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {(filas.data ?? []).map((fila) => (
-                  <tr key={fila.productoId} className="border-t border-[var(--border-subtle)]">
-                    <td className="px-4 py-2.5 sm:px-5">
-                      <div className="font-semibold">{fila.nombreCanonico}</div>
-                      <div className="font-mono text-xs text-tinta-500">{fila.sku}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-tinta-500 sm:px-5">
-                      {FAMILIA_ETIQUETA[fila.familia]}
-                    </td>
-                    <td className="px-4 py-2.5 sm:px-5">
-                      <InlineText
-                        key={fila.alias ?? ""}
-                        value={fila.alias ?? ""}
-                        disabled={!canWrite}
-                        onSave={(alias) =>
-                          api(`/clientes/${id}/productos/${fila.productoId}`, {
-                            method: "PUT",
-                            body: JSON.stringify({ alias: alias || null }),
-                          }).then(() =>
-                            qc.invalidateQueries({ queryKey: ["clientes", id, "productos"] }),
-                          )
-                        }
-                      />
-                    </td>
-                    <td className="px-4 py-2.5 text-right sm:px-5">
-                      {canPrecio ? (
-                        <InlinePrecio
-                          key={String(fila.precioCentavos)}
-                          centavos={fila.precioCentavos}
-                          onSave={(precioCentavos) =>
-                            api(`/clientes/${id}/productos/${fila.productoId}`, {
-                              method: "PUT",
-                              body: JSON.stringify({ precioCentavos }),
-                            }).then(() =>
-                              qc.invalidateQueries({ queryKey: ["clientes", id, "productos"] }),
-                            )
+          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+            <ClienteAvatar nombre={c.nombre} fotoAssetId={fotoMostrada} size="lg" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xl font-semibold text-tinta-900 text-wrap sm:text-2xl">
+                    {c.nombre}
+                  </p>
+                  {!c.activo && <Badge tone="amber">Inactivo</Badge>}
+                </div>
+                <p className="mst-label mt-0.5">
+                  {c.horarioEntregaFijo ? `Entrega ${c.horarioEntregaFijo}` : "Sin horario fijo"}
+                  {c.contacto ? ` · ${c.contacto}` : ""}
+                  {c.telefonoWa ? ` · ${c.telefonoWa}` : ""}
+                </p>
+              </div>
+              {canWrite ? (
+                <Button
+                  size="sm"
+                  className="shrink-0 self-start"
+                  onClick={() => rotar.mutate()}
+                  loading={rotar.isPending}
+                >
+                  {c.tieneTokenPortal ? "Rotar token" : "Generar token"}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <SegmentedControl
+          label="Secciones del cliente"
+          value={seccion}
+          onChange={setSeccion}
+          fullWidth
+          options={
+            [
+              { id: "operacion", label: "Operación" },
+              { id: "precios", label: "Precios" },
+              { id: "datos", label: "Datos" },
+            ] as const
+          }
+        />
+
+        {seccion === "operacion" && (
+          <div className="grid gap-4">
+            {cuenta.isLoading ? (
+              <Skeleton className="h-24 w-full rounded-tarjeta" />
+            ) : cuenta.data ? (
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <ContadorFacturas
+                  pendientes={cuenta.data.facturasPendientes}
+                  limite={cuenta.data.limiteFacturasPendientes}
+                  montoCentavos={cuenta.data.saldoCentavos}
+                />
+                <div className="grid grid-cols-2 gap-2 sm:min-w-[12rem] sm:grid-cols-1">
+                  <MiniStat
+                    label="Por facturar"
+                    value={enProgreso}
+                    hint="Sin DTE"
+                  />
+                  <MiniStat
+                    label="Saldo"
+                    value={<Money centavos={cuenta.data.saldoCentavos} />}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            <Card
+              flush
+              title="Facturas abiertas"
+              subtitle="Pendientes, abonos y vencidas · las sin DTE son por facturar"
+              actions={
+                <Link
+                  href={`/cartera?clienteId=${id}`}
+                  className="text-sm font-semibold text-marca no-underline hover:underline"
+                >
+                  Ver en cartera
+                </Link>
+              }
+            >
+              {cuenta.isLoading ? (
+                <RowSkeleton rows={3} />
+              ) : (cuenta.data?.facturas.length ?? 0) === 0 ? (
+                <EmptyState
+                  icon={<Receipt size={20} aria-hidden />}
+                  title="Sin facturas pendientes"
+                  description="Este restaurante está al día en el cuaderno de cobros."
+                />
+              ) : (
+                <ul>
+                  {cuenta.data!.facturas.map((f) => (
+                    <li
+                      key={f.id}
+                      className="flex flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0 sm:px-5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-mono text-xs text-tinta-500">
+                          {f.numeroDte ?? "Sin DTE"}
+                        </p>
+                        <p className="text-sm text-tinta-500">
+                          {f.emitidaAt
+                            ? `Emitida · ${f.antiguedadDias} días`
+                            : "Sin fecha de emisión"}
+                        </p>
+                      </div>
+                      <EstadoBadge estado={f.estado} size="sm" />
+                      {!f.numeroDte && <Badge tone="amber">Por facturar</Badge>}
+                      <div className="w-full text-right sm:w-auto">
+                        <Money
+                          centavos={f.saldoCentavos}
+                          tone={
+                            f.estado === "VENCIDO"
+                              ? "vencido"
+                              : f.estado === "ABONO_PARCIAL"
+                                ? "pendiente"
+                                : "default"
                           }
                         />
-                      ) : (
-                        <Money centavos={fila.precioCentavos} />
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 sm:px-5">
-                      <InlineText
-                        key={fila.notaProduccion ?? ""}
-                        value={fila.notaProduccion ?? ""}
-                        disabled={!canWrite}
-                        onSave={(notaProduccion) =>
-                          api(`/clientes/${id}/productos/${fila.productoId}`, {
-                            method: "PUT",
-                            body: JSON.stringify({ notaProduccion: notaProduccion || null }),
-                          }).then(() =>
-                            qc.invalidateQueries({ queryKey: ["clientes", id, "productos"] }),
-                          )
-                        }
-                      />
-                    </td>
-                    <td className="px-4 py-2.5 sm:px-5">
-                      <input
-                        type="checkbox"
-                        checked={fila.favorito}
-                        disabled={!canWrite}
-                        aria-label={`Favorito: ${fila.nombreCanonico}`}
-                        onChange={(e) => {
-                          void api(`/clientes/${id}/productos/${fila.productoId}`, {
-                            method: "PUT",
-                            body: JSON.stringify({ favorito: e.target.checked }),
-                          }).then(() =>
-                            qc.invalidateQueries({ queryKey: ["clientes", id, "productos"] }),
-                          );
-                        }}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
 
-      <CsvImportDialog
-        tipo="cliente_producto"
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onDone={() => qc.invalidateQueries({ queryKey: ["clientes", id, "productos"] })}
-      />
+            <Card
+              flush
+              title="Historial de pedidos"
+              subtitle="Últimos correlativos de este restaurante"
+              actions={
+                <Link
+                  href={`/pedidos?clienteId=${id}&historial=1`}
+                  className="text-sm font-semibold text-marca no-underline hover:text-marca-hover hover:no-underline"
+                >
+                  Ver en pedidos
+                </Link>
+              }
+            >
+              {historial.isLoading ? (
+                <RowSkeleton rows={4} />
+              ) : (historial.data?.length ?? 0) === 0 ? (
+                <EmptyState
+                  icon={<ClipboardList size={20} aria-hidden />}
+                  title="Sin pedidos aún"
+                  description="Cuando capturen o confirmen pedidos, aparecen aquí."
+                />
+              ) : (
+                <ul>
+                  {historial.data!.map((p) => (
+                    <li key={p.id} className="border-b border-[var(--border-subtle)] last:border-b-0">
+                      <Link
+                        href={`/pedidos?clienteId=${id}&historial=1`}
+                        className="flex min-h-fila items-center gap-3 px-4 py-2.5 text-inherit no-underline hover:bg-tinta-50 hover:text-inherit hover:no-underline sm:px-5"
+                      >
+                        <span className="w-14 shrink-0 font-mono text-xs text-tinta-500">
+                          #{p.correlativo}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold tabular-nums text-tinta-900">
+                            {p.fechaOperacion}
+                          </span>
+                          <span className="block text-xs text-tinta-500">
+                            {p.origen === "PORTAL" ? "Portal" : "Manual"}
+                          </span>
+                        </span>
+                        <EstadoBadge estado={p.estado} size="sm" />
+                        <Money centavos={p.totalCentavos} />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {seccion === "precios" && (
+          <Card flush title="Productos de este cliente">
+            {filas.isLoading ? (
+              <RowSkeleton rows={5} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-tinta-50 text-left mst-label">
+                      {["Producto", "Familia", "Alias", "Precio", "Nota producción", "Favorito"].map(
+                        (h) => (
+                          <th
+                            key={h}
+                            className={cn(
+                              "px-4 py-2.5 sm:px-5",
+                              h === "Favorito" && "text-center",
+                            )}
+                          >
+                            {h}
+                          </th>
+                        ),
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(filas.data ?? []).map((fila) => (
+                      <tr key={fila.productoId} className="border-t border-[var(--border-subtle)]">
+                        <td className="px-4 py-2.5 sm:px-5">
+                          <div className="font-semibold">{fila.nombreCanonico}</div>
+                          <div className="font-mono text-xs text-tinta-500">{fila.sku}</div>
+                        </td>
+                        <td className="px-4 py-2.5 text-tinta-500 sm:px-5">
+                          {FAMILIA_ETIQUETA[fila.familia]}
+                        </td>
+                        <td className="px-4 py-2.5 sm:px-5">
+                          <InlineText
+                            key={fila.alias ?? ""}
+                            value={fila.alias ?? ""}
+                            disabled={!canWrite}
+                            onSave={(alias) =>
+                              api(`/clientes/${id}/productos/${fila.productoId}`, {
+                                method: "PUT",
+                                body: JSON.stringify({ alias: alias || null }),
+                              }).then(() =>
+                                qc.invalidateQueries({
+                                  queryKey: ["clientes", id, "productos"],
+                                }),
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-right sm:px-5">
+                          {canPrecio ? (
+                            <InlinePrecio
+                              key={String(fila.precioCentavos)}
+                              centavos={fila.precioCentavos}
+                              onSave={(precioCentavos) =>
+                                api(`/clientes/${id}/productos/${fila.productoId}`, {
+                                  method: "PUT",
+                                  body: JSON.stringify({ precioCentavos }),
+                                }).then(() =>
+                                  qc.invalidateQueries({
+                                    queryKey: ["clientes", id, "productos"],
+                                  }),
+                                )
+                              }
+                            />
+                          ) : (
+                            <Money centavos={fila.precioCentavos} />
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 sm:px-5">
+                          <InlineText
+                            key={fila.notaProduccion ?? ""}
+                            value={fila.notaProduccion ?? ""}
+                            disabled={!canWrite}
+                            onSave={(notaProduccion) =>
+                              api(`/clientes/${id}/productos/${fila.productoId}`, {
+                                method: "PUT",
+                                body: JSON.stringify({
+                                  notaProduccion: notaProduccion || null,
+                                }),
+                              }).then(() =>
+                                qc.invalidateQueries({
+                                  queryKey: ["clientes", id, "productos"],
+                                }),
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 sm:px-5">
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              size="lg"
+                              checked={fila.favorito}
+                              disabled={!canWrite}
+                              aria-label={`Favorito: ${fila.nombreCanonico}`}
+                              onChange={(e) => {
+                                void api(`/clientes/${id}/productos/${fila.productoId}`, {
+                                  method: "PUT",
+                                  body: JSON.stringify({ favorito: e.target.checked }),
+                                }).then(() =>
+                                  qc.invalidateQueries({
+                                    queryKey: ["clientes", id, "productos"],
+                                  }),
+                                );
+                              }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {seccion === "datos" && (
+          <div className="grid gap-4">
+            {canWrite && (
+              <Card title="Foto">
+                <FotoPicker
+                  value={fotoFile}
+                  existingAssetId={fotoMostrada}
+                  onChange={(file) => {
+                    setFotoFile(file);
+                    if (file) setClearFoto(false);
+                  }}
+                  onClearExisting={() => {
+                    setClearFoto(true);
+                    setFotoFile(null);
+                  }}
+                  disabled={fotoBusy}
+                />
+                {(fotoFile || clearFoto) && (
+                  <div className="mt-3">
+                    <Button size="sm" loading={fotoBusy} onClick={() => void guardarFoto()}>
+                      Guardar foto
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            <Card title="Ficha">
+              <FichaForm cliente={c} canWrite={canWrite} />
+              {error && <p className="mt-3 text-sm text-peligro">{error}</p>}
+              {canWrite && (
+                <div className="mt-4">
+                  {c.activo ? (
+                    <Button variant="danger" size="sm" onClick={() => desactivar.mutate()}>
+                      Desactivar cliente
+                    </Button>
+                  ) : (
+                    <Button variant="secondary" size="sm" onClick={() => activar.mutate()}>
+                      Reactivar cliente
+                    </Button>
+                  )}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </div>
 
       {tokenVisible && (
         <Dialog
@@ -267,6 +523,28 @@ export default function ClienteFichaPage() {
         </Dialog>
       )}
     </PanelShell>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: string;
+}) {
+  return (
+    <div className="rounded-tarjeta border border-[var(--border-subtle)] bg-blanco px-3 py-2.5">
+      <p className="mst-label text-[10px]">
+        {label}
+        {hint ? ` · ${hint}` : ""}
+      </p>
+      <div className="mt-0.5 text-sm font-semibold tabular-nums text-tinta-900">
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -307,9 +585,12 @@ function FichaForm({ cliente, canWrite }: { cliente: ClientePublico; canWrite: b
             body: JSON.stringify(parsed.data),
           });
           setError(null);
+          toastSuccess("Ficha guardada");
           await qc.invalidateQueries({ queryKey: ["clientes", cliente.id] });
+          await qc.invalidateQueries({ queryKey: ["clientes"] });
         } catch (err) {
           setError(err instanceof ApiError ? err.message : "No se pudo guardar");
+          toastFromError(err, "No se pudo guardar");
         }
       }}
     >
@@ -340,6 +621,7 @@ function FichaForm({ cliente, canWrite }: { cliente: ClientePublico; canWrite: b
         label="Horario de entrega fijo"
         value={horario}
         placeholder="09:00"
+        hint="Formato 24 h, HH:MM"
         onChange={(e) => setHorario(e.target.value)}
         disabled={!canWrite}
       />
@@ -348,6 +630,7 @@ function FichaForm({ cliente, canWrite }: { cliente: ClientePublico; canWrite: b
         label="Límite de facturas pendientes"
         value={limite}
         inputMode="numeric"
+        hint="Como en el cuaderno de cobros"
         onChange={(e) => setLimite(e.target.value)}
         disabled={!canWrite}
       />
