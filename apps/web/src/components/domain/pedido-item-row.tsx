@@ -7,6 +7,7 @@ import {
 } from "@misupertostada/shared";
 import { Money } from "@/components/domain/money";
 import { EstadoBadge } from "@/components/domain/estado-badge";
+import { ProductoThumb } from "@/components/catalog/producto-thumb";
 import { Tag } from "@/components/ui/badge";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 
@@ -18,6 +19,8 @@ export function PedidoItemRow({
   precioUnitarioCentavos,
   puntoCarga,
   notaProduccion,
+  fotoAssetId,
+  fotoSrcPath,
   editable = false,
   onChangeCantidad,
 }: {
@@ -28,6 +31,9 @@ export function PedidoItemRow({
   precioUnitarioCentavos: number;
   puntoCarga?: PuntoCarga;
   notaProduccion?: string | null;
+  fotoAssetId?: string | null;
+  /** Path API del portal (`/p/{token}/assets/{id}`). */
+  fotoSrcPath?: string;
   editable?: boolean;
   onChangeCantidad?: (cantidad: number) => void;
 }) {
@@ -35,8 +41,14 @@ export function PedidoItemRow({
   const subtotal = cantidad * precioUnitarioCentavos;
   return (
     <div className="flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
+      <ProductoThumb
+        nombre={nombreMostrado}
+        fotoAssetId={fotoAssetId}
+        srcPath={fotoSrcPath}
+        size="sm"
+      />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-tinta-900">
+        <p className="truncate text-sm font-semibold text-pretty text-tinta-900">
           {nombreMostrado}
         </p>
         <p className="text-[12px] tabular-nums text-tinta-500">
@@ -68,7 +80,7 @@ export function PedidoItemRow({
           unidad={unidad}
         />
       ) : null}
-      <Money centavos={subtotal} />
+      <Money centavos={subtotal} className="tabular-nums" />
     </div>
   );
 }

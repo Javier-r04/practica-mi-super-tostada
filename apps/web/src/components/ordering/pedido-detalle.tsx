@@ -1,14 +1,23 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, Phone, Pin } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Clock, Phone, Pin, Plus } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   horaEnZona,
   totalPedidoCentavos,
+  type ClienteProductoFila,
   type PedidoDetalle as PedidoDetalleDto,
+  type ProductoPublico,
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
+import {
+  debeAplicarSnapshotServidor,
+  productosAgregables,
+} from "@/lib/pedido-vista";
+import { toastFromError, toastSuccess } from "@/lib/toast";
+import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
@@ -16,6 +25,7 @@ import { Badge, Tag } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
+import { Droplist } from "@/components/ui/droplist";
 import { Textarea } from "@/components/ui/field";
 
 const ACCION_TEXTO: Record<string, string> = {
@@ -27,73 +37,130 @@ const ACCION_TEXTO: Record<string, string> = {
   "pedidos.anular": "anuló el pedido",
 };
 
+type ItemLocal = {
+  productoId: string;
+  cantidad: number;
+  nombreMostrado: string;
+  unidadMedida: PedidoDetalleDto["items"][number]["unidadMedida"];
+  precioUnitarioCentavos: number;
+  puntoCarga?: PedidoDetalleDto["items"][number]["puntoCarga"];
+  notaProduccion?: string | null;
+};
+
 export function PedidoDetalle({
   pedido,
   puedeEscribir,
+  fotoAssetId,
 }: {
   pedido: PedidoDetalleDto;
   puedeEscribir: boolean;
+  fotoAssetId?: string | null;
 }) {
   const qc = useQueryClient();
   const editable = puedeEscribir && pedido.estado === "CONFIRMADO";
-  const [cantidades, setCantidades] = useState(() => mapCantidades(pedido));
+  const [items, setItems] = useState<ItemLocal[]>(() => mapItems(pedido));
   const [notas, setNotas] = useState(pedido.notasAdmin ?? "");
   const [anular, setAnular] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [agregarId, setAgregarId] = useState("");
+  const pedidoIdRef = useRef(pedido.id);
+  const userEditedRef = useRef(false);
+  const baselineRef = useRef({
+    items: mapItems(pedido),
+    notas: pedido.notasAdmin ?? "",
+  });
+
+  const itemsDirty = !mismoItemsLocal(items, baselineRef.current.items);
+  const notasDirty = notas !== baselineRef.current.notas;
+  const dirty = itemsDirty || notasDirty;
 
   useEffect(() => {
-    setCantidades(mapCantidades(pedido));
-    setNotas(pedido.notasAdmin ?? "");
+    const aplicar = debeAplicarSnapshotServidor({
+      pedidoIdLocal: pedidoIdRef.current,
+      pedidoIdServidor: pedido.id,
+      dirty: userEditedRef.current,
+    });
+    pedidoIdRef.current = pedido.id;
+    if (!aplicar) return;
+    const nextItems = mapItems(pedido);
+    const nextNotas = pedido.notasAdmin ?? "";
+    baselineRef.current = { items: nextItems, notas: nextNotas };
+    userEditedRef.current = false;
+    setItems(nextItems);
+    setNotas(nextNotas);
     setError(null);
+    setAgregarId("");
   }, [pedido]);
 
-  const itemsDirty = pedido.items.some(
-    (item) => cantidades[item.productoId] !== item.cantidad,
+  const productos = useQuery({
+    queryKey: ["productos"],
+    queryFn: () => api<ProductoPublico[]>("/productos"),
+  });
+  const catalogoCliente = useQuery({
+    queryKey: ["clientes", pedido.clienteId, "productos"],
+    queryFn: () =>
+      api<ClienteProductoFila[]>(`/clientes/${pedido.clienteId}/productos`),
+    enabled: editable,
+  });
+
+  const fotoPorProducto = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const p of productos.data ?? []) map.set(p.id, p.fotoAssetId);
+    return map;
+  }, [productos.data]);
+
+  const agregables = useMemo(
+    () =>
+      productosAgregables(
+        catalogoCliente.data ?? [],
+        new Set(items.map((i) => i.productoId)),
+      ),
+    [catalogoCliente.data, items],
   );
-  const notasDirty = notas !== (pedido.notasAdmin ?? "");
+
   const total = totalPedidoCentavos(
-    pedido.items.map((item) => ({
-      cantidad: cantidades[item.productoId] ?? item.cantidad,
+    items.map((item) => ({
+      cantidad: item.cantidad,
       precioUnitarioCentavos: item.precioUnitarioCentavos,
     })),
   );
 
-  const guardarItems = useMutation({
-    mutationFn: () =>
-      api<PedidoDetalleDto>(`/pedidos/${pedido.id}/items`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          items: pedido.items.map((item) => ({
-            productoId: item.productoId,
-            cantidad: cantidades[item.productoId] ?? item.cantidad,
-          })),
-        }),
-      }),
+  const guardar = useMutation({
+    mutationFn: async () => {
+      if (itemsDirty) {
+        await api<PedidoDetalleDto>(`/pedidos/${pedido.id}/items`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            items: items.map((item) => ({
+              productoId: item.productoId,
+              cantidad: item.cantidad,
+            })),
+          }),
+        });
+      }
+      if (notasDirty) {
+        await api<PedidoDetalleDto>(`/pedidos/${pedido.id}/notas`, {
+          method: "PATCH",
+          body: JSON.stringify({ notasAdmin: notas }),
+        });
+      }
+    },
     onSuccess: () => {
+      baselineRef.current = { items: [...items], notas };
+      userEditedRef.current = false;
       void qc.invalidateQueries({ queryKey: ["pedidos"] });
       setError(null);
+      toastSuccess("Cambios guardados");
     },
-    onError: (err) =>
-      setError(
-        err instanceof ApiError ? err.message : "No se pudieron guardar los ítems",
-      ),
-  });
-
-  const guardarNotas = useMutation({
-    mutationFn: () =>
-      api<PedidoDetalleDto>(`/pedidos/${pedido.id}/notas`, {
-        method: "PATCH",
-        body: JSON.stringify({ notasAdmin: notas }),
-      }),
-    onSuccess: () => {
+    onError: (err) => {
+      // Si falló el segundo PATCH, el primero pudo haber quedado en servidor.
       void qc.invalidateQueries({ queryKey: ["pedidos"] });
-      setError(null);
+      const msg =
+        err instanceof ApiError ? err.message : "No se pudieron guardar los cambios";
+      setError(msg);
+      toastFromError(err, "No se pudieron guardar los cambios");
     },
-    onError: (err) =>
-      setError(
-        err instanceof ApiError ? err.message : "No se pudieron guardar las notas",
-      ),
   });
 
   const anularPedido = useMutation({
@@ -106,22 +173,56 @@ export function PedidoDetalle({
       setAnular(false);
       setMotivo("");
       void qc.invalidateQueries({ queryKey: ["pedidos"] });
+      toastSuccess("Pedido anulado");
     },
-    onError: (err) =>
-      setError(err instanceof ApiError ? err.message : "No se pudo anular"),
+    onError: (err) => {
+      setError(err instanceof ApiError ? err.message : "No se pudo anular");
+      toastFromError(err, "No se pudo anular");
+    },
   });
 
   const hora = horaEnZona(new Date(pedido.capturadoAt));
   const origenLabel = pedido.origen === "PORTAL" ? "Portal" : "Manual";
+  const tel = pedido.clienteTelefonoWa?.replace(/\D/g, "") ?? "";
+
+  function agregarProducto(productoId: string) {
+    const fila = agregables.find((f) => f.productoId === productoId);
+    if (!fila || fila.precioCentavos == null) return;
+    const precio = fila.precioCentavos;
+    userEditedRef.current = true;
+    setItems((prev) => [
+      ...prev,
+      {
+        productoId: fila.productoId,
+        cantidad: 1,
+        nombreMostrado: fila.alias?.trim() || fila.nombreCanonico,
+        unidadMedida: fila.unidadMedida,
+        precioUnitarioCentavos: precio,
+        puntoCarga: fila.puntoCarga,
+        notaProduccion: fila.notaProduccion,
+      },
+    ]);
+    setAgregarId("");
+  }
 
   return (
     <div className="grid gap-4">
       <Card>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <ClienteAvatar
+            nombre={pedido.clienteNombre}
+            fotoAssetId={fotoAssetId}
+            size="md"
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold text-tinta-900">
-                {pedido.clienteNombre}
+              <h2 className="text-xl font-semibold text-pretty text-tinta-900">
+                <Link
+                  href={`/clientes/${pedido.clienteId}`}
+                  className="text-inherit no-underline hover:text-marca hover:no-underline"
+                >
+                  {pedido.clienteNombre}
+                </Link>
               </h2>
               <EstadoBadge estado={pedido.estado} />
               <Badge tone={pedido.origen === "PORTAL" ? "green" : "neutral"}>
@@ -129,7 +230,8 @@ export function PedidoDetalle({
               </Badge>
             </div>
             <p className="mt-1 text-xs text-tinta-500">
-              Pedido <span className="font-mono">#{pedido.correlativo}</span>
+              Pedido{" "}
+              <span className="font-mono tabular-nums">#{pedido.correlativo}</span>
               {" · "}
               capturado {hora}
               {pedido.capturadoPorNombre
@@ -145,10 +247,14 @@ export function PedidoDetalle({
               )}
               {pedido.clienteContacto && <span>{pedido.clienteContacto}</span>}
               {pedido.clienteTelefonoWa && (
-                <span className="inline-flex items-center gap-1">
+                <a
+                  href={tel ? `tel:+${tel}` : undefined}
+                  className="inline-flex min-h-11 items-center gap-1 font-semibold text-marca no-underline hover:text-marca-hover"
+                  aria-label={`Llamar a ${pedido.clienteNombre}`}
+                >
                   <Phone size={13} aria-hidden />
                   {pedido.clienteTelefonoWa}
-                </span>
+                </a>
               )}
             </div>
             {pedido.notasPermanentes && (
@@ -160,7 +266,7 @@ export function PedidoDetalle({
               </div>
             )}
             {pedido.estado === "ANULADO" && pedido.motivoAnulacion && (
-              <p className="mt-2 text-sm text-peligro">
+              <p className="mt-2 text-sm text-peligro" role="alert">
                 Motivo: {pedido.motivoAnulacion}
               </p>
             )}
@@ -179,39 +285,73 @@ export function PedidoDetalle({
         subtitle="Precio y nombre quedan en snapshot al capturar"
       >
         <div className="border-t border-[var(--border-subtle)]">
-          {pedido.items.map((item) => (
+          {items.map((item) => (
             <PedidoItemRow
               key={item.productoId}
               nombreMostrado={item.nombreMostrado}
               unidadMedida={item.unidadMedida}
-              cantidad={cantidades[item.productoId] ?? item.cantidad}
+              cantidad={item.cantidad}
               precioUnitarioCentavos={item.precioUnitarioCentavos}
               puntoCarga={item.puntoCarga}
               notaProduccion={item.notaProduccion}
+              fotoAssetId={fotoPorProducto.get(item.productoId)}
               editable={editable}
-              onChangeCantidad={(v) =>
-                setCantidades((prev) => ({ ...prev, [item.productoId]: v }))
-              }
+              onChangeCantidad={(v) => {
+                userEditedRef.current = true;
+                setItems((prev) =>
+                  prev.map((row) =>
+                    row.productoId === item.productoId
+                      ? { ...row, cantidad: v }
+                      : row,
+                  ),
+                );
+              }}
             />
           ))}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-tinta-50 px-4 py-3">
-            {editable && itemsDirty ? (
+          {editable && agregables.length > 0 ? (
+            <div className="flex flex-wrap items-end gap-2 border-b border-[var(--border-subtle)] px-4 py-3">
+              <div className="min-w-[12rem] flex-1">
+                <Droplist
+                  id={`agregar-${pedido.id}`}
+                  label="Agregar producto"
+                  value={agregarId}
+                  onChange={setAgregarId}
+                  searchable
+                  searchPlaceholder="Alias o nombre"
+                  placeholder="Elegir del catálogo"
+                  options={agregables.map((f) => ({
+                    value: f.productoId,
+                    label: f.alias?.trim() || f.nombreCanonico,
+                  }))}
+                />
+              </div>
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => guardarItems.mutate()}
-                loading={guardarItems.isPending}
+                disabled={!agregarId}
+                onClick={() => agregarProducto(agregarId)}
               >
-                Guardar ítems
+                <Plus size={14} aria-hidden />
+                Agregar
+              </Button>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-tinta-50 px-4 py-3">
+            {editable && dirty ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => guardar.mutate()}
+                loading={guardar.isPending}
+              >
+                Guardar cambios
               </Button>
             ) : (
               <span />
             )}
             <span className="ml-auto flex items-baseline gap-3">
-              <span className="mst-label">
-                Total del pedido
-              </span>
-              <Money centavos={total} className="text-lg" />
+              <span className="mst-label">Total del pedido</span>
+              <Money centavos={total} className="text-lg tabular-nums" />
             </span>
           </div>
         </div>
@@ -227,30 +367,21 @@ export function PedidoDetalle({
             rows={3}
             value={notas}
             disabled={!editable}
-            onChange={(e) => setNotas(e.target.value)}
+            onChange={(e) => {
+              userEditedRef.current = true;
+              setNotas(e.target.value);
+            }}
             placeholder="Ej. llevar junto con las tortillas de la mañana"
           />
-          {editable && notasDirty && (
-            <div className="mt-3">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => guardarNotas.mutate()}
-                loading={guardarNotas.isPending}
-              >
-                Guardar notas
-              </Button>
-            </div>
-          )}
         </Card>
-        <Card title="Historial" subtitle="audit_log · quién hizo qué">
+        <Card title="Historial" subtitle="Quién hizo qué">
           <ol className="grid gap-2 text-xs text-tinta-800">
             {pedido.historial.length === 0 ? (
               <li className="text-tinta-500">Sin movimientos todavía.</li>
             ) : (
               pedido.historial.map((h, i) => (
                 <li key={`${h.accion}-${h.createdAt}-${i}`} className="flex gap-3">
-                  <span className="font-mono text-tinta-500">
+                  <span className="font-mono tabular-nums text-tinta-500">
                     {horaEnZona(new Date(h.createdAt))}
                   </span>
                   <span>
@@ -264,7 +395,11 @@ export function PedidoDetalle({
         </Card>
       </div>
 
-      {error && <p className="text-sm text-peligro">{error}</p>}
+      {error && (
+        <p className="text-sm text-peligro" role="alert">
+          {error}
+        </p>
+      )}
 
       <Dialog
         open={anular}
@@ -275,7 +410,7 @@ export function PedidoDetalle({
         footer={
           <>
             <Button variant="secondary" onClick={() => setAnular(false)}>
-              Cerrar
+              Cancelar
             </Button>
             <Button
               variant="danger"
@@ -295,15 +430,30 @@ export function PedidoDetalle({
           rows={2}
           value={motivo}
           onChange={(e) => setMotivo(e.target.value)}
-          hint="Obligatorio. Queda en audit_log con tu usuario."
+          hint="Obligatorio. Queda registrado con tu usuario."
         />
       </Dialog>
     </div>
   );
 }
 
-function mapCantidades(pedido: PedidoDetalleDto): Record<string, number> {
-  return Object.fromEntries(
-    pedido.items.map((item) => [item.productoId, item.cantidad]),
-  );
+function mapItems(pedido: PedidoDetalleDto): ItemLocal[] {
+  return pedido.items.map((item) => ({
+    productoId: item.productoId,
+    cantidad: item.cantidad,
+    nombreMostrado: item.nombreMostrado,
+    unidadMedida: item.unidadMedida,
+    precioUnitarioCentavos: item.precioUnitarioCentavos,
+    puntoCarga: item.puntoCarga,
+    notaProduccion: item.notaProduccion,
+  }));
+}
+
+function mismoItemsLocal(a: ItemLocal[], b: ItemLocal[]): boolean {
+  if (a.length !== b.length) return false;
+  const porId = new Map(b.map((i) => [i.productoId, i]));
+  return a.every((row) => {
+    const other = porId.get(row.productoId);
+    return other != null && other.cantidad === row.cantidad;
+  });
 }

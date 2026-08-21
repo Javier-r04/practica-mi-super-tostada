@@ -18,6 +18,7 @@ import {
   type PortalCuenta,
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
+import { buildPedidosHref } from "@/lib/pedido-vista";
 import { toastFromError, toastSuccess } from "@/lib/toast";
 import { subirFotoCliente } from "@/lib/upload-asset";
 import { PanelShell } from "@/components/layout/panel-shell";
@@ -291,7 +292,10 @@ export default function ClienteFichaPage() {
               subtitle="Últimos correlativos de este restaurante"
               actions={
                 <Link
-                  href={`/pedidos?clienteId=${id}&historial=1`}
+                  href={buildPedidosHref({
+                    clienteId: id,
+                    historial: true,
+                  })}
                   className="text-sm font-semibold text-marca no-underline hover:text-marca-hover hover:no-underline"
                 >
                   Ver en pedidos
@@ -311,8 +315,12 @@ export default function ClienteFichaPage() {
                   {historial.data!.map((p) => (
                     <li key={p.id} className="border-b border-[var(--border-subtle)] last:border-b-0">
                       <Link
-                        href={`/pedidos?clienteId=${id}&historial=1`}
-                        className="flex min-h-fila items-center gap-3 px-4 py-2.5 text-inherit no-underline hover:bg-tinta-50 hover:text-inherit hover:no-underline sm:px-5"
+                        href={buildPedidosHref({
+                          clienteId: id,
+                          historial: true,
+                          pedidoId: p.id,
+                        })}
+                        className="flex min-h-fila items-center gap-3 px-4 py-2.5 text-inherit no-underline hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco sm:px-5"
                       >
                         <span className="w-14 shrink-0 font-mono text-xs text-tinta-500">
                           #{p.correlativo}

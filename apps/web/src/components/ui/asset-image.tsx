@@ -11,11 +11,14 @@ export function AssetImage({
   alt,
   variante = "thumb",
   className,
+  /** Path absoluto desde la API (p. ej. `/p/{token}/assets/{id}`). Sin cookie de staff. */
+  srcPath,
 }: {
   assetId: string;
   alt: string;
   variante?: Variante;
   className?: string;
+  srcPath?: string;
 }) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -28,10 +31,12 @@ export function AssetImage({
 
     void (async () => {
       try {
-        const res = await fetch(
-          `${API_URL}/assets/${assetId}?v=${variante}`,
-          { credentials: "include", signal: AbortSignal.timeout(15_000) },
-        );
+        const path = srcPath ?? `/assets/${assetId}`;
+        const url = `${API_URL}${path}${path.includes("?") ? "&" : "?"}v=${variante}`;
+        const res = await fetch(url, {
+          credentials: srcPath ? "omit" : "include",
+          signal: AbortSignal.timeout(15_000),
+        });
         if (!res.ok) throw new Error("asset");
         const blob = await res.blob();
         if (cancelled) return;
@@ -46,7 +51,7 @@ export function AssetImage({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [assetId, variante]);
+  }, [assetId, variante, srcPath]);
 
   if (failed || !src) {
     return (
@@ -65,7 +70,10 @@ export function AssetImage({
     <img
       src={src}
       alt={alt}
-      className={cn("object-cover outline outline-1 outline-black/10 -outline-offset-1", className)}
+      className={cn(
+        "object-cover outline outline-1 outline-black/10 -outline-offset-1",
+        className,
+      )}
     />
   );
 }

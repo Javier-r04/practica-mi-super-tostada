@@ -7,6 +7,7 @@ import {
   type EntregaItemPublico,
 } from "@misupertostada/shared";
 import { Money } from "@/components/domain/money";
+import { ProductoThumb } from "@/components/catalog/producto-thumb";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { Tag } from "@/components/ui/badge";
 
@@ -20,7 +21,9 @@ export function EntregaForm({
   onChange?: (cantidades: Map<string, number>) => void;
 }) {
   const [cant, setCant] = useState(() =>
-    Object.fromEntries(items.map((i) => [i.productoId, i.cantidadEntregada || i.cantidadPedida])),
+    Object.fromEntries(
+      items.map((i) => [i.productoId, i.cantidadEntregada || i.cantidadPedida]),
+    ),
   );
 
   const total = useMemo(
@@ -48,15 +51,30 @@ export function EntregaForm({
       {items.map((it) => (
         <div
           key={it.productoId}
-          className="grid gap-2 border-b border-[var(--border-subtle)] px-4 py-3"
+          className="grid gap-2 border-b border-[var(--border-subtle)] px-4 py-3 min-h-fila"
         >
-          <div className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 text-sm font-semibold">{it.nombreMostrado}</span>
-            <span className="mst-label text-[11px]">
-              pedido {it.cantidadPedida}
-            </span>
+          <div className="flex items-center gap-3">
+            <ProductoThumb
+              nombre={it.nombreMostrado}
+              fotoAssetId={it.fotoAssetId}
+              size="sm"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 text-sm font-semibold text-pretty">
+                  {it.nombreMostrado}
+                </span>
+                <span className="mst-label shrink-0 text-[11px] tabular-nums">
+                  pedido {it.cantidadPedida}
+                </span>
+              </div>
+              {it.notaProduccion ? (
+                <div className="mt-1">
+                  <Tag>{it.notaProduccion}</Tag>
+                </div>
+              ) : null}
+            </div>
           </div>
-          {it.notaProduccion ? <Tag>{it.notaProduccion}</Tag> : null}
           <QuantityStepper
             size="lg"
             value={cant[it.productoId] ?? it.cantidadPedida}
@@ -69,7 +87,9 @@ export function EntregaForm({
       ))}
       <div className="flex items-baseline justify-between bg-tinta-50 px-4 py-3">
         <span className="mst-label">
-          {ajustes > 0 ? `${ajustes} ajuste${ajustes > 1 ? "s" : ""}` : "Sin ajustes"}
+          {ajustes > 0
+            ? `${ajustes} ajuste${ajustes > 1 ? "s" : ""}`
+            : "Sin ajustes"}
         </span>
         <Money centavos={total} className="text-lg" />
       </div>

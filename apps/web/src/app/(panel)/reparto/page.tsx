@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Phone, Truck } from "lucide-react";
 import {
@@ -15,23 +15,39 @@ import {
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import { PanelShell } from "@/components/layout/panel-shell";
-import { usePedidosSse } from "@/hooks/use-pedidos-sse";
 import { useColaOffline } from "@/hooks/use-cola-offline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
-import { Badge } from "@/components/ui/badge";
 import { EntregaForm } from "@/components/fulfillment/entrega-form";
+import {
+  ParadaCard,
+  ParadaCardSkeleton,
+} from "@/components/fulfillment/parada-card";
 import { DialogoPago } from "@/components/receivables/dialogo-pago";
 import { ChipInstalar } from "@/components/feedback/chip-instalar";
+import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { toastFromError, toastSuccess } from "@/lib/toast";
+import {
+  saldoParadaCentavos,
+  siguienteTrasCobro,
+  siguienteTrasEntrega,
+  siguienteTrasVolver,
+  vistaInicialParada,
+  type DestinoReparto,
+  type VistaParada,
+} from "@/lib/reparto-vista";
+
+type FiltroRuta = "todas" | "pendientes" | "entregados";
 
 export default function RepartoPage() {
   const cola = useColaOffline();
   const [sel, setSel] = useState<string | null>(null);
-  const [vista, setVista] = useState<"entrega" | "cobro">("entrega");
+  const [vista, setVista] = useState<VistaParada>("entrega");
+  const [filtro, setFiltro] = useState<FiltroRuta>("todas");
   const [cantidades, setCantidades] = useState<Map<string, number>>(new Map());
   const [cobrando, setCobrando] = useState(false);
   const [error, setError] = useState<string>();
@@ -56,7 +72,6 @@ export default function RepartoPage() {
     },
     enabled: Boolean(me.data) && cola.listo,
   });
-  usePedidosSse(Boolean(me.data));
 
   const puedeEntregar = tienePermiso(
     me.data?.usuario.permisos ?? [],
@@ -71,15 +86,49 @@ export default function RepartoPage() {
   const entregados =
     ruta.data?.paradas.filter((p) => p.estado === "ENTREGADO").length ?? 0;
   const total = ruta.data?.paradas.length ?? 0;
+  const pendientes = total - entregados;
+
+  const paradasFiltradas = useMemo(() => {
+    const list = ruta.data?.paradas ?? [];
+    if (filtro === "pendientes") {
+      return list.filter((p) => p.estado !== "ENTREGADO");
+    }
+    if (filtro === "entregados") {
+      return list.filter((p) => p.estado === "ENTREGADO");
+    }
+    return list;
+  }, [ruta.data?.paradas, filtro]);
+
+  function aplicarDestino(destino: DestinoReparto) {
+    if (destino === "ruta") {
+      setSel(null);
+      return;
+    }
+    setVista(destino);
+  }
 
   function abrir(p: RutaParada) {
     setSel(p.pedidoId);
     setError(undefined);
     setCantidades(new Map());
-    const saldo = p.saldoAnteriorCentavos + (p.factura?.saldoCentavos ?? 0);
-    const entregaLocal = cola.pedidoPendiente(p.pedidoId);
+    const saldo = saldoParadaCentavos({
+      saldoAnteriorCentavos: p.saldoAnteriorCentavos,
+      facturaSaldoCentavos: p.factura?.saldoCentavos,
+    });
     setVista(
-      (p.estado === "ENTREGADO" || entregaLocal) && saldo > 0 ? "cobro" : "entrega",
+      vistaInicialParada({
+        estado: p.estado,
+        saldoCentavos: saldo,
+        entregaLocal: cola.pedidoPendiente(p.pedidoId),
+      }),
+    );
+  }
+
+  function volverDesde(vistaActual: VistaParada, p: RutaParada) {
+    const yaEntregado =
+      p.estado === "ENTREGADO" || cola.pedidoPendiente(p.pedidoId);
+    aplicarDestino(
+      siguienteTrasVolver({ vista: vistaActual, yaEntregado }),
     );
   }
 
@@ -96,9 +145,19 @@ export default function RepartoPage() {
           cantidadEntregada: cantidades.get(i.productoId) ?? i.cantidadPedida,
         })),
       });
-      setVista("cobro");
+      const saldo = saldoParadaCentavos({
+        saldoAnteriorCentavos: paradaActual.saldoAnteriorCentavos,
+        facturaSaldoCentavos: paradaActual.factura?.saldoCentavos,
+      });
+      aplicarDestino(siguienteTrasEntrega(saldo));
+      toastSuccess(
+        cola.online ? "Entrega guardada" : MENSAJE_GUARDAR_TELEFONO,
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar en este teléfono");
+      const msg =
+        err instanceof Error ? err.message : "No se pudo guardar en este teléfono";
+      setError(msg);
+      toastFromError(err, msg);
     } finally {
       setGuardando(false);
     }
@@ -108,43 +167,71 @@ export default function RepartoPage() {
     <PanelShell title="Reparto">
       {!sel && (
         <div className="grid gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <ChipInstalar />
-          </div>
+          <ChipInstalar />
           <div className="grid grid-cols-2 gap-3">
             <Card>
-              <div className="mst-label">
-                Entregas
-              </div>
-              <div className="font-display text-3xl text-marca">
+              <div className="mst-label">Entregas</div>
+              <div className="font-display text-3xl tabular-nums text-marca">
                 {entregados}/{total}
               </div>
             </Card>
             <Card>
-              <div className="mst-label">
-                Fecha
-              </div>
-              <div className="text-sm font-semibold">
-                {ruta.data?.fechaOperacion ?? "—"}
+              <div className="mst-label">Cobrado hoy</div>
+              <div className="font-display text-2xl tabular-nums text-marca">
+                <Money centavos={ruta.data?.cobradoHoyCentavos ?? 0} />
               </div>
             </Card>
           </div>
-          {ruta.isLoading && <Skeleton className="h-40" />}
+
+          {total > 4 && (
+            <SegmentedControl
+              label="Filtrar paradas"
+              value={filtro}
+              onChange={setFiltro}
+              fullWidth
+              options={[
+                { id: "todas", label: "Todas", count: total },
+                { id: "pendientes", label: "Pendientes", count: pendientes },
+                { id: "entregados", label: "Entregados", count: entregados },
+              ]}
+            />
+          )}
+
+          {ruta.isLoading && (
+            <div className="grid gap-3">
+              <ParadaCardSkeleton />
+              <ParadaCardSkeleton />
+              <ParadaCardSkeleton />
+            </div>
+          )}
           {ruta.isError && !ruta.data && (
             <EmptyState
               title={MENSAJE_RUTA_SIN_SNAPSHOT}
               description="Tony arranca en planta. Sin esa carga no hay paradas que inventar."
-              icon={<Truck size={22} />}
+              icon={<Truck size={22} aria-hidden />}
             />
           )}
           {ruta.data && ruta.data.paradas.length === 0 && (
             <EmptyState
               title="No hay ruta hasta que se cierre la ventana"
               description="Al cerrar se pasan los pedidos a producción y aparecen aquí, ordenados por horario de entrega."
-              icon={<Truck size={22} />}
+              icon={<Truck size={22} aria-hidden />}
             />
           )}
-          {ruta.data?.paradas.map((p) => (
+          {ruta.data &&
+            ruta.data.paradas.length > 0 &&
+            paradasFiltradas.length === 0 && (
+              <EmptyState
+                title={
+                  filtro === "pendientes"
+                    ? "No quedan pendientes"
+                    : "Sin entregados aún"
+                }
+                description="Cambia el filtro para ver el resto de la ruta."
+                icon={<Truck size={22} aria-hidden />}
+              />
+            )}
+          {paradasFiltradas.map((p) => (
             <ParadaCard
               key={p.pedidoId}
               parada={p}
@@ -152,7 +239,7 @@ export default function RepartoPage() {
               onAbrir={() => abrir(p)}
             />
           ))}
-          <ListaCola filas={cola.cola} />
+          <ListaColaErrores filas={cola.cola} />
         </div>
       )}
 
@@ -164,7 +251,7 @@ export default function RepartoPage() {
           error={error}
           loading={guardando}
           sinSincronizar={cola.pedidoPendiente(parada.pedidoId)}
-          onBack={() => setSel(null)}
+          onBack={() => volverDesde("entrega", parada)}
           onCantidades={setCantidades}
           onEntregar={() => void guardarEntrega(parada)}
           onCobrar={() => setVista("cobro")}
@@ -178,7 +265,7 @@ export default function RepartoPage() {
           puedeCobrar={puedeCobrar}
           error={error}
           sinSincronizar={cola.pedidoPendiente(parada.pedidoId)}
-          onBack={() => setVista("entrega")}
+          onBack={() => volverDesde("cobro", parada)}
           onCobrar={() => setCobrando(true)}
         />
       )}
@@ -189,9 +276,10 @@ export default function RepartoPage() {
           open={cobrando}
           titulo="Registrar cobro"
           descripcion={`${parada.clienteNombre} · se aplica a la factura más antigua`}
-          saldoCentavos={
-            parada.saldoAnteriorCentavos + (parada.factura?.saldoCentavos ?? 0)
-          }
+          saldoCentavos={saldoParadaCentavos({
+            saldoAnteriorCentavos: parada.saldoAnteriorCentavos,
+            facturaSaldoCentavos: parada.factura?.saldoCentavos,
+          })}
           online={cola.online}
           permitirOffline
           error={error}
@@ -214,13 +302,20 @@ export default function RepartoPage() {
                 },
                 input.archivo,
               )
-              .then(() => setCobrando(false))
+              .then(() => {
+                setCobrando(false);
+                aplicarDestino(siguienteTrasCobro());
+                toastSuccess(
+                  cola.online ? "Cobro guardado" : MENSAJE_GUARDAR_TELEFONO,
+                );
+              })
               .catch((err: unknown) => {
-                setError(
+                const msg =
                   err instanceof ApiError || err instanceof Error
                     ? err.message
-                    : "No se pudo guardar en este teléfono",
-                );
+                    : "No se pudo guardar en este teléfono";
+                setError(msg);
+                toastFromError(err, msg);
               });
           }}
         />
@@ -229,17 +324,26 @@ export default function RepartoPage() {
   );
 }
 
-function ListaCola({ filas }: { filas: FilaCola[] }) {
-  if (filas.length === 0) return null;
+/** Solo reintentos fallidos / sesión; OfflineBanner cubre la cola pendiente. */
+function ListaColaErrores({ filas }: { filas: FilaCola[] }) {
+  const problemas = filas.filter(
+    (f) => f.estado === "error" || f.estado === "sesion",
+  );
+  if (problemas.length === 0) return null;
   return (
-    <Card title="Cola de este teléfono" subtitle="Se envía al recuperar señal. El cuadre solo con señal.">
+    <Card
+      title="Reintentos en este teléfono"
+      subtitle="Falló el envío. El cuadre solo con señal."
+    >
       <ul className="grid gap-2 text-sm">
-        {filas.map((f) => (
+        {problemas.map((f) => (
           <li key={f.idempotencyKey} className="flex items-center gap-2">
             <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />
             <span className="min-w-0 flex-1 truncate">
               {f.tipo === "ENTREGA" ? "Entrega" : "Cobro"}
-              {f.estado === "error" && f.errorMensaje ? ` · ${f.errorMensaje}` : ""}
+              {f.estado === "error" && f.errorMensaje
+                ? ` · ${f.errorMensaje}`
+                : ""}
               {f.estado === "sesion" ? " · inicia sesión" : ""}
             </span>
           </li>
@@ -249,53 +353,64 @@ function ListaCola({ filas }: { filas: FilaCola[] }) {
   );
 }
 
-function ParadaCard({
+function CabeceraParada({
   parada,
   sinSincronizar,
-  onAbrir,
+  onBack,
 }: {
   parada: RutaParada;
   sinSincronizar: boolean;
-  onAbrir: () => void;
+  onBack: () => void;
 }) {
-  const hecho = parada.estado === "ENTREGADO";
   return (
-    <button
-      type="button"
-      onClick={onAbrir}
-      className="grid gap-1.5 rounded-tarjeta border border-[var(--border-subtle)] bg-blanco p-4 text-left shadow-tarjeta"
-      style={{
-        borderLeft: `4px solid ${hecho ? "var(--green-600)" : "var(--yellow-400)"}`,
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <span className="font-display text-lg tabular-nums text-marca">
-          {parada.horarioEntregaFijo ?? "—"}
-        </span>
-        <span className="min-w-0 flex-1 truncate font-semibold">
-          {parada.clienteNombre}
-        </span>
-        {sinSincronizar ? (
-          <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />
-        ) : (
-          <EstadoBadge estado={parada.estado} size="sm" />
-        )}
-      </div>
-      <div className="flex items-center text-xs text-tinta-500">
-        <span className="ml-auto">
-          <Money centavos={parada.totalEstimadoCentavos} />
-        </span>
-      </div>
-      {parada.saldoAnteriorCentavos > 0 && (
-        <div className="flex items-center gap-2">
-          <Badge tone="amber">Cobrar</Badge>
-          <span className="text-xs font-semibold text-aviso">
-            Saldo anterior{" "}
-            <Money centavos={parada.saldoAnteriorCentavos} tone="pendiente" />
-          </span>
+    <div className="grid gap-3">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-marca focus-visible:outline-none focus-visible:shadow-foco"
+      >
+        <ChevronLeft size={16} aria-hidden />
+        Ruta
+      </button>
+      <Card>
+        <div className="flex items-start gap-3">
+          <ClienteAvatar
+            nombre={parada.clienteNombre}
+            fotoAssetId={parada.fotoAssetId}
+            size="md"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-pretty text-tinta-900">
+                {parada.clienteNombre}
+              </p>
+              {sinSincronizar && (
+                <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />
+              )}
+            </div>
+            <p className="mt-0.5 text-xs tabular-nums text-tinta-500">
+              Entrega {parada.horarioEntregaFijo ?? "sin horario fijo"}
+              <span className="font-mono"> · #{parada.correlativo}</span>
+            </p>
+            {parada.notasPermanentes ? (
+              <p className="mt-2 text-sm text-pretty text-tinta-800">
+                {parada.notasPermanentes}
+              </p>
+            ) : null}
+          </div>
+          {parada.telefonoWa && (
+            <a
+              href={`tel:${parada.telefonoWa}`}
+              aria-label={`Llamar a ${parada.clienteNombre}`}
+              className="inline-flex h-[52px] shrink-0 items-center justify-center gap-2 rounded-pill border border-[var(--border-default)] bg-blanco px-4 text-base font-semibold text-tinta-900 shadow-[var(--shadow-xs)] no-underline transition-[border-color,box-shadow] duration-control ease-out hover:border-[var(--border-strong)] hover:bg-tinta-50 hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+            >
+              <Phone size={18} aria-hidden />
+              Llamar
+            </a>
+          )}
         </div>
-      )}
-    </button>
+      </Card>
+    </div>
   );
 }
 
@@ -322,41 +437,19 @@ function DetalleEntrega({
   onEntregar: () => void;
   onCobrar: () => void;
 }) {
-  const entregado = parada.estado === "ENTREGADO";
+  const entregadoServidor = parada.estado === "ENTREGADO";
+  const puedeAbrirCobro = entregadoServidor || sinSincronizar;
   const hint = !puedeEntregar
     ? "Producción ve la ruta; no marca entregas."
     : undefined;
 
   return (
-    <div className="grid max-w-[375px] gap-3">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-marca"
-      >
-        <ChevronLeft size={16} /> Ruta
-      </button>
-      <Card>
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <div className="font-semibold">{parada.clienteNombre}</div>
-              {sinSincronizar && <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />}
-            </div>
-            <div className="text-xs text-tinta-500">
-              Entrega {parada.horarioEntregaFijo ?? "sin horario fijo"}
-            </div>
-          </div>
-          {parada.telefonoWa && (
-            <a
-              href={`tel:${parada.telefonoWa}`}
-              className="inline-flex h-9 items-center justify-center gap-1 rounded-campo border border-[var(--border-default)] bg-blanco px-3 text-xs font-semibold"
-            >
-              <Phone size={15} /> Llamar
-            </a>
-          )}
-        </div>
-      </Card>
+    <div className="grid gap-3 pb-[calc(var(--bottombar-height)+4.5rem)]">
+      <CabeceraParada
+        parada={parada}
+        sinSincronizar={sinSincronizar}
+        onBack={onBack}
+      />
       <Card
         flush
         title="Lo entregado"
@@ -365,7 +458,7 @@ function DetalleEntrega({
         <EntregaForm
           key={parada.pedidoId}
           items={parada.items}
-          disabled={entregado}
+          disabled={entregadoServidor}
           onChange={onCantidades}
         />
       </Card>
@@ -375,34 +468,28 @@ function DetalleEntrega({
           title="Saldo anterior"
           subtitle={`${parada.facturasPendientes} facturas pendientes`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <Money
               centavos={parada.saldoAnteriorCentavos}
               tone="pendiente"
               className="text-lg"
             />
-            <Button size="sm" onClick={onCobrar} disabled={!entregado && !sinSincronizar}>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={onCobrar}
+              disabled={!puedeAbrirCobro}
+            >
               Registrar cobro
             </Button>
           </div>
         </Card>
       )}
-      {error && <p className="text-sm text-peligro">{error}</p>}
-      <Button
-        variant="accent"
-        size="lg"
-        className="w-full"
-        disabled={entregado || !puedeEntregar}
-        title={hint}
-        loading={loading}
-        onClick={onEntregar}
-      >
-        {entregado
-          ? "Entrega registrada"
-          : online
-            ? "Marcar como entregado"
-            : MENSAJE_GUARDAR_TELEFONO}
-      </Button>
+      {error && (
+        <p role="alert" className="text-sm text-peligro">
+          {error}
+        </p>
+      )}
       {!online && (
         <p className="text-center text-xs text-aviso">{MENSAJE_SIN_SENAL}</p>
       )}
@@ -411,6 +498,25 @@ function DetalleEntrega({
           Producción ve la misma ruta. No marca entregas.
         </p>
       )}
+      <div className="fixed inset-x-0 bottom-[var(--bottombar-height)] z-20 border-t border-[var(--border-subtle)] bg-blanco/95 px-4 py-3 backdrop-blur-sm lg:static lg:inset-auto lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+        <div className="mx-auto w-full max-w-[var(--page-max)]">
+          <Button
+            variant="accent"
+            size="lg"
+            className="w-full"
+            disabled={entregadoServidor || !puedeEntregar}
+            title={hint}
+            loading={loading}
+            onClick={onEntregar}
+          >
+            {entregadoServidor
+              ? "Entrega registrada"
+              : online
+                ? "Marcar como entregado"
+                : MENSAJE_GUARDAR_TELEFONO}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -432,21 +538,21 @@ function DetalleCobro({
   onBack: () => void;
   onCobrar: () => void;
 }) {
-  const saldo =
-    parada.saldoAnteriorCentavos + (parada.factura?.saldoCentavos ?? 0);
+  const saldo = saldoParadaCentavos({
+    saldoAnteriorCentavos: parada.saldoAnteriorCentavos,
+    facturaSaldoCentavos: parada.factura?.saldoCentavos,
+  });
   const hint = !puedeCobrar ? "No tiene permiso para cobrar" : undefined;
 
   return (
-    <div className="grid max-w-[375px] gap-3">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-marca"
-      >
-        <ChevronLeft size={16} /> Volver
-      </button>
+    <div className="grid gap-3 pb-[calc(var(--bottombar-height)+4.5rem)]">
+      <CabeceraParada
+        parada={parada}
+        sinSincronizar={sinSincronizar}
+        onBack={onBack}
+      />
       <Card
-        title={parada.clienteNombre}
+        title="Por cobrar"
         subtitle={`${parada.facturasPendientes} facturas pendientes`}
       >
         <div className="flex items-center gap-2">
@@ -454,20 +560,28 @@ function DetalleCobro({
           {sinSincronizar && <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />}
         </div>
       </Card>
-      {error && <p className="text-sm text-peligro">{error}</p>}
-      <Button
-        variant="accent"
-        size="lg"
-        className="w-full"
-        disabled={!puedeCobrar || saldo <= 0}
-        title={hint}
-        onClick={onCobrar}
-      >
-        {online ? "Registrar cobro" : MENSAJE_GUARDAR_TELEFONO}
-      </Button>
+      {error && (
+        <p role="alert" className="text-sm text-peligro">
+          {error}
+        </p>
+      )}
       {!online && (
         <p className="text-center text-xs text-aviso">{MENSAJE_SIN_SENAL}</p>
       )}
+      <div className="fixed inset-x-0 bottom-[var(--bottombar-height)] z-20 border-t border-[var(--border-subtle)] bg-blanco/95 px-4 py-3 backdrop-blur-sm lg:static lg:inset-auto lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+        <div className="mx-auto w-full max-w-[var(--page-max)]">
+          <Button
+            variant="accent"
+            size="lg"
+            className="w-full"
+            disabled={!puedeCobrar || saldo <= 0}
+            title={hint}
+            onClick={onCobrar}
+          >
+            {online ? "Registrar cobro" : MENSAJE_GUARDAR_TELEFONO}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

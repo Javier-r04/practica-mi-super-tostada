@@ -14,11 +14,16 @@ export function ProductoThumb({
   fotoAssetId,
   size = "sm",
   className,
+  srcPath,
+  variante = "thumb",
 }: {
   nombre: string;
   fotoAssetId?: string | null;
   size?: keyof typeof SIZE;
   className?: string;
+  /** Path API sin cookie de staff (portal). */
+  srcPath?: string;
+  variante?: "thumb" | "card";
 }) {
   const box = cn(
     "relative shrink-0 overflow-hidden rounded-campo bg-tinta-50",
@@ -33,7 +38,8 @@ export function ProductoThumb({
         <AssetImage
           assetId={fotoAssetId}
           alt={nombre}
-          variante="thumb"
+          variante={variante}
+          srcPath={srcPath}
           className="absolute inset-0 size-full"
         />
       </span>

@@ -45,6 +45,7 @@ export function QuantityStepper({
         onClick={() => set(value - 1)}
         className={cn(
           "grid shrink-0 place-items-center text-lg font-semibold text-marca disabled:cursor-not-allowed disabled:text-tinta-500",
+          "focus-visible:outline-none focus-visible:shadow-foco",
           s.btn,
         )}
       >
@@ -65,6 +66,7 @@ export function QuantityStepper({
         onClick={() => set(value + 1)}
         className={cn(
           "grid shrink-0 place-items-center text-lg font-semibold text-marca disabled:cursor-not-allowed disabled:text-tinta-500",
+          "focus-visible:outline-none focus-visible:shadow-foco",
           s.btn,
         )}
       >
