@@ -380,6 +380,9 @@ dato **no se puede perder ni parecer guardado sin estarlo**.
 - No implementar UI de gestión de organizaciones. El multi-tenant es solo la FK.
 - No agregar facturación electrónica, inventario ni módulo de producción. Son fases posteriores.
 - No enviar texto libre por WhatsApp sin verificar `ventana_expira_at`.
+- **Frontend:** no abrir ni inspeccionar el browser (DevTools, MCP de browser, screenshots,
+  snapshots, navegación automatizada). Auditar y diseñar desde código, tokens y componentes.
+  Solo si el usuario lo pide explícitamente.
 
 ---
 

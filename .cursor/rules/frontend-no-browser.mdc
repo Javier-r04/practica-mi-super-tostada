@@ -1,0 +1,17 @@
+---
+description: Frontend agents must not use browser DevTools or MCP browser observation
+globs: apps/web/**/*
+alwaysApply: false
+---
+
+# Frontend: no browser / DevTools
+
+When working on UI (audit, design, implementation, visual review) under `apps/web`:
+
+- Do **not** use browser MCP tools (`cursor-ide-browser`, Chrome DevTools MCP, etc.).
+- Do **not** navigate, screenshot, snapshot, or inspect DOM/console/network.
+- Do **not** treat a running localhost session as required evidence for design decisions.
+
+Evaluate from source: pages, components, CSS tokens, existing panel patterns, and domain copy.
+
+**Exception:** only if the user explicitly asks to open or inspect the browser.
