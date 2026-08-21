@@ -158,13 +158,15 @@ export class FacturaService implements FacturaAlEntregar {
       .innerJoin(pedido, eq(pedido.id, factura.pedidoId))
       .where(eq(factura.id, facturaId))
       .limit(1);
-    this.bus.emit({
-      organizacionId: actor.organizacionId,
-      tipo: "factura.actualizada",
-      fechaOperacion: ped?.fechaOperacion ?? "",
-      facturaId,
-      clienteId: ped?.clienteId,
-    });
+    if (ped) {
+      this.bus.emit({
+        organizacionId: actor.organizacionId,
+        tipo: "factura.actualizada",
+        fechaOperacion: ped.fechaOperacion,
+        facturaId,
+        clienteId: ped.clienteId,
+      });
+    }
     return this.presentar(facturaId);
   }
 

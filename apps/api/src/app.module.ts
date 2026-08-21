@@ -27,6 +27,10 @@ import { redactPortalPath, PINO_REDACT_PATHS } from "./modules/shared/pino-redac
             return serialized;
           },
         },
+        autoLogging: {
+          ignore: (req) =>
+            typeof req.url === "string" && req.url.includes("/pedidos/stream"),
+        },
         transport:
           process.env.NODE_ENV === "production"
             ? undefined

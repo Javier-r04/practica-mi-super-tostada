@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -16,6 +17,7 @@ import { CurrentActor } from "../identity/current-actor";
 import type { Actor } from "../identity/actor";
 import { PedidoEvents } from "./pedido-events";
 import { PedidoService } from "./pedido.service";
+import { DomainException } from "../shared/domain.exception";
 
 @Controller("pedidos")
 export class PedidosController {
@@ -25,7 +27,13 @@ export class PedidosController {
   ) {}
 
   @Sse("stream")
-  stream(@CurrentActor() actor: Actor): Observable<{ data: unknown }> {
+  @Header("Cache-Control", "no-cache, no-transform")
+  @Header("X-Accel-Buffering", "no")
+  @Header("Connection", "keep-alive")
+  stream(@CurrentActor() actor: Actor | undefined): Observable<{ data: unknown }> {
+    if (!actor) {
+      throw new DomainException("SESION_REQUERIDA", "Inicie sesión", 401);
+    }
     return this.events.stream(actor.organizacionId);
   }
 
