@@ -70,12 +70,12 @@ Medidas fijas: barra superior 56 px · barra inferior 64 px · lateral 248 px ·
 
 1. **Un solo amarillo por pantalla.** Es la acción que cierra la noche, cobra, confirma o entra al panel. Todo lo demás es verde, contorno o fantasma.
 2. **El verde profundo no es el chrome del panel.** Va a sangre en portal, reparto y tarjetas `brand` de resumen. Nunca como fondo de un formulario.
-3. **Sin gradientes decorativos, sin `backdrop-filter`, sin emoji.** Sobre foto va degradado de protección (`--scrim-*`), no cápsula translúcida.
+3. **Sin gradientes decorativos, sin `backdrop-filter`, sin emoji.** Sobre foto va degradado de protección (`--scrim-*`), no cápsula translúcida. En gráficas del Tablero: ejes ≥12 px, leyenda con palabras junto a cada color, sin donut para 2–3 partes.
 4. **Nada rebota.** 130 ms controles, 200 ms superficies, 320 ms máximo, `--ease-out`. Press = `scale(.985)`.
 5. **Hover cambia color, no opacidad.** Opacidad solo indica deshabilitado (`.45`).
 6. **Foco siempre visible** (`--shadow-focus`). Se trabaja con teclado a las 23:00.
 7. **Cifras tabulares** en toda columna de números (`font-variant-numeric: tabular-nums`).
-8. **13 px es el mínimo en texto interactivo.** 14 px de cuerpo. Rótulos 12 px solo en versalitas.
+8. **13 px es el mínimo en texto interactivo.** 14 px de cuerpo. Rótulos 12 px solo en versalitas. Ejes de gráfica en pantalla: mínimo 12 px.
 
 ---
 
@@ -123,30 +123,59 @@ La navegación lista **todas** las vistas del sistema. Las que aún no existen s
 
 | Vista | Contenido obligatorio |
 |---|---|
-| **Hoy** | 4 métricas (pedidos capturados, libras de tortilla, por cobrar, outbox). Una tarjeta `brand` con el monto en display amarillo. Lista de pedidos de la noche. Tarjeta `accent` de cierre con la única acción amarilla: "Cerrar ventana y generar hoja" → `Dialog` con conteo de confirmados, borradores que quedan fuera y mensajes a enviar. Clientes al límite de crédito |
-| **Pedidos** | Lista maestra (buscador por cliente, alias o correlativo) + detalle: cabecera con cliente, estado, origen PORTAL/MANUAL, entrega fija, contacto y nota permanente; ítems con `QuantityStepper` mientras la ventana esté abierta; total al pie; notas del administrador; historial de `audit_log` con hora y actor. Anular → `Dialog` `danger` con motivo |
+| **Hoy** | Tarjeta `brand` con el **monto de la noche** en display amarillo (`text-acento`) y hint de snapshot. Debajo, 4 KPI blancos: pedidos capturados, libras de tortilla, por cobrar, mensajes en outbox. Chips de ruta con `EstadoBadge` + conteo. Lista de pedidos de la noche (recorte 8, meta "8 de N"): filas `min-h-fila` con `ClienteAvatar` (join a `/clientes`), `#correlativo` mono, `EstadoBadge`, `Money`, deep link `?pedidoId=`. "Aún no piden" y "Clientes al límite" enlazan a `/clientes/{id}` (ficha, no bandeja). Tarjeta `accent` de cierre con la única acción amarilla: "Cerrar ventana y generar hoja" → `Dialog`. Error de red con toast + reintento; refetch con `aria-busy` sin atenuar el CTA |
+| **Tablero** | Recorte de cierre (Hoy / Semana / Quincena vía `SegmentedControl`; fechas y droplists detrás de **Filtros** como Cartera). Un solo amarillo: "Descargar cierre de quincena". Hasta 5 KPIs con anclas únicas; una métrica `brand` (ventas, o por cobrar si el recorte es un día) en display amarillo. Gráficas SVG/HTML propias (sin librería): ejes ≥12 px, fecha corta GT (`21 ago`), leyenda con palabras, tooltip HTML en la línea de ventas; cobrado en barras apiladas con leyenda Efectivo/Transferencia; participación top 5 + Otros con `ClienteAvatar` y link a ficha; productos agrupados por familia con `EstadoBadge` de carga y cantidad en display; antigüedad en cuatro losetas (15+ / 31+ con rótulo de peligro); ruta = chips de conteo, adopción = medidor apilado con % escrito (**no** donut de 2–3 partes). Salud de clientes y "Aún no piden" como filas táctiles con avatar. Sin `backdrop-filter` |
+| **Pedidos** | Master-detail 340 px + resto (como Conversaciones). Chrome compacto: **Capturar pedido** (único amarillo) + `SearchField` (cliente, correlativo, alias) + `SegmentedControl` Todos/Vivos/Anulados + `DateField` de `fecha_operacion`. Filas `min-h-fila` con `ClienteAvatar` (join), correlativo mono, `EstadoBadge`, `focus-visible:shadow-foco`, `aria-current`. Deep link `?pedidoId=` (Hoy y ficha de cliente). Detalle: avatar + link a `/clientes/{id}`, teléfono accionable, notas permanentes; ítems con `ProductoThumb` (join) y `QuantityStepper` en `CONFIRMADO` con permiso; **una barra sucia** "Guardar cambios" (ítems + notas) que no se pisa si SSE llega con el mismo id y hay dirty; toast al 2xx; historial como "Quién hizo qué" (no filtrar `audit_log` al usuario). Captura MANUAL: reset al cerrar/cambiar cliente; favoritos ("Lo que pide siempre") arriba; aviso de límite con `ContadorFacturas`; thumb + alias principal. Anular → `Dialog` `danger` con motivo; footer "Cancelar" / "Anular pedido" |
 | **Producción** | Hoja agrupada por punto de carga, con encabezado de grupo. Filas nuevas de la v2 con fondo `--yellow-100` y badge "nuevo en v2". Cantidades en tipografía display. Aviso de reapertura con motivo. Consolidado que recibe Alex como `MensajePreview`. Recordatorio de las reglas: sábado todo sale de planta; la hoja no se materializa hasta el cierre |
 | **Cartera** | Tres métricas (facturas pendientes con límite, cobrado hoy, reportado por reparto). Tabs Todas / Pendientes / Vencidas. Tabla: DTE monoespaciado, cliente, pedido, emitida, monto, abonado, **saldo** coloreado por estado, estado, acción. Registrar pago → `Dialog` con saldo, monto (abono parcial permitido), método y comprobante |
 | **Conversaciones** | Lista con no leídos y `VentanaBadge` de 24 h por conversación. Hilo sobre `--cream-100`: salientes como `MensajePreview`, entrantes en burbuja verde alineada a la derecha. **Ventana abierta →** redactor libre + "Redactar con IA". **Ventana cerrada →** redactor bloqueado, `Toast` explicando el 131047, selector de plantillas aprobadas y preview renderizado |
 | **Catálogo** | Tabla plana de ~40 SKU: SKU, nombre canónico, familia, unidad, punto de carga, alias frecuente, precio base, acceso a precios por cliente. Sin matriz de variantes |
 
-### 6.2 Portal del cliente (móvil 390 px, `ui_kits/portal/`)
+### 6.2 Portal del cliente (`/p/{token}`, `ui_kits/portal/`)
 
-- URL `/p/{token}`, sin login. Barra superior verde con el logotipo y el nombre del cliente.
-- Bloque verde de contexto: `VentanaBadge` con cuenta atrás + "Su pedido llega el jueves 20 a las 08:30".
-- **Sección "Lo que pide siempre"** (favoritos) antes del catálogo completo.
-- El **alias del cliente es el nombre principal**; el nombre canónico va como apoyo en 12 px. La traducción a nomenclatura de producción no se muestra nunca.
-- Pie fijo con número de productos, total y acción amarilla "Revisar pedido".
-- Resumen: ítems con precio snapshot + tarjeta `paper` de estado de cuenta con el límite de facturas.
-- Confirmación: tarjeta `brand` con título display amarillo, correlativo, `EstadoBadge` y el mensaje de WhatsApp tal como llegará. "Editar mi pedido" disponible hasta la medianoche.
+Casa del restaurante: **Inicio · Pedir · Pedidos · Cuenta**. Sin login; token opaco en la URL. Chrome propio (header verde a sangre), no sidebar del panel. Responsive móvil y escritorio.
+
+**Rutas**
+
+| Ruta | Pantalla |
+|---|---|
+| `/p/{token}` | Inicio: saludo (tardes/noches desde el servidor), ventana, entrega, losetas (pedido de esta noche, cuenta, último pedido), CTA |
+| `/p/{token}/pedir` | Catálogo → resumen → confirmado (pasos locales). Fotos vía `GET /p/{token}/assets/:id` |
+| `/p/{token}/pedidos` | Historial (últimos 20 + cargar más). Incluye MANUAL y ANULADO |
+| `/p/{token}/pedidos/[id]` | Detalle propio; 404 genérico si no es suyo |
+| `/p/{token}/cuenta` | Facturas pendientes (informativo; el portal no cobra) |
+
+**Móvil (< lg)**
+
+- Header 56 px verde: Wordmark compact onBrand + nombre del cliente.
+- Bottom nav 64 px: Inicio · Pedir · Pedidos · Cuenta (`aria-current`). Pedir puede badge con nº de líneas.
+- En catálogo: footer sticky encima de la bottom nav con total + CTA amarilla “Revisar pedido”.
+- Toasts anclados sobre la barra.
+
+**Escritorio (lg+)**
+
+- Mismo header a ancho completo; nav **horizontal** bajo el header.
+- Contenido `max-w-[var(--page-max)]` centrado, canal 24 px.
+- `/pedir`: grid de productos + columna sticky (~320 px) con resumen vivo y CTA.
+
+**Reglas de contenido**
+
+- Bloque verde de contexto: `VentanaBadge` + countdown + copy de entrega.
+- **“Lo que pide siempre”** (favoritos) antes del resto agrupado por familia; búsqueda por alias/canónico.
+- Alias = nombre principal; canónico en 12 px. Nunca SKU ni punto de carga.
+- Cantidades enteras; stepper `lg` en móvil.
+- Límite de crédito: **avisar, no bloquear**.
+- Confirmación: tarjeta `brand` + texto WhatsApp; “Editar mi pedido” mientras la ventana esté abierta.
+- Un solo amarillo por pantalla. Copy en usted. Sin emoji. Sin PWA del cliente (`manifest: null`).
 
 ### 6.3 App de reparto (PWA móvil, `ui_kits/reparto/`)
 
-- Barra superior verde + `OfflineBanner` inmediatamente debajo (devuelve `null` cuando hay señal y la cola está vacía).
-- **Ruta:** tarjetas ordenadas por horario fijo, filo izquierdo de 4 px (amarillo pendiente / verde entregado), hora en display, zona con `map-pin`, saldo anterior en ámbar, marca `SIN_SINCRONIZAR` si hay algo en cola.
-- **Entrega:** ajuste de `cantidad_entregada` con steppers de 52 px; contador de ajustes y total al pie; tarjeta `accent` de saldo anterior con acceso al cobro. La factura se calcula sobre lo entregado.
-- **Cobro:** monto prellenado con el saldo (abono parcial permitido), método en `RadioGroup`, zona de foto de comprobante, aviso si no hay señal. El botón cambia de rótulo: "Guardar cobro" / "Guardar en este teléfono".
-- **Cierre del día:** totales del turno y cola local con `idempotency_key` por acción.
+- El chrome del panel es claro (decisión 2026-08); el filo de 4 px en cada parada es el acento de ruta (amarillo pendiente / verde entregado), no el header.
+- `OfflineBanner` inmediatamente bajo el topbar (devuelve `null` cuando hay señal y la cola está vacía). Es el único autorizado a decir "guardado" con dato en el teléfono; la lista de cola al pie solo muestra reintentos con error.
+- **Ruta:** tarjetas al estilo `ClienteMiniCard` (avatar/iniciales, nombre `text-pretty`, hora display tabular, `#correlativo` mono, métricas con radio concéntrico), ordenadas por horario fijo, badge `SIN_SINCRONIZAR` por parada. KPI "Cobrado hoy" (no duplicar la fecha del chrome). Filtro compacto pendientes/entregados si hay muchas paradas.
+- **Entrega:** cabecera con avatar, notas permanentes si existen, llamar a 52 px; ajuste de `cantidad_entregada` con steppers de 52 px + thumb de producto; contador de ajustes y total al pie; tarjeta `accent` de saldo anterior con acceso al cobro (`secondary`/`primary`, nunca segundo amarillo). CTA fija "Marcar como entregado" / "Guardar en este teléfono" sobre la bottom nav. Saldo 0 tras entregar → vuelve a ruta.
+- **Cobro:** monto prellenado con el saldo (abono parcial permitido), método en `SegmentedControl`, zona de foto de comprobante, aviso si no hay señal. Tras éxito vuelve a la ruta con badge de cola. El diálogo usa `accent` como Cartera (otra superficie).
+- **Cierre del día:** fuera de alcance de esta pantalla (cuadre).
 - Toasts anclados sobre la barra inferior, no en la esquina.
 
 ---

@@ -393,5 +393,7 @@ Cuando toques estas áreas, **pregunta antes de asumir**:
 - Confirmación de si trabajan domingos y qué feriados cierran realmente.
 - Política de retención de conversaciones de WhatsApp.
 - Si el cliente puede ver su historial completo de pedidos en el portal o solo el estado de cuenta.
+  **Resuelto (2026-08):** sí ve historial **recortado** (últimos 20 + cargar más) de *sus* pedidos;
+  detalle propio; nunca SKU, punto de carga, notas de producción ni `audit_log` interno.
 - Comportamiento exacto cuando producción no puede surtir lo pedido (hoy se resuelve
   internamente; si eso cambia, hay que definir notificación al cliente).
