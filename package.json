@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun run --filter web dev",
     "dev:api": "bun run --filter api start:dev",
+    "dev:start": "bun run --filter web dev && bun run --filter api start:dev",
     "dev:all": "bun run scripts/dev-all.ts",
     "build": "bun run --filter web build && bun run --filter api build",
     "lint": "bun run --filter web lint",
@@ -13,6 +14,8 @@
     "db:create": "bun packages/db/src/create-db.ts",
     "db:migrate": "bun run --filter @misupertostada/db migrate",
     "db:seed": "bun packages/db/src/seed.ts",
+    "db:seed:mega": "bun packages/db/src/seed-mega.ts",
+    "db:seed:mega:clear": "bun packages/db/src/seed-mega.ts --clear",
     "db:setup": "bun run db:create && bun run db:migrate && bun run db:seed",
     "db:up": "docker compose up -d"
   },
