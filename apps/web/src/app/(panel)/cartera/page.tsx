@@ -32,7 +32,6 @@ import { api, ApiError } from "@/lib/api";
 import { toastFromError, toastInfo, toastSuccess } from "@/lib/toast";
 import { PanelShell } from "@/components/layout/panel-shell";
 import { PageToolbar } from "@/components/layout/page-header";
-import { usePedidosSse } from "@/hooks/use-pedidos-sse";
 import { useOnline } from "@/hooks/use-online";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -81,7 +80,6 @@ export default function CarteraPage() {
     queryKey: ["auth", "me"],
     queryFn: () => api<{ usuario: ActorPublico }>("/auth/me"),
   });
-  usePedidosSse(Boolean(me.data));
 
   const puedeDte = tienePermiso(
     me.data?.usuario.permisos ?? [],

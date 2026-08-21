@@ -19,7 +19,6 @@ import { ListaConversaciones } from "@/components/messaging/lista-conversaciones
 import { HiloConversacion } from "@/components/messaging/hilo-conversacion";
 import { ComposerWhatsapp } from "@/components/messaging/composer-whatsapp";
 import { VentanaBadge } from "@/components/domain/ventana-badge";
-import { usePedidosSse } from "@/hooks/use-pedidos-sse";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -36,7 +35,6 @@ export default function ConversacionesPage() {
     queryKey: ["auth", "me"],
     queryFn: () => api<{ usuario: ActorPublico }>("/auth/me"),
   });
-  usePedidosSse(Boolean(me.data));
 
   const puedeEnviar = tienePermiso(
     me.data?.usuario.permisos ?? [],

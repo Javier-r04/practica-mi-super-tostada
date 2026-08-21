@@ -1,0 +1,126 @@
+import { describe, expect, test } from "bun:test";
+import type { PanelSseEvent } from "@misupertostada/shared";
+import {
+  SSE_CLOSED,
+  SSE_CONNECTING,
+  SSE_OPEN,
+  clavesAInvalidar,
+  clavesAlReconectar,
+  debeReconectarManual,
+  fusionarClaves,
+  interpretarMensajeSse,
+} from "./panel-sse-invalidation";
+
+const PEDIDO = "00000000-0000-4000-a000-000000000099";
+const FACTURA = "00000000-0000-4000-a000-000000000088";
+const CONV = "00000000-0000-4000-a000-000000000077";
+const CLIENTE = "00000000-0000-4000-a000-000000000066";
+const FECHA = "2026-08-21";
+
+function incluye(claves: string[][], raiz: string): boolean {
+  return claves.some((k) => k[0] === raiz);
+}
+
+describe("clavesAInvalidar", () => {
+  test("pedido creado/editado/anulado no toca hoja ni cartera", () => {
+    const evento: PanelSseEvent = {
+      tipo: "pedido.creado",
+      pedidoId: PEDIDO,
+      fechaOperacion: FECHA,
+    };
+    const claves = clavesAInvalidar(evento);
+    expect(incluye(claves, "pedidos")).toBe(true);
+    expect(incluye(claves, "tablero")).toBe(true);
+    expect(incluye(claves, "hoja")).toBe(false);
+    expect(incluye(claves, "cartera")).toBe(false);
+    expect(incluye(claves, "conversaciones")).toBe(false);
+  });
+
+  test("cierre de día refresca operación y hoja, no conversaciones", () => {
+    const claves = clavesAInvalidar({
+      tipo: "dia.cerrado",
+      fechaOperacion: FECHA,
+      versionHoja: 1,
+    });
+    expect(incluye(claves, "operacion")).toBe(true);
+    expect(incluye(claves, "hoja")).toBe(true);
+    expect(incluye(claves, "pedidos")).toBe(true);
+    expect(incluye(claves, "calendario")).toBe(true);
+    expect(incluye(claves, "conversaciones")).toBe(false);
+  });
+
+  test("pago no refetch-ea la hoja de producción", () => {
+    const claves = clavesAInvalidar({
+      tipo: "pago.registrado",
+      fechaOperacion: FECHA,
+      facturaId: FACTURA,
+      clienteId: CLIENTE,
+    });
+    expect(incluye(claves, "cartera")).toBe(true);
+    expect(incluye(claves, "cuadre")).toBe(true);
+    expect(incluye(claves, "ruta")).toBe(true);
+    expect(incluye(claves, "hoja")).toBe(false);
+    expect(incluye(claves, "calendario")).toBe(false);
+  });
+
+  test("mensaje de WhatsApp solo invalida conversaciones", () => {
+    const claves = clavesAInvalidar({
+      tipo: "mensaje.estado",
+      conversacionId: CONV,
+      clienteId: CLIENTE,
+    });
+    expect(claves).toEqual([["conversaciones"]]);
+  });
+});
+
+describe("interpretarMensajeSse", () => {
+  test("descarta heartbeat y JSON ilegible", () => {
+    expect(interpretarMensajeSse(JSON.stringify({ tipo: "heartbeat" }))).toBe(
+      "heartbeat",
+    );
+    expect(interpretarMensajeSse("no-json")).toBeNull();
+    expect(interpretarMensajeSse(JSON.stringify({ tipo: "desconocido" }))).toBeNull();
+  });
+
+  test("acepta un evento de panel válido", () => {
+    const parsed = interpretarMensajeSse(
+      JSON.stringify({
+        tipo: "pedido.editado",
+        pedidoId: PEDIDO,
+        fechaOperacion: FECHA,
+      }),
+    );
+    expect(parsed).toEqual({
+      tipo: "pedido.editado",
+      pedidoId: PEDIDO,
+      fechaOperacion: FECHA,
+    });
+  });
+});
+
+describe("debeReconectarManual", () => {
+  test("no reconecta mientras EventSource sigue CONNECTING u OPEN", () => {
+    expect(debeReconectarManual(SSE_CONNECTING, false)).toBe(false);
+    expect(debeReconectarManual(SSE_OPEN, false)).toBe(false);
+  });
+
+  test("reconecta solo si cerró y el efecto sigue activo", () => {
+    expect(debeReconectarManual(SSE_CLOSED, false)).toBe(true);
+    expect(debeReconectarManual(SSE_CLOSED, true)).toBe(false);
+  });
+});
+
+describe("fusionarClaves", () => {
+  test("al reconectar cubre el conjunto del panel sin duplicar", () => {
+    const fusion = fusionarClaves([
+      clavesAlReconectar(),
+      clavesAInvalidar({
+        tipo: "mensaje.nuevo",
+        conversacionId: CONV,
+      }),
+    ]);
+    expect(incluye(fusion, "conversaciones")).toBe(true);
+    expect(incluye(fusion, "pedidos")).toBe(true);
+    expect(fusion.filter((k) => k[0] === "conversaciones")).toHaveLength(1);
+  });
+});
