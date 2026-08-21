@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -14,13 +14,20 @@ import {
   type Tablero,
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
+import {
+  agruparProductosPorFamilia,
+  formatearFechaCorta,
+  participacionTopN,
+} from "@/lib/tablero-vista";
 import { PanelShell } from "@/components/layout/panel-shell";
-import { usePedidosSse } from "@/hooks/use-pedidos-sse";
+import { PageToolbar } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Money } from "@/components/domain/money";
+import { EstadoBadge } from "@/components/domain/estado-badge";
+import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import {
   FiltrosTableroBarra,
   filtrosDesdeSearch,
@@ -32,8 +39,30 @@ import { KpiStrip } from "@/components/analytics/kpi-strip";
 import { ChartLinea } from "@/components/analytics/charts/linea";
 import { ChartBarrasH } from "@/components/analytics/charts/barras-h";
 import { ChartBarrasApiladas } from "@/components/analytics/charts/barras-apiladas";
-import { ChartAnillo } from "@/components/analytics/charts/anillo";
+import { MedidorApilado } from "@/components/analytics/charts/medidor-apilado";
 import { cn } from "@/lib/utils";
+
+function ChipRuta({
+  label,
+  valor,
+}: {
+  label: string;
+  valor: number;
+}) {
+  return (
+    <span className="inline-flex min-h-11 items-center gap-2 rounded-campo border border-[var(--border-subtle)] bg-blanco px-3 text-sm">
+      <span className="mst-label">{label}</span>
+      <span className="font-semibold tabular-nums text-tinta-900">{valor}</span>
+    </span>
+  );
+}
+
+function fotoDeCliente(
+  clientes: ClientePublico[] | undefined,
+  clienteId: string,
+): string | null | undefined {
+  return clientes?.find((c) => c.id === clienteId)?.fotoAssetId;
+}
 
 function TableroInner() {
   const sp = useSearchParams();
@@ -54,7 +83,6 @@ function TableroInner() {
     queryKey: ["auth", "me"],
     queryFn: () => api<{ usuario: ActorPublico }>("/auth/me"),
   });
-  usePedidosSse(Boolean(me.data));
 
   const clientes = useQuery({
     queryKey: ["clientes"],
@@ -92,27 +120,39 @@ function TableroInner() {
 
   const data = tablero.data;
   const mostrandoPrevios = tablero.isPlaceholderData;
-  const topClientes = (data?.ventas.porCliente ?? []).slice(0, 8);
-  const otros = (data?.ventas.porCliente ?? []).slice(8);
-  const otrosMonto = otros.reduce((acc, c) => acc + c.montoCentavos, 0);
-  const participacion = [
-    ...topClientes.map((c) => ({
-      id: c.clienteId,
-      label: c.nombre,
-      valor: c.montoCentavos,
-      etiqueta: formatearCentavos(c.montoCentavos),
-    })),
-    ...(otros.length
-      ? [
-          {
-            id: "otros",
-            label: "Otros",
-            valor: otrosMonto,
-            etiqueta: formatearCentavos(otrosMonto),
-          },
-        ]
-      : []),
-  ];
+
+  const participacion = useMemo(() => {
+    const porCliente = data?.ventas.porCliente ?? [];
+    const total = porCliente.reduce((acc, c) => acc + c.montoCentavos, 0);
+    const top = participacionTopN(
+      porCliente.map((c) => ({
+        id: c.clienteId,
+        label: c.nombre,
+        valor: c.montoCentavos,
+      })),
+      5,
+    );
+    return top.map((c) => ({
+      id: c.id,
+      label: c.label,
+      valor: c.valor,
+      etiqueta: formatearCentavos(c.valor),
+      meta:
+        total > 0
+          ? `${Math.round((c.valor / total) * 100)} %`
+          : undefined,
+      href: c.id === "otros" ? undefined : `/clientes/${c.id}`,
+      leading:
+        c.id === "otros" ? undefined : (
+          <ClienteAvatar
+            nombre={c.label}
+            fotoAssetId={fotoDeCliente(clientes.data, c.id)}
+            size="sm"
+          />
+        ),
+    }));
+  }, [data?.ventas.porCliente, clientes.data]);
+
   const promedioAnterior = data
     ? Math.trunc(
         data.ventas.anterior.totalCentavos /
@@ -126,6 +166,16 @@ function TableroInner() {
       )
     : 0;
 
+  const gruposProducto = useMemo(
+    () => agruparProductosPorFamilia(data?.productos ?? []),
+    [data?.productos],
+  );
+
+  const maxCantidadProducto = Math.max(
+    1,
+    ...(data?.productos.map((p) => p.cantidad) ?? [0]),
+  );
+
   return (
     <PanelShell title="Tablero">
       <FiltrosTableroBarra
@@ -137,29 +187,27 @@ function TableroInner() {
       <div
         className={cn(
           "mt-4 grid gap-4 transition-opacity duration-surface ease-out",
-          tablero.isFetching && data ? "opacity-55" : "opacity-100",
         )}
         aria-busy={tablero.isFetching || undefined}
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <p className="max-w-[62ch] text-sm text-pretty text-tinta-500">
-            {mostrandoPrevios
+        <PageToolbar
+          description={
+            mostrandoPrevios
               ? "Actualizando el recorte…"
-              : (data?.filtrosAplicados.etiqueta ??
-                "Cierre de quincena y recortes de la operación.")}{" "}
-            {!mostrandoPrevios &&
-              "Pagado cuando la suma de abonos cubre la factura."}
-          </p>
-          <Button
-            variant="accent"
-            onClick={() => void descargar()}
-            loading={descargando}
-            disabled={!data || mostrandoPrevios}
-          >
-            <FileDown size={15} aria-hidden />
-            Descargar cierre de quincena
-          </Button>
-        </div>
+              : `${data?.filtrosAplicados.etiqueta ?? "Cierre de quincena y recortes de la operación."} Pagado cuando la suma de abonos cubre la factura.`
+          }
+          actions={
+            <Button
+              variant="accent"
+              onClick={() => void descargar()}
+              loading={descargando}
+              disabled={!data || mostrandoPrevios}
+            >
+              <FileDown size={15} aria-hidden />
+              Descargar cierre de quincena
+            </Button>
+          }
+        />
         {errorPdf && (
           <p className="text-sm text-peligro" role="alert">
             {errorPdf}
@@ -167,7 +215,9 @@ function TableroInner() {
         )}
 
         {tablero.isLoading && !data && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
             <Skeleton className="h-24" />
             <Skeleton className="h-24" />
             <Skeleton className="h-24" />
@@ -186,7 +236,7 @@ function TableroInner() {
               <div id="chart-ventas" className="scroll-mt-24">
                 <Card
                   title="Ventas por día"
-                  subtitle={`Anterior ${data.ventas.anterior.desde} – ${data.ventas.anterior.hasta}`}
+                  subtitle={`Anterior ${formatearFechaCorta(data.ventas.anterior.desde)} – ${formatearFechaCorta(data.ventas.anterior.hasta)}`}
                 >
                   <ChartLinea
                     serie={data.ventas.porDia}
@@ -197,7 +247,7 @@ function TableroInner() {
               <div id="chart-cobrado" className="scroll-mt-24">
                 <Card
                   title="Cobrado"
-                  subtitle="Efectivo verde · transferencia azul · por fecha del pago"
+                  subtitle="Por fecha del pago"
                 >
                   <ChartBarrasApiladas serie={data.cobradoPorDia} />
                 </Card>
@@ -205,7 +255,7 @@ function TableroInner() {
               <div id="chart-participacion" className="scroll-mt-24">
                 <Card
                   title="Participación por cliente"
-                  subtitle="Quién mueve la planta"
+                  subtitle="Quién mueve la planta · top 5 + otros"
                 >
                   <ChartBarrasH
                     items={participacion}
@@ -216,21 +266,56 @@ function TableroInner() {
               <div id="chart-productos" className="scroll-mt-24">
                 <Card
                   title="Volumen por producto"
-                  subtitle="Color por punto de carga"
+                  subtitle="Agrupado por familia · punto de carga"
                 >
-                  <ChartBarrasH
-                    items={data.productos.map((p) => ({
-                      id: `${p.nombreMostrado}-${p.puntoCarga}`,
-                      label: p.nombreMostrado,
-                      valor: p.cantidad,
-                      etiqueta: `${p.cantidad} ${UNIDAD_CORTA[p.unidadMedida]}`,
-                      color:
-                        p.puntoCarga === "PLANTA"
-                          ? "var(--carga-planta-fg)"
-                          : "var(--carga-democracia-fg)",
-                    }))}
-                    vacioTitulo="Sin volumen en este recorte"
-                  />
+                  {gruposProducto.length === 0 ? (
+                    <EmptyState title="Sin volumen en este recorte" />
+                  ) : (
+                    <div className="grid gap-5">
+                      {gruposProducto.map((g) => (
+                        <div key={g.familia} className="grid gap-2">
+                          <p className="mst-label">{g.label}</p>
+                          <ul className="grid gap-2">
+                            {g.items.map((p) => (
+                              <li
+                                key={`${p.nombreMostrado}-${p.puntoCarga}`}
+                                className="grid gap-1.5"
+                              >
+                                <div className="flex min-h-11 flex-wrap items-center justify-between gap-2">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                    <span className="text-pretty text-sm font-semibold text-tinta-900">
+                                      {p.nombreMostrado}
+                                    </span>
+                                    <EstadoBadge
+                                      estado={p.puntoCarga}
+                                      size="sm"
+                                    />
+                                  </div>
+                                  <span className="font-display text-xl tabular-nums leading-none text-marca">
+                                    {p.cantidad}{" "}
+                                    <span className="text-sm font-semibold text-tinta-500">
+                                      {UNIDAD_CORTA[p.unidadMedida]}
+                                    </span>
+                                  </span>
+                                </div>
+                                <div
+                                  className="h-2 overflow-hidden rounded-pill bg-[var(--ink-100)]"
+                                  aria-hidden
+                                >
+                                  <div
+                                    className="h-full rounded-pill bg-[var(--ink-300)]"
+                                    style={{
+                                      width: `${Math.round((p.cantidad / maxCantidadProducto) * 100)}%`,
+                                    }}
+                                  />
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               </div>
               <div id="chart-cartera" className="scroll-mt-24">
@@ -238,67 +323,85 @@ function TableroInner() {
                   title="Antigüedad de cartera"
                   subtitle="15+ días es el caso de Victorias"
                 >
-                  <ChartBarrasH
-                    items={data.cartera.tramos.map((t) => ({
-                      id: t.clave,
-                      label: `${t.clave} días`,
-                      valor: t.saldoCentavos,
-                      etiqueta: formatearCentavos(t.saldoCentavos),
-                      color:
-                        t.clave === "15-30" || t.clave === "31+"
-                          ? "var(--red-600)"
-                          : "var(--green-800)",
-                    }))}
-                    vacioTitulo="Sin saldo pendiente"
-                  />
+                  {data.cartera.tramos.every((t) => t.saldoCentavos === 0) ? (
+                    <EmptyState title="Sin saldo pendiente" />
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {data.cartera.tramos.map((t) => {
+                        const peligro =
+                          t.clave === "15-30" || t.clave === "31+";
+                        return (
+                          <div
+                            key={t.clave}
+                            className={cn(
+                              "rounded-tarjeta border p-4",
+                              peligro
+                                ? "border-[var(--red-600)] bg-[var(--red-100)]"
+                                : "border-[var(--border-subtle)] bg-blanco",
+                            )}
+                          >
+                            <p className="mst-label">
+                              {t.clave} días
+                              {peligro ? " · atención" : ""}
+                            </p>
+                            <p className="mt-1.5 font-display text-2xl tabular-nums leading-none text-tinta-900">
+                              <Money centavos={t.saldoCentavos} />
+                            </p>
+                            <p className="mt-1 text-xs tabular-nums text-tinta-500">
+                              {t.facturas}{" "}
+                              {t.facturas === 1 ? "factura" : "facturas"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </Card>
               </div>
               <div id="chart-adopcion" className="scroll-mt-24">
                 <Card
                   title="Ruta y adopción"
-                  subtitle="Pendiente vs entregado · portal vs manual"
+                  subtitle="Estados de pedido · portal vs manual"
                 >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <ChartAnillo
-                      partes={[
-                        {
-                          id: "pend",
-                          label: "En ruta",
-                          valor:
-                            data.operacion.ruta.confirmados +
-                            data.operacion.ruta.enProduccion,
-                          color: "var(--gold-500)",
-                        },
-                        {
-                          id: "ent",
-                          label: "Entregado",
-                          valor: data.operacion.ruta.entregados,
-                          color: "var(--green-800)",
-                        },
-                        {
-                          id: "anu",
-                          label: "Anulado",
-                          valor: data.operacion.ruta.anulados,
-                          color: "var(--ink-400)",
-                        },
-                      ]}
-                    />
-                    <ChartAnillo
-                      partes={[
-                        {
-                          id: "portal",
-                          label: "Portal",
-                          valor: data.adopcion.portal,
-                          color: "var(--green-800)",
-                        },
-                        {
-                          id: "manual",
-                          label: "Manual",
-                          valor: data.adopcion.manual,
-                          color: "var(--blue-700)",
-                        },
-                      ]}
-                    />
+                  <div className="grid gap-5">
+                    <div className="flex flex-wrap gap-2">
+                      <ChipRuta
+                        label="Confirmados"
+                        valor={data.operacion.ruta.confirmados}
+                      />
+                      <ChipRuta
+                        label="En producción"
+                        valor={data.operacion.ruta.enProduccion}
+                      />
+                      <ChipRuta
+                        label="Entregados"
+                        valor={data.operacion.ruta.entregados}
+                      />
+                      <ChipRuta
+                        label="Anulados"
+                        valor={data.operacion.ruta.anulados}
+                      />
+                    </div>
+                    <div>
+                      <p className="mst-label mb-2">Origen del pedido</p>
+                      <MedidorApilado
+                        partes={[
+                          {
+                            id: "portal",
+                            label: "Portal",
+                            valor: data.adopcion.portal,
+                            color: "var(--green-800)",
+                          },
+                          {
+                            id: "manual",
+                            label: "Manual",
+                            valor: data.adopcion.manual,
+                            color: "var(--blue-700)",
+                          },
+                        ]}
+                        vacio="Sin pedidos en este recorte"
+                      />
+                    </div>
                   </div>
                 </Card>
               </div>
@@ -313,46 +416,47 @@ function TableroInner() {
                 {data.clientes.length === 0 ? (
                   <EmptyState title="Sin clientes en este recorte" />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead>
-                        <tr className="border-b border-[var(--border-subtle)] mst-label">
-                          <th scope="col" className="px-4 py-2">Cliente</th>
-                          <th scope="col" className="px-4 py-2">Pedidos</th>
-                          <th scope="col" className="px-4 py-2">Ticket</th>
-                          <th scope="col" className="px-4 py-2">Días pago</th>
-                          <th scope="col" className="px-4 py-2">Último</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.clientes.map((c) => (
-                          <tr
-                            key={c.clienteId}
-                            className="border-b border-[var(--border-subtle)]"
-                          >
-                            <td className="px-4 py-3 font-semibold">
-                              {c.nombre}
+                  <ul className="divide-y divide-[var(--border-subtle)]">
+                    {data.clientes.map((c) => (
+                      <li key={c.clienteId}>
+                        <Link
+                          href={`/clientes/${c.clienteId}`}
+                          className="flex min-h-[52px] items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--ink-50)] focus-visible:outline-none focus-visible:shadow-foco"
+                        >
+                          <ClienteAvatar
+                            nombre={c.nombre}
+                            fotoAssetId={fotoDeCliente(
+                              clientes.data,
+                              c.clienteId,
+                            )}
+                            size="sm"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-pretty text-sm font-semibold text-tinta-900">
+                                {c.nombre}
+                              </span>
                               {c.dejoDePedir && (
-                                <span className="ml-2 text-xs font-semibold text-peligro">
+                                <span className="inline-flex h-[22px] items-center rounded-pill bg-[var(--red-100)] px-2 text-[12px] font-medium text-[var(--red-700)]">
                                   Dejó de pedir
                                 </span>
                               )}
-                            </td>
-                            <td className="px-4 py-3 tabular-nums">{c.pedidos}</td>
-                            <td className="px-4 py-3">
-                              <Money centavos={c.ticketPromedioCentavos} />
-                            </td>
-                            <td className="px-4 py-3 tabular-nums">
-                              {c.diasPagoMediana}
-                            </td>
-                            <td className="px-4 py-3 tabular-nums text-tinta-500">
-                              {c.ultimoPedidoFecha ?? "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                            </div>
+                            <p className="mt-0.5 text-xs text-tinta-500">
+                              {c.pedidos} pedidos · mediana pago {c.diasPagoMediana}{" "}
+                              d · último{" "}
+                              {c.ultimoPedidoFecha
+                                ? formatearFechaCorta(c.ultimoPedidoFecha)
+                                : "—"}
+                            </p>
+                          </div>
+                          <span className="shrink-0 font-mono text-sm tabular-nums text-tinta-800">
+                            <Money centavos={c.ticketPromedioCentavos} />
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </Card>
             </div>
@@ -370,14 +474,22 @@ function TableroInner() {
                       Todos los activos ya pidieron
                     </p>
                   ) : (
-                    <ul>
+                    <ul className="divide-y divide-[var(--border-subtle)]">
                       {data.operacion.clientesSinPedido.map((c) => (
                         <li key={c.clienteId}>
                           <Link
-                            href="/pedidos"
-                            className="flex min-h-11 items-center px-4 text-sm font-semibold text-marca"
+                            href={`/clientes/${c.clienteId}`}
+                            className="flex min-h-11 items-center gap-3 px-4 py-2.5 text-sm font-semibold text-tinta-900 transition-colors hover:bg-[var(--ink-50)] focus-visible:outline-none focus-visible:shadow-foco"
                           >
-                            {c.nombre}
+                            <ClienteAvatar
+                              nombre={c.nombre}
+                              fotoAssetId={fotoDeCliente(
+                                clientes.data,
+                                c.clienteId,
+                              )}
+                              size="sm"
+                            />
+                            <span className="text-pretty">{c.nombre}</span>
                           </Link>
                         </li>
                       ))}

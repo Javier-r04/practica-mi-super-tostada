@@ -1,7 +1,8 @@
 "use client";
 
-import { startTransition, useCallback } from "react";
+import { startTransition, useCallback, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Filter } from "lucide-react";
 import {
   FAMILIAS,
   FAMILIA_ETIQUETA,
@@ -13,6 +14,8 @@ import {
 import { DateField } from "@/components/ui/date-field";
 import { Droplist } from "@/components/ui/droplist";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { cn } from "@/lib/utils";
 
 export type FiltrosTablero = {
   periodo: PeriodoTablero;
@@ -23,6 +26,12 @@ export type FiltrosTablero = {
   puntoCarga: string;
   origen: string;
 };
+
+const PERIODOS_UI = [
+  { id: "hoy", label: "Hoy" },
+  { id: "semana", label: "Semana" },
+  { id: "quincena", label: "Quincena" },
+] as const;
 
 export function queryDeFiltros(f: FiltrosTablero): string {
   const s = new URLSearchParams();
@@ -65,6 +74,16 @@ export function mismosFiltros(a: FiltrosTablero, b: FiltrosTablero): boolean {
   );
 }
 
+function conteoFiltrosExtra(value: FiltrosTablero): number {
+  return [
+    value.clienteId,
+    value.familia,
+    value.puntoCarga,
+    value.origen,
+    value.periodo === "rango" ? value.desde || value.hasta : "",
+  ].filter(Boolean).length;
+}
+
 export function FiltrosTableroBarra({
   clientes,
   aplicados,
@@ -79,6 +98,8 @@ export function FiltrosTableroBarra({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const extras = conteoFiltrosExtra(value);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(extras > 0);
 
   const syncUrl = useCallback(
     (next: FiltrosTablero) => {
@@ -96,46 +117,53 @@ export function FiltrosTableroBarra({
     syncUrl(next);
   }
 
-  function preset(periodo: PeriodoTablero) {
+  function preset(periodo: "hoy" | "semana" | "quincena") {
     aplicar({ periodo, desde: "", hasta: "" });
   }
 
   const enRango = value.periodo === "rango" && Boolean(value.desde && value.hasta);
+  const periodoUi: "hoy" | "semana" | "quincena" =
+    value.periodo === "hoy" || value.periodo === "semana"
+      ? value.periodo
+      : "quincena";
   const desdeMostrado = value.desde || (!enRango ? aplicados?.desde : "") || "";
   const hastaMostrado = value.hasta || (!enRango ? aplicados?.hasta : "") || "";
 
   return (
-    <div className="sticky top-0 z-[var(--z-sticky)] -mx-4 border-b border-[var(--border-subtle)] bg-[var(--surface-page)]/95 px-4 py-3 backdrop-blur-sm lg:-mx-6 lg:px-6">
-      <div className="mx-auto grid w-full max-w-[var(--page-max)] gap-3">
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              ["hoy", "Hoy"],
-              ["semana", "Semana"],
-              ["quincena", "Quincena"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={value.periodo === id && !value.desde}
-              onClick={() => preset(id)}
-              className={
-                value.periodo === id && !value.desde
-                  ? "inline-flex min-h-11 items-center rounded-campo bg-marca px-3 text-sm font-semibold text-[var(--cream-100)] shadow-[var(--shadow-sm)] transition-[background-color,box-shadow] duration-control"
-                  : "inline-flex min-h-11 items-center rounded-campo bg-tinta-50 px-3 text-sm font-semibold text-tinta-800 transition-[background-color] duration-control hover:bg-[var(--ink-100)]"
-              }
-            >
-              {label}
-            </button>
-          ))}
-          {enRango && (
-            <span className="inline-flex min-h-11 items-center rounded-campo bg-tinta-50 px-3 text-sm font-semibold text-tinta-800">
-              Rango
-            </span>
-          )}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div
+      className={cn(
+        "sticky top-0 z-[var(--z-sticky)] -mx-4 border-b border-[var(--border-subtle)] bg-[var(--surface-page)] px-4 py-3 lg:-mx-6 lg:px-6",
+      )}
+    >
+      <div className="mx-auto flex w-full max-w-[var(--page-max)] flex-wrap items-center gap-2">
+        <SegmentedControl
+          label="Periodo del tablero"
+          value={periodoUi}
+          onChange={preset}
+          options={PERIODOS_UI}
+        />
+        {enRango && (
+          <span className="inline-flex min-h-10 items-center rounded-pill bg-[var(--ink-100)] px-3 text-sm font-semibold text-tinta-800">
+            Rango
+          </span>
+        )}
+        <Button
+          size="sm"
+          variant={filtrosAbiertos || extras > 0 ? "secondary" : "ghost"}
+          className="shrink-0"
+          aria-expanded={filtrosAbiertos}
+          onClick={() => setFiltrosAbiertos((v) => !v)}
+        >
+          <Filter size={15} aria-hidden />
+          Filtros
+          {extras > 0 ? (
+            <span className="tabular-nums">{extras}</span>
+          ) : null}
+        </Button>
+      </div>
+
+      {filtrosAbiertos && (
+        <div className="mx-auto mt-3 grid w-full max-w-[var(--page-max)] gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <DateField
             id="tab-desde"
             label="Desde"
@@ -211,7 +239,7 @@ export function FiltrosTableroBarra({
               })),
             ]}
           />
-          <div className="flex items-end">
+          <div className="flex items-end sm:col-span-2 lg:col-span-2">
             <Button
               variant="ghost"
               className="w-full"
@@ -231,7 +259,7 @@ export function FiltrosTableroBarra({
             </Button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
