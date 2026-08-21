@@ -158,6 +158,7 @@ export const cliente = pgTable(
     horarioEntregaFijo: time("horario_entrega_fijo"),
     notasPermanentes: text("notas_permanentes"),
     limiteFacturasPendientes: integer("limite_facturas_pendientes"),
+    fotoAssetId: uuid("foto_asset_id"),
     tokenPortalHash: text("token_portal_hash"),
     tokenPortalCifrado: text("token_portal_cifrado"),
     activo: boolean("activo").notNull().default(true),

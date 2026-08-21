@@ -50,6 +50,13 @@
       "when": 1787250000000,
       "tag": "0007_offline",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787260000000,
+      "tag": "0008_cliente_foto",
+      "breakpoints": true
     }
   ]
 }
