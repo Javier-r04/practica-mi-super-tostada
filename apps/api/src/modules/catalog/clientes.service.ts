@@ -52,6 +52,7 @@ export class ClientesService {
           horarioEntregaFijo: input.horarioEntregaFijo ?? null,
           notasPermanentes: input.notasPermanentes ?? null,
           limiteFacturasPendientes: input.limiteFacturasPendientes ?? null,
+          fotoAssetId: input.fotoAssetId ?? null,
           activo: true,
         })
         .returning();
@@ -99,6 +100,8 @@ export class ClientesService {
             input.limiteFacturasPendientes === undefined
               ? actual.limiteFacturasPendientes
               : input.limiteFacturasPendientes,
+          fotoAssetId:
+            input.fotoAssetId === undefined ? actual.fotoAssetId : input.fotoAssetId,
         })
         .where(eq(cliente.id, id))
         .returning();
@@ -216,6 +219,7 @@ function presentarCliente(row: typeof cliente.$inferSelect): ClientePublico {
     horarioEntregaFijo: normalizarHorario(row.horarioEntregaFijo),
     notasPermanentes: row.notasPermanentes ?? null,
     limiteFacturasPendientes: row.limiteFacturasPendientes ?? null,
+    fotoAssetId: row.fotoAssetId ?? null,
     tieneTokenPortal: Boolean(row.tokenPortalHash),
     activo: row.activo,
   });

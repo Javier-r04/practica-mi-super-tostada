@@ -87,11 +87,51 @@ export class AssetsService {
       throw new DomainException("ASSET_NO_ENCONTRADO", "No se pudo registrar el archivo", 500);
     }
 
-    if (saved.ownerType === "producto" && saved.mime.startsWith("image/")) {
+    if (
+      (saved.ownerType === "producto" || saved.ownerType === "cliente") &&
+      saved.mime.startsWith("image/")
+    ) {
       await this.variants.generate(saved.id);
     }
 
     return (await this.byKey(saved.key)) ?? saved;
+  }
+
+  async getContent(
+    id: string,
+    variante?: "thumb" | "card",
+  ): Promise<{ bytes: Buffer; mime: string }> {
+    const [row] = await this.db
+      .select()
+      .from(asset)
+      .where(eq(asset.id, id))
+      .limit(1);
+    if (!row) {
+      throw new DomainException("ASSET_NO_ENCONTRADO", "Archivo no encontrado", 404);
+    }
+
+    let key = row.key;
+    let mime = row.mime;
+    if (variante) {
+      const variantes = row.variantes as
+        | Record<string, { key: string; mime?: string } | undefined>
+        | null;
+      const v = variantes?.[variante];
+      if (v?.key) {
+        key = v.key;
+        mime = v.mime ?? "image/webp";
+      }
+    }
+
+    const obj = await this.storage.get(key);
+    if (!obj) {
+      throw new DomainException(
+        "ASSET_NO_ENCONTRADO",
+        "El archivo no está en el almacenamiento",
+        404,
+      );
+    }
+    return { bytes: obj.bytes, mime: obj.mime || mime };
   }
 
   private async byKey(key: string) {

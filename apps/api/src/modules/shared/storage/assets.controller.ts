@@ -1,11 +1,16 @@
 import {
   Body,
   Controller,
+  Get,
+  Header,
   Inject,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
+  Query,
   Req,
+  StreamableFile,
   type RawBodyRequest,
 } from "@nestjs/common";
 import type { Request } from "express";
@@ -32,6 +37,22 @@ export class AssetsController {
   @Post("assets/confirm")
   async confirm(@Body() body: unknown, @CurrentActor() actor: Actor) {
     return envelopeOk(await this.assets.confirm(body, actor));
+  }
+
+  @Get("assets/:id")
+  @Header("Cache-Control", "private, max-age=86400, immutable")
+  async get(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Query("v") variante: string | undefined,
+    @CurrentActor() _actor: Actor,
+  ) {
+    const v =
+      variante === "thumb" || variante === "card" ? variante : undefined;
+    const { bytes, mime } = await this.assets.getContent(id, v);
+    return new StreamableFile(bytes, {
+      type: mime,
+      disposition: "inline",
+    });
   }
 
   @Put("internal/storage/:key")

@@ -82,6 +82,7 @@ export const crearClienteRequestSchema = z.object({
   horarioEntregaFijo: horarioEntregaSchema.optional(),
   notasPermanentes: z.string().trim().max(2000).nullable().optional(),
   limiteFacturasPendientes: z.number().int().positive().nullable().optional(),
+  fotoAssetId: z.string().uuid().nullable().optional(),
 });
 
 export type CrearClienteRequest = z.infer<typeof crearClienteRequestSchema>;
@@ -98,6 +99,7 @@ export const clientePublicoSchema = z.object({
   horarioEntregaFijo: z.string().nullable(),
   notasPermanentes: z.string().nullable(),
   limiteFacturasPendientes: z.number().int().nullable(),
+  fotoAssetId: z.string().uuid().nullable(),
   tieneTokenPortal: z.boolean(),
   activo: z.boolean(),
 });

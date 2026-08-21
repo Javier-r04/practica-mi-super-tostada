@@ -1,3 +1,7 @@
+import {
+  ASSET_MIME_PERMITIDOS,
+  type AssetOwnerType,
+} from "@misupertostada/shared";
 import { api } from "@/lib/api";
 
 type PresignOk =
@@ -8,11 +12,12 @@ type PresignOk =
       headers: Record<string, string>;
     };
 
-export async function subirComprobantePago(
+export async function subirAsset(
   file: File,
-  pagoId: string,
+  ownerType: AssetOwnerType,
+  ownerId: string,
 ): Promise<string> {
-  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+  if (!(ASSET_MIME_PERMITIDOS as readonly string[]).includes(file.type)) {
     throw new Error("Use JPEG, PNG o WebP");
   }
   const buf = await file.arrayBuffer();
@@ -21,8 +26,8 @@ export async function subirComprobantePago(
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
   const body = {
-    ownerType: "pago" as const,
-    ownerId: pagoId,
+    ownerType,
+    ownerId,
     mime: file.type,
     size: file.size,
     sha256,
@@ -32,14 +37,40 @@ export async function subirComprobantePago(
     body: JSON.stringify(body),
   });
   if (presign.alreadyUploaded) return presign.assetId;
-  await fetch(presign.url, {
+  await fetch(presign.url.startsWith("http") ? presign.url : `${apiBase()}${presign.url}`, {
     method: "PUT",
     body: file,
     headers: presign.headers,
+    credentials: "include",
   });
   const confirmed = await api<{ id: string }>("/assets/confirm", {
     method: "POST",
     body: JSON.stringify(body),
   });
   return confirmed.id;
+}
+
+export async function subirComprobantePago(
+  file: File,
+  pagoId: string,
+): Promise<string> {
+  return subirAsset(file, "pago", pagoId);
+}
+
+export async function subirFotoCliente(
+  file: File,
+  clienteId: string,
+): Promise<string> {
+  return subirAsset(file, "cliente", clienteId);
+}
+
+export async function subirFotoProducto(
+  file: File,
+  productoId: string,
+): Promise<string> {
+  return subirAsset(file, "producto", productoId);
+}
+
+function apiBase(): string {
+  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 }

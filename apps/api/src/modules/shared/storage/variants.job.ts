@@ -28,7 +28,7 @@ export class AssetVariantsJob {
       .where(eq(asset.id, assetId))
       .limit(1);
     if (!row) return;
-    if (row.ownerType !== "producto") return;
+    if (row.ownerType !== "producto" && row.ownerType !== "cliente") return;
     if (!row.mime.startsWith("image/")) return;
 
     const original = await this.storage.get(row.key);
