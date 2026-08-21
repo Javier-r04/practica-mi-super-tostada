@@ -7,6 +7,7 @@ import {
   pago,
   pedido,
   pedidoItem,
+  producto,
 } from "@misupertostada/db";
 import {
   MENSAJE_CANTIDAD_ENTREGADA,
@@ -14,6 +15,7 @@ import {
   TIPO_EVENTO_PEDIDO_ENTREGADO,
   entregarPedidoRequestSchema,
   entregaResultadoSchema,
+  fechaDeInstante,
   montoFacturaCentavos,
   repartoQuerySchema,
   rutaRepartoSchema,
@@ -230,7 +232,20 @@ export class EntregaService {
   async ruta(query: unknown, actor: Actor): Promise<RutaReparto> {
     const q = parseBody(repartoQuerySchema, query ?? {});
     const cal = await this.calendar.load();
-    const fecha = q.fechaOperacion ?? cal.getFechaOperacion(this.calendar.now());
+    const now = this.calendar.now();
+    const fecha = q.fechaOperacion ?? cal.getFechaOperacion(now);
+    const hoy = fechaDeInstante(now);
+
+    const [cobrado] = await this.db
+      .select({
+        total: sql<number>`coalesce(sum(${pago.montoCentavos}), 0)::int`,
+      })
+      .from(pago)
+      .innerJoin(factura, eq(factura.id, pago.facturaId))
+      .innerJoin(pedido, eq(pedido.id, factura.pedidoId))
+      .where(
+        and(eq(pedido.organizacionId, actor.organizacionId), eq(pago.fecha, hoy)),
+      );
 
     const pedidos = await this.db
       .select({
@@ -277,6 +292,8 @@ export class EntregaService {
         clienteNombre: row.cliente.nombre,
         horarioEntregaFijo: row.cliente.horarioEntregaFijo?.slice(0, 5) ?? null,
         telefonoWa: row.cliente.telefonoWa,
+        fotoAssetId: row.cliente.fotoAssetId ?? null,
+        notasPermanentes: row.cliente.notasPermanentes ?? null,
         estado: row.pedido.estado,
         totalEstimadoCentavos,
         saldoAnteriorCentavos: saldo,
@@ -286,7 +303,11 @@ export class EntregaService {
       });
     }
 
-    return rutaRepartoSchema.parse({ fechaOperacion: fecha, paradas });
+    return rutaRepartoSchema.parse({
+      fechaOperacion: fecha,
+      cobradoHoyCentavos: Number(cobrado?.total ?? 0),
+      paradas,
+    });
   }
 
   private async resultado(
@@ -325,22 +346,27 @@ export class EntregaService {
 
   private async itemsPublicos(pedidoId: string, clienteId: string) {
     const items = await this.db
-      .select()
+      .select({
+        item: pedidoItem,
+        fotoAssetId: producto.fotoAssetId,
+      })
       .from(pedidoItem)
+      .leftJoin(producto, eq(producto.id, pedidoItem.productoId))
       .where(eq(pedidoItem.pedidoId, pedidoId));
     const ligas = await this.db
       .select()
       .from(clienteProducto)
       .where(eq(clienteProducto.clienteId, clienteId));
     const notaPor = new Map(ligas.map((l) => [l.productoId, l.notaProduccion]));
-    return items.map((i) => ({
-      productoId: i.productoId,
-      nombreMostrado: i.nombreMostrado,
-      unidadMedida: i.unidadMedida,
-      cantidadPedida: i.cantidadPedida,
-      cantidadEntregada: i.cantidadEntregada,
-      precioUnitarioCentavos: i.precioUnitarioCentavos,
-      notaProduccion: notaPor.get(i.productoId) ?? null,
+    return items.map((row) => ({
+      productoId: row.item.productoId,
+      nombreMostrado: row.item.nombreMostrado,
+      unidadMedida: row.item.unidadMedida,
+      cantidadPedida: row.item.cantidadPedida,
+      cantidadEntregada: row.item.cantidadEntregada,
+      precioUnitarioCentavos: row.item.precioUnitarioCentavos,
+      notaProduccion: notaPor.get(row.item.productoId) ?? null,
+      fotoAssetId: row.fotoAssetId ?? null,
     }));
   }
 
