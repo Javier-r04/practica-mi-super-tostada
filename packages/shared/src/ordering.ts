@@ -11,10 +11,14 @@ import { COBRANZA_SSE_TIPOS } from "./receivables";
 import { formatearFechaLarga } from "./calendar";
 import { centavosSchema, formatearCentavos } from "./money";
 
-function opcionalVacio<T extends z.ZodTypeAny>(schema: T) {
-  return z.union([schema, z.literal(""), z.undefined()]).transform((value) =>
-    value === "" || value === undefined ? undefined : (value as z.infer<T>),
-  );
+/** Query string: `""` y ausente → `undefined`, compatible con `parseBody`/`ZodType<T>`. */
+function opcionalVacio<T extends z.ZodTypeAny>(
+  schema: T,
+): z.ZodType<z.infer<T> | undefined> {
+  return z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    schema.optional(),
+  ) as z.ZodType<z.infer<T> | undefined>;
 }
 
 export const UNIDAD_CORTA = {
@@ -173,6 +177,10 @@ export const listarPedidosQuerySchema = z.object({
   fechaOperacion: opcionalVacio(fechaOperacionSchema),
   clienteId: opcionalVacio(z.string().uuid()),
   estado: opcionalVacio(z.enum(PEDIDO_ESTADOS)),
+  /** Con clienteId y sin fecha: últimos pedidos del restaurante (no solo el día). */
+  historial: opcionalVacio(
+    z.enum(["1", "true"]).transform(() => true as const),
+  ),
 });
 
 export type ListarPedidosQuery = z.infer<typeof listarPedidosQuerySchema>;

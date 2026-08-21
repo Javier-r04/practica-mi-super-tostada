@@ -86,6 +86,15 @@ describe("listarPedidosQuerySchema", () => {
       estado: "CONFIRMADO",
     });
     expect(
+      listarPedidosQuerySchema.parse({
+        clienteId,
+        historial: "1",
+      }),
+    ).toEqual({
+      clienteId,
+      historial: true,
+    });
+    expect(
       listarPedidosQuerySchema.safeParse({ estado: "CANCELADO" }).success,
     ).toBe(false);
   });

@@ -227,17 +227,20 @@ export class PedidoService {
 
   async listar(actor: Actor, query: unknown): Promise<PedidoBandeja[]> {
     const input = parseBody(listarPedidosQuerySchema, query);
-    const fechaOperacion =
-      input.fechaOperacion ??
-      (await this.fechaCapturaPanel(actor.organizacionId));
-    const filtros = [
-      eq(pedido.organizacionId, actor.organizacionId),
-      eq(pedido.fechaOperacion, fechaOperacion),
-    ];
+    /** Historial: cliente + flag, sin fecha → últimos pedidos de ese restaurante. */
+    const historialCliente =
+      Boolean(input.clienteId) && !input.fechaOperacion && input.historial === true;
+    const filtros = [eq(pedido.organizacionId, actor.organizacionId)];
+    if (input.fechaOperacion) {
+      filtros.push(eq(pedido.fechaOperacion, input.fechaOperacion));
+    } else if (!historialCliente) {
+      const fechaOperacion = await this.fechaCapturaPanel(actor.organizacionId);
+      filtros.push(eq(pedido.fechaOperacion, fechaOperacion));
+    }
     if (input.clienteId) filtros.push(eq(pedido.clienteId, input.clienteId));
     if (input.estado) filtros.push(eq(pedido.estado, input.estado));
 
-    const rows = await this.db
+    const base = this.db
       .select({
         id: pedido.id,
         correlativo: pedido.correlativo,
@@ -252,8 +255,13 @@ export class PedidoService {
       })
       .from(pedido)
       .innerJoin(cliente, eq(cliente.id, pedido.clienteId))
-      .where(and(...filtros))
-      .orderBy(desc(pedido.correlativo));
+      .where(and(...filtros));
+
+    const rows = historialCliente
+      ? await base
+          .orderBy(desc(pedido.fechaOperacion), desc(pedido.correlativo))
+          .limit(80)
+      : await base.orderBy(desc(pedido.correlativo));
 
     const ids = rows.map((r) => r.id);
     const totales = new Map<string, number>();
