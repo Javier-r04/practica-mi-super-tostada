@@ -7,7 +7,11 @@ import { AssetsService } from "./assets.service";
 import { AssetVariantsJob } from "./variants.job";
 import { FakeStorageAdapter } from "./fake.storage";
 import { PasswordService } from "../../identity/password.service";
-import { openTestDb, postgresListo } from "../../../test/db";
+import {
+  crearOrgDePrueba,
+  openTestDb,
+  postgresListo,
+} from "../../../test/db";
 import type { Actor } from "../../identity/actor";
 
 const listo = await postgresListo();
@@ -34,10 +38,7 @@ describe.skipIf(!listo)("AssetsService", () => {
       .png()
       .toBuffer();
 
-    const [org] = await db
-      .insert(organizacion)
-      .values({ nombre: `org-asset-${crypto.randomUUID()}` })
-      .returning({ id: organizacion.id });
+    const org = await crearOrgDePrueba(db, "org-asset-");
     const [user] = await db
       .insert(usuario)
       .values({

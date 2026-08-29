@@ -5,12 +5,22 @@ import { OutboxProcessor } from "./outbox.processor";
 import type { OutboxDispatcher, OutboxRow } from "./outbox.dispatcher";
 import { openTestDb, postgresListo } from "../../test/db";
 
+/**
+ * Dispatcher acotado a UN tipo irrepetible por corrida.
+ *
+ * La BD de test es compartida y el outbox es append-only: filas de corridas
+ * anteriores siguen ahí en PENDIENTE. Un dispatcher que acepte todo `test.*`
+ * hace que `idsPendientes` devuelva la basura vieja y el test dependa de que
+ * alguien haya truncado la tabla.
+ */
 class RecordingDispatcher implements OutboxDispatcher {
   calls: string[] = [];
   unique = new Set<string>();
 
-  canHandle(tipo: string): boolean {
-    return tipo.startsWith("test.");
+  constructor(readonly tipo: string) {}
+
+  tipos(): readonly string[] {
+    return [this.tipo];
   }
 
   async dispatch(row: OutboxRow): Promise<void> {
@@ -19,12 +29,18 @@ class RecordingDispatcher implements OutboxDispatcher {
   }
 }
 
+/** Tipo único por corrida: aísla el test de las filas ya acumuladas. */
+function tipoUnico(nombre: string): string {
+  return `test.${nombre}.${crypto.randomUUID()}`;
+}
+
 const listo = await postgresListo();
 
 describe.skipIf(!listo)("OutboxProcessor", () => {
   test("reinicio tras despachar y antes de marcar ENVIADO no duplica el efecto", async () => {
     const { client, db } = openTestDb();
-    const dispatcher = new RecordingDispatcher();
+    const tipo = tipoUnico("reinicio");
+    const dispatcher = new RecordingDispatcher(tipo);
     let crash = true;
     const processor = new OutboxProcessor(db, dispatcher);
     processor.afterDispatch = async () => {
@@ -37,7 +53,7 @@ describe.skipIf(!listo)("OutboxProcessor", () => {
     const [inserted] = await db
       .insert(outbox)
       .values({
-        tipo: "test.reinicio",
+        tipo,
         destinatarioId: crypto.randomUUID(),
         fechaOperacion: "2026-08-21",
         payload: { n: 1 },
@@ -67,13 +83,14 @@ describe.skipIf(!listo)("OutboxProcessor", () => {
 
   test("si el proceso muere antes de despachar, el mensaje no se pierde", async () => {
     const { client, db } = openTestDb();
-    const dispatcher = new RecordingDispatcher();
+    const tipo = tipoUnico("no-perdida");
+    const dispatcher = new RecordingDispatcher(tipo);
     const processor = new OutboxProcessor(db, dispatcher);
 
     const [inserted] = await db
       .insert(outbox)
       .values({
-        tipo: "test.no-perdida",
+        tipo,
         destinatarioId: crypto.randomUUID(),
         fechaOperacion: "2026-08-22",
         payload: { n: 1 },
@@ -82,8 +99,8 @@ describe.skipIf(!listo)("OutboxProcessor", () => {
     const id = inserted!.id;
 
     try {
-      const pending = await processor.idsPendientes();
-      expect(pending).toContain(id);
+      // Con el dispatcher acotado, la pendiente es exactamente esta fila.
+      expect(await processor.idsPendientes()).toEqual([id]);
 
       const result = await processor.processRow(id);
       expect(result).toBe("enviado");

@@ -1,10 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { outbox } from "@misupertostada/db";
 import { DRIZZLE } from "./tokens";
 import type { AppDatabase } from "./database.module";
 import {
   OUTBOX_DISPATCHER,
+  puedeDespachar,
   type OutboxDispatcher,
 } from "./outbox.dispatcher";
 
@@ -41,7 +42,7 @@ export class OutboxProcessor {
     if (!row) return "no_encontrado";
     if (row.estado === "ENVIADO") return "ya_enviado";
     if (row.estado === "ERROR") return "error";
-    if (!this.dispatcher.canHandle(row.tipo)) return "sin_handler";
+    if (!puedeDespachar(this.dispatcher, row.tipo)) return "sin_handler";
 
     try {
       await this.dispatcher.dispatch(row);
@@ -64,26 +65,26 @@ export class OutboxProcessor {
     return "enviado";
   }
 
+  /**
+   * Las pendientes más antiguas que ALGÚN handler sabe despachar.
+   *
+   * El filtro por tipo va en el `WHERE`: paginar el backlog para descartarlo
+   * en memoria costaba una barrida completa cada vez que los tipos pendientes
+   * no tenían handler —y esas filas se quedan en PENDIENTE para siempre, así
+   * que el backlog solo crece.
+   */
   async idsPendientes(limit = 50): Promise<string[]> {
-    const ids: string[] = [];
-    let offset = 0;
-    const batchSize = 100;
-    while (ids.length < limit) {
-      const rows = await this.db
-        .select({ id: outbox.id, tipo: outbox.tipo })
-        .from(outbox)
-        .where(eq(outbox.estado, "PENDIENTE"))
-        .orderBy(asc(outbox.createdAt))
-        .limit(batchSize)
-        .offset(offset);
-      if (rows.length === 0) break;
-      offset += rows.length;
-      for (const row of rows) {
-        if (!this.dispatcher.canHandle(row.tipo)) continue;
-        ids.push(row.id);
-        if (ids.length >= limit) break;
-      }
-    }
-    return ids;
+    const tipos = this.dispatcher.tipos();
+    if (tipos.length === 0) return [];
+
+    const rows = await this.db
+      .select({ id: outbox.id })
+      .from(outbox)
+      .where(
+        and(eq(outbox.estado, "PENDIENTE"), inArray(outbox.tipo, [...tipos])),
+      )
+      .orderBy(asc(outbox.createdAt))
+      .limit(limit);
+    return rows.map((r) => r.id);
   }
 }

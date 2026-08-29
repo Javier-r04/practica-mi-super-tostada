@@ -2,13 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq, sql } from "drizzle-orm";
 import postgres from "postgres";
-import { outbox } from "@misupertostada/db";
+import { outbox, testDatabaseUrl } from "@misupertostada/db";
 import { OutboxWriter } from "./outbox.writer";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = testDatabaseUrl();
 
 async function outboxListo(): Promise<boolean> {
-  if (!databaseUrl) return false;
   const client = postgres(databaseUrl, { max: 1, connect_timeout: 2 });
   try {
     await client`select 1 from outbox limit 1`;
