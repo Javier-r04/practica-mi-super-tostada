@@ -86,7 +86,15 @@ export function congelarSnapshots(
   });
 }
 
-export function ventanaCerrada(proxima: Date): DomainException {
+/**
+ * `proxima` es `null` cuando no hay horario configurado en `ventana_semanal`:
+ * no hay apertura que prometer, así que el mensaje se queda en el genérico en
+ * vez de inventar una fecha.
+ */
+export function ventanaCerrada(proxima: Date | null): DomainException {
+  if (!proxima) {
+    return new DomainException("VENTANA_CERRADA", MENSAJE_VENTANA_CERRADA, 409);
+  }
   const fechaLarga = formatearFechaLarga(fechaDeInstante(proxima));
   const hora = horaEnZona(proxima);
   return new DomainException(

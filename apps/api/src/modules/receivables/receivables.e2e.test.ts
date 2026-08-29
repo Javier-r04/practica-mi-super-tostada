@@ -23,7 +23,11 @@ import { OutboxWriter } from "../shared/outbox.writer";
 import { DomainEventWriter } from "../shared/domain-event.writer";
 import { BusinessCalendarService } from "../shared/calendar.service";
 import { PedidoEvents } from "../shared/panel-events";
-import { openTestDb, postgresListo } from "../../test/db";
+import {
+  crearOrgDePrueba,
+  openTestDb,
+  postgresListo,
+} from "../../test/db";
 import type { Actor } from "../identity/actor";
 import { ProductosService } from "../catalog/productos.service";
 import { ClientesService } from "../catalog/clientes.service";
@@ -106,10 +110,7 @@ async function fixture(clock: Clock) {
   const cartera = new CarteraService(db, calendar);
   const portal = new PortalService(db, audit, calendar, pedidos);
 
-  const [org] = await db
-    .insert(organizacion)
-    .values({ nombre: `org-e5-${crypto.randomUUID()}` })
-    .returning({ id: organizacion.id });
+  const org = await crearOrgDePrueba(db, "org-e5-");
 
   async function alta(
     rol: Actor["rol"],
@@ -394,14 +395,47 @@ describe.skipIf(!listo)("E5 cobranza", () => {
   });
 
   test("F-403 PRODUCCION POST entregar → 403; GET ruta → 200", async () => {
-    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
+    const f = await fixture(clock);
     try {
       const { pedido: p } = await catalogo(f);
       await expect(
         f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorProduccion),
       ).rejects.toMatchObject({ code: "PERMISO_DENEGADO", httpStatus: 403 });
+      // La ruta es del día de calle: el pedido del jueves sale el viernes.
+      clock.set(instanteGT("2026-08-21T08:00:00"));
       const ruta = await f.entregas.ruta({}, f.actorProduccion);
       expect(ruta.paradas.length).toBeGreaterThan(0);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("la ruta sin filtro es el DÍA DE CALLE, no la ventana", async () => {
+    // Jueves 20 a las 22:00: la ventana del jueves está abierta y recibe
+    // pedidos que salen el viernes. Hoy en la calle no hay nada de eso.
+    const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
+    const f = await fixture(clock);
+    try {
+      await catalogo(f);
+      const jueves = await f.entregas.ruta({}, f.actor);
+      expect(jueves.fechaEntrega).toBe("2026-08-20");
+      expect(jueves.paradas.length).toBe(0);
+
+      // Viernes 21 a las 08:00: se reparte la operación del jueves.
+      clock.set(instanteGT("2026-08-21T08:00:00"));
+      const manana = await f.entregas.ruta({}, f.actor);
+      expect(manana.fechaEntrega).toBe("2026-08-21");
+      expect(manana.fechaOperacion).toBe("2026-08-20");
+      expect(manana.paradas.length).toBeGreaterThan(0);
+
+      // Viernes 21 a las 15:00: abre la ventana siguiente. La ruta NO salta:
+      // Tony sigue en la calle con la misma carga. Ese salto era el bug.
+      clock.set(instanteGT("2026-08-21T15:30:00"));
+      const tarde = await f.entregas.ruta({}, f.actor);
+      expect(tarde.fechaEntrega).toBe("2026-08-21");
+      expect(tarde.fechaOperacion).toBe("2026-08-20");
+      expect(tarde.paradas.length).toBe(manana.paradas.length);
     } finally {
       await f.client.end({ timeout: 1 });
     }
@@ -842,6 +876,68 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       expect(alertas).toHaveLength(0);
       const resumen = await f.cartera.resumen(f.actor, {});
       expect(resumen.pendientesCount).toBe(1);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("el cobro de la cartera sigue la fecha consultada, no el reloj", async () => {
+    // Jueves 20 22:00: se captura y cierra la operación del jueves.
+    const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
+    const f = await fixture(clock);
+    try {
+      const { pedido: p } = await catalogo(f, {
+        precioCentavos: 10000,
+        cantidad: 1,
+      });
+      // Viernes 21: sale a la calle, se entrega y se cobra.
+      clock.set(instanteGT("2026-08-21T09:00:00"));
+      const e = await f.entregas.entregar(
+        { idempotencyKey: crypto.randomUUID(), pedidoId: p.id },
+        f.actorReparto,
+      );
+      await f.pagos.registrar(
+        {
+          id: crypto.randomUUID(),
+          idempotencyKey: `cobro-${crypto.randomUUID()}`,
+          facturaId: e.factura.id,
+          montoCentavos: 10000,
+          metodo: "EFECTIVO",
+        },
+        f.actorReparto,
+      );
+
+      // Viernes 16:00: abre la ventana del viernes. El foco salta a esa
+      // captura, pero el cobro NO: sigue siendo el del día de calle. Derivarlo
+      // del foco mandaba «Cobrado hoy» a Q0 a media tarde y lo dejaba en
+      // desacuerdo con el cuadre del día, que siempre usó el eje de día de calendario.
+      clock.set(instanteGT("2026-08-21T16:00:00"));
+      const tarde = await f.cartera.resumen(f.actor, {});
+      expect(tarde.fechaCobro).toBe("2026-08-21");
+      expect(tarde.cobradoHoyCentavos).toBe(10000);
+      const cuadre = await f.cartera.cuadre(f.actor, {});
+      expect(cuadre.fecha).toBe(tarde.fechaCobro!);
+      expect(cuadre.totalCentavos).toBe(tarde.cobradoHoyCentavos);
+
+      clock.set(instanteGT("2026-08-21T09:30:00"));
+      const mismoDia = await f.cartera.resumen(f.actor, {
+        fechaOperacion: "2026-08-20",
+      });
+      expect(mismoDia.fechaCobro).toBe("2026-08-21");
+      expect(mismoDia.cobradoHoyCentavos).toBe(10000);
+
+      // Lunes 24: abrir la operación del jueves NO debe mostrar el cobro de
+      // hoy, sino el del día en que esa operación salió a la calle.
+      clock.set(instanteGT("2026-08-24T10:00:00"));
+      const desdeElLunes = await f.cartera.resumen(f.actor, {
+        fechaOperacion: "2026-08-20",
+      });
+      expect(desdeElLunes.fechaCobro).toBe("2026-08-21");
+      expect(desdeElLunes.cobradoHoyCentavos).toBe(10000);
+
+      // Y el resumen sin filtro, ese lunes, no arrastra el cobro del viernes.
+      const hoyLunes = await f.cartera.resumen(f.actor, {});
+      expect(hoyLunes.cobradoHoyCentavos).toBe(0);
     } finally {
       await f.client.end({ timeout: 1 });
     }

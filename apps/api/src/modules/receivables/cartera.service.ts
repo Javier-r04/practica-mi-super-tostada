@@ -186,10 +186,18 @@ export class CarteraService {
 
   async resumen(actor: Actor, query: unknown): Promise<CarteraResumen> {
     const q = parseBody(carteraQuerySchema, query ?? {});
-    const cal = await this.calendar.load();
-    const now = this.calendar.now();
-    const fechaOp = q.fechaOperacion ?? cal.getFechaOperacion(now);
-    const hoy = fechaDeInstante(now);
+    const cal = await this.calendar.load(actor.organizacionId);
+    const ejes = await this.calendar.ejes(actor.organizacionId);
+    // Sin filtro, la cartera mira la operación que se está cobrando hoy.
+    const fechaOp = q.fechaOperacion ?? ejes.fechaFoco;
+    // El cobro vive en el eje de día de calendario. Con una operación explícita es el día de
+    // calle de ESA operación (si no, abrir una pasada mostraría lo de hoy).
+    // Sin filtro es hoy a secas: derivarlo del foco hacía que a las 15:01
+    // «Cobrado hoy» se fuera a Q0 —el foco salta a la ventana que abre, cuya
+    // entrega es mañana— y contradijera al cuadre del día, que sí usa día de calendario.
+    const diaCobro = q.fechaOperacion
+      ? cal.getFechaEntrega(q.fechaOperacion)
+      : ejes.hoyCivil;
 
     const [pend] = await this.db
       .select({
@@ -213,7 +221,10 @@ export class CarteraService {
       .innerJoin(factura, eq(factura.id, pago.facturaId))
       .innerJoin(pedido, eq(pedido.id, factura.pedidoId))
       .where(
-        and(eq(pedido.organizacionId, actor.organizacionId), eq(pago.fecha, hoy)),
+        and(
+          eq(pedido.organizacionId, actor.organizacionId),
+          eq(pago.fecha, diaCobro),
+        ),
       );
 
     const [porCobrar] = await this.db
@@ -260,6 +271,7 @@ export class CarteraService {
       pendientesCount: Number(pend?.count ?? 0),
       pendientesSaldoCentavos: Number(pend?.saldo ?? 0),
       cobradoHoyCentavos: Number(cobrado?.total ?? 0),
+      fechaCobro: diaCobro,
       porCobrarFechaOperacionCentavos: Number(porCobrar?.saldo ?? 0),
       clientesSobreLimite: sobre
         .filter((c) => c.limite != null)

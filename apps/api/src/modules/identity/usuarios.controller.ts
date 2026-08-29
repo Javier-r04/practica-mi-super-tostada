@@ -19,8 +19,8 @@ export class UsuariosController {
 
   @Get()
   @RequierePermiso("usuarios.gestionar")
-  async listar() {
-    return envelopeOk(await this.usuarios.listar());
+  async listar(@CurrentActor() actor: Actor) {
+    return envelopeOk(await this.usuarios.listar(actor.organizacionId));
   }
 
   @Post()
@@ -47,5 +47,36 @@ export class UsuariosController {
   ) {
     await this.usuarios.desactivar(id, actor);
     return envelopeOk({ ok: true as const });
+  }
+
+  @Patch(":id/activar")
+  @RequierePermiso("usuarios.gestionar")
+  async activar(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.usuarios.activar(id, body, actor));
+  }
+
+  @Patch(":id/password")
+  @RequierePermiso("usuarios.gestionar")
+  async password(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @CurrentActor() actor: Actor,
+  ) {
+    await this.usuarios.resetPassword(id, body, actor);
+    return envelopeOk({ ok: true as const });
+  }
+
+  @Patch(":id/rol")
+  @RequierePermiso("usuarios.gestionar")
+  async rol(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.usuarios.cambiarRol(id, body, actor));
   }
 }

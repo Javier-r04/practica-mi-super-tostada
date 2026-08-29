@@ -20,7 +20,11 @@ import {
 import { AuditWriter } from "../shared/audit.writer";
 import { OutboxWriter } from "../shared/outbox.writer";
 import { BusinessCalendarService } from "../shared/calendar.service";
-import { openTestDb, postgresListo } from "../../test/db";
+import {
+  crearOrgDePrueba,
+  openTestDb,
+  postgresListo,
+} from "../../test/db";
 import type { Actor } from "../identity/actor";
 import { ProductosService } from "../catalog/productos.service";
 import { ClientesService } from "../catalog/clientes.service";
@@ -58,10 +62,7 @@ async function fixture(clock: Clock) {
   const ligas = new ClienteProductoService(db, audit, clientes);
   const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
 
-  const [org] = await db
-    .insert(organizacion)
-    .values({ nombre: `org-e3-${crypto.randomUUID()}` })
-    .returning({ id: organizacion.id });
+  const org = await crearOrgDePrueba(db, "org-e3-");
 
   const username = `cristian-${crypto.randomUUID().slice(0, 8)}`;
   const [jefe] = await db
@@ -207,7 +208,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
         },
         f.actor,
       );
-      expect(deHoy.fechaOperacion).toBe("2026-08-21");
+      expect(deHoy.fechaOperacion).toBe("2026-08-20");
 
       const otroCliente = await f.pedidos.crearManual(
         {
@@ -218,7 +219,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
       );
 
       clock.set(instanteGT("2026-08-21T10:00:00"));
-      await f.pedidos.crearManual(
+      const del21 = await f.pedidos.crearManual(
         {
           clienteId: cli.id,
           items: [{ productoId: tortilla.id, cantidad: 5 }],
@@ -228,7 +229,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
 
       clock.set(instanteGT("2026-08-20T10:00:00"));
       const porDefecto = await f.pedidos.listar(f.actor, {});
-      expect(porDefecto.every((p) => p.fechaOperacion === "2026-08-21")).toBe(
+      expect(porDefecto.every((p) => p.fechaOperacion === "2026-08-20")).toBe(
         true,
       );
       expect(porDefecto.map((p) => p.id).sort()).toEqual(
@@ -238,6 +239,14 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
       const porCliente = await f.pedidos.listar(f.actor, { clienteId: cli.id });
       expect(porCliente).toHaveLength(1);
       expect(porCliente[0]?.id).toBe(deHoy.id);
+
+      const rango = await f.pedidos.listar(f.actor, {
+        desde: "2026-08-20",
+        hasta: "2026-08-21",
+      });
+      expect(rango.map((p) => p.id).sort()).toEqual(
+        [deHoy.id, otroCliente.id, del21.id].sort(),
+      );
 
       await f.pedidos.anular(deHoy.id, { motivo: "Duplicado de llamada" }, f.actor);
       const anulados = await f.pedidos.listar(f.actor, { estado: "ANULADO" });
@@ -279,7 +288,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
       );
 
       const bandeja = await f.pedidos.listar(f.actor, {
-        fechaOperacion: "2026-08-21",
+        fechaOperacion: "2026-08-20",
         clienteId: cli.id,
       });
       expect(bandeja).toHaveLength(3);
@@ -288,7 +297,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
       expect(bandeja.filter((p) => p.origen === "MANUAL")).toHaveLength(2);
       expect(portal.correlativo).not.toBe(manual1.correlativo);
       expect(manual1.correlativo).not.toBe(manual2.correlativo);
-      expect(bandeja.every((p) => p.fechaOperacion === "2026-08-21")).toBe(true);
+      expect(bandeja.every((p) => p.fechaOperacion === "2026-08-20")).toBe(true);
 
       const outboxFilas = await f.db
         .select()
@@ -297,7 +306,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
           and(
             eq(outbox.tipo, "PedidoConfirmado"),
             eq(outbox.destinatarioId, cli.id),
-            eq(outbox.fechaOperacion, "2026-08-21"),
+            eq(outbox.fechaOperacion, "2026-08-20"),
           ),
         );
       expect(outboxFilas).toHaveLength(1);
@@ -323,7 +332,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
       expect(creado.estado).toBe("CONFIRMADO");
       expect(creado.origen).toBe("MANUAL");
       expect(creado.capturadoPor).toBe(f.actor.usuarioId);
-      expect(creado.fechaOperacion).toBe("2026-08-21");
+      expect(creado.fechaOperacion).toBe("2026-08-20");
       expect(creado.totalCentavos).toBe(20 * 1250);
     } finally {
       await f.client.end({ timeout: 1 });
@@ -448,6 +457,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
       );
       expect(detalle.items[0]?.notaProduccion).toBe("GRUESAS");
       expect(detalle.items[0]?.puntoCarga).toBe("DEMOCRACIA");
+      expect(detalle.items[0]?.nombreCanonico).toBe("Tortilla No. 16 (grande)");
 
       const notas = await f.pedidos.editarNotas(
         creado.id,
@@ -463,7 +473,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
   });
 
   test("sábado: punto de carga efectivo es PLANTA aunque el SKU sea DEMOCRACIA", async () => {
-    const f = await fixture(fixedClock(instanteGT("2026-08-21T10:00:00")));
+    const f = await fixture(fixedClock(instanteGT("2026-08-22T10:00:00")));
     try {
       const { tortilla, cli } = await catalogoTienda6(f);
       const creado = await f.pedidos.crearManual(
@@ -550,6 +560,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
           organizacionId: f.orgId,
           correlativo: 90,
           fechaOperacion: "2026-08-21",
+          fechaEntrega: "2026-08-22",
           clienteId: cli.id,
           estado: "ENTREGADO",
           origen: "MANUAL",
@@ -612,7 +623,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
         "pedido.anulado",
       ]);
       expect(vistos.every((e) => e.pedidoId === creado.id)).toBe(true);
-      expect(vistos.every((e) => e.fechaOperacion === "2026-08-21")).toBe(true);
+      expect(vistos.every((e) => e.fechaOperacion === "2026-08-20")).toBe(true);
     } finally {
       await f.client.end({ timeout: 1 });
     }

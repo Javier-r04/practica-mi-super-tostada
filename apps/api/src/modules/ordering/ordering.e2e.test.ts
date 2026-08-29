@@ -13,10 +13,12 @@ import {
   pedidoItem,
   producto,
   usuario,
+  ventanaSemanal,
 } from "@misupertostada/db";
 import {
   MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO,
   MENSAJE_PORTAL_NO_ENCONTRADO,
+  WEEKDAYS_ISO,
   ZONA_NEGOCIO,
   fixedClock,
   permisosEfectivos,
@@ -28,7 +30,11 @@ import { BusinessCalendarService } from "../shared/calendar.service";
 import { AssetsService } from "../shared/storage/assets.service";
 import { AssetVariantsJob } from "../shared/storage/variants.job";
 import { FakeStorageAdapter } from "../shared/storage/fake.storage";
-import { openTestDb, postgresListo } from "../../test/db";
+import {
+  crearOrgDePrueba,
+  openTestDb,
+  postgresListo,
+} from "../../test/db";
 import type { Actor } from "../identity/actor";
 import { ProductosService } from "../catalog/productos.service";
 import { ClientesService } from "../catalog/clientes.service";
@@ -37,6 +43,7 @@ import { PortalTokenService } from "./portal-token.service";
 import { PortalService } from "./portal.service";
 import { PedidoEvents } from "./pedido-events";
 import { PedidoService } from "./pedido.service";
+import { ConfiguracionService } from "../shared/configuracion.service";
 
 const listo = await postgresListo();
 
@@ -71,11 +78,9 @@ async function fixture(clock: Clock) {
   const variants = new AssetVariantsJob(db, storage);
   const assets = new AssetsService(db, storage, variants);
   const portal = new PortalService(db, audit, calendar, pedidos, assets);
+  const cfg = new ConfiguracionService(db, audit, calendar);
 
-  const [org] = await db
-    .insert(organizacion)
-    .values({ nombre: `org-e2-${crypto.randomUUID()}` })
-    .returning({ id: organizacion.id });
+  const org = await crearOrgDePrueba(db, "org-e2-");
 
   const username = `jefe-${crypto.randomUUID().slice(0, 8)}`;
   const [jefe] = await db
@@ -111,6 +116,7 @@ async function fixture(clock: Clock) {
     pedidos,
     portal,
     calendar,
+    cfg,
     assets,
     storage,
   };
@@ -191,6 +197,353 @@ describe.skipIf(!listo)("portal E2", () => {
     }
   });
 
+  test("sábado 02:00 con cierre viernes→sábado 06:00 es operación del viernes", async () => {
+    const clock = relojControlado(instanteGT("2026-08-22T02:00:00"));
+    const f = await fixture(clock);
+    try {
+      // La organización ya nace con su horario sembrado; aquí solo se cambia
+      // el cierre para probar una ventana más larga de lo normal.
+      await f.db
+        .update(ventanaSemanal)
+        .set({ cierre: "00:00" })
+        .where(eq(ventanaSemanal.organizacionId, f.orgId));
+      await f.db
+        .update(ventanaSemanal)
+        .set({ cierre: "06:00" })
+        .where(
+          and(
+            eq(ventanaSemanal.organizacionId, f.orgId),
+            eq(ventanaSemanal.weekday, 5),
+          ),
+        );
+      const cli = await f.clientes.crear(
+        { nombre: `Madrugada ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+      const sesion = await f.portal.abrirSesion(clienteRow, meta);
+      expect(sesion.ventana.abierta).toBe(true);
+      expect(sesion.ventana.fechaOperacion).toBe("2026-08-21");
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("01:30 del martes: el portal ACEPTA y lo guarda como operación del lunes", async () => {
+    // El bug que motivó todo esto: con el cierre a medianoche que traía el
+    // fallback, este pedido se rechazaba. Con `ventana_semanal` como única
+    // fuente, la madrugada pertenece a la ventana que abrió el lunes.
+    const clock = relojControlado(instanteGT("2026-08-25T01:30:00"));
+    const f = await fixture(clock);
+    try {
+      const tortilla = await f.productos.crear(
+        {
+          sku: `T-MAD-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla de madrugada",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "PLANTA",
+          precioBaseCentavos: 1000,
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `Madrugada ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(
+        cli.id,
+        tortilla.id,
+        { alias: "tortilla de madrugada", precioCentavos: 1000 },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+
+      const sesion = await f.portal.abrirSesion(clienteRow, meta);
+      expect(sesion.ventana.abierta).toBe(true);
+      expect(sesion.ventana.fechaOperacion).toBe("2026-08-24");
+
+      const creado = await f.pedidos.upsertPortal(
+        clienteRow,
+        { items: [{ productoId: tortilla.id, cantidad: 5 }] },
+        meta,
+      );
+      expect(creado.fechaOperacion).toBe("2026-08-24");
+
+      const [fila] = await f.db
+        .select()
+        .from(pedido)
+        .where(eq(pedido.id, creado.id));
+      expect(fila?.fechaOperacion).toBe("2026-08-24");
+      // Y se reparte el martes, el día de calendario en el que ya estamos.
+      expect(fila?.fechaEntrega).toBe("2026-08-25");
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("ventana lunes→martes 03:00: el pedido de la madrugada se entrega el martes", async () => {
+    // 01:30 del martes 25, dentro de la ventana que abrió el lunes 24 a las 15:00.
+    const clock = relojControlado(instanteGT("2026-08-25T01:30:00"));
+    const f = await fixture(clock);
+    try {
+      const tortilla = await f.productos.crear(
+        {
+          sku: `T-ENT-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla de entrega",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "PLANTA",
+          precioBaseCentavos: 1000,
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `Entrega ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(
+        cli.id,
+        tortilla.id,
+        { alias: "tortilla de entrega", precioCentavos: 1000 },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+
+      const sesion = await f.portal.abrirSesion(clienteRow, meta);
+      expect(sesion.ventana.abierta).toBe(true);
+      expect(sesion.ventana.fechaOperacion).toBe("2026-08-24");
+      expect(sesion.ventana.fechaEntrega).toBe("2026-08-25");
+
+      const confirmado = await f.pedidos.upsertPortal(
+        clienteRow,
+        { items: [{ productoId: tortilla.id, cantidad: 5 }] },
+        meta,
+      );
+      expect(confirmado.fechaOperacion).toBe("2026-08-24");
+      expect(confirmado.fechaEntrega).toBe("2026-08-25");
+      expect(confirmado.textoConfirmacion).toContain("Martes 25 de agosto");
+
+      // Congelada: reconfigurar la ventana no reescribe la entrega ya guardada.
+      await f.cfg.guardarVentana(
+        {
+          dias: WEEKDAYS_ISO.map((weekday) => ({
+            weekday,
+            activa: true,
+            apertura: "15:00",
+            cierre: "03:00",
+            cruzaMedianoche: true,
+          })),
+        },
+        f.actor,
+      );
+      const [fila] = await f.db
+        .select({ fechaEntrega: pedido.fechaEntrega })
+        .from(pedido)
+        .where(eq(pedido.id, confirmado.id));
+      expect(fila?.fechaEntrega).toBe("2026-08-25");
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("ventana del sábado con domingo inactivo entrega el lunes", async () => {
+    // 02:00 del domingo 23, dentro de la ventana que abrió el sábado 22.
+    const clock = relojControlado(instanteGT("2026-08-23T02:00:00"));
+    const f = await fixture(clock);
+    try {
+      const cli = await f.clientes.crear(
+        { nombre: `Sábado ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+      const sesion = await f.portal.abrirSesion(clienteRow, meta);
+      expect(sesion.ventana.fechaOperacion).toBe("2026-08-22");
+      expect(sesion.ventana.fechaEntrega).toBe("2026-08-24");
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("cambiar el cierre en /configuracion mueve calendario y portal a la vez", async () => {
+    // 02:00 del jueves: dentro de la ventana que abrió el miércoles y cierra a
+    // las 03:00. Si adelantamos el cierre a la 01:00, esa misma ventana pasa a
+    // estar cerrada — y las tres superficies tienen que decir lo mismo, porque
+    // leen la misma tabla.
+    const now = instanteGT("2026-08-20T02:00:00");
+    const f = await fixture(fixedClock(now));
+    try {
+      const cli = await f.clientes.crear(
+        { nombre: `Cambio ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+
+      const tortilla = await f.productos.crear(
+        {
+          sku: `T-CFG-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla de configuración",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "PLANTA",
+          precioBaseCentavos: 1000,
+        },
+        f.actor,
+      );
+      await f.ligas.upsert(
+        cli.id,
+        tortilla.id,
+        { alias: "tortilla", precioCentavos: 1000 },
+        f.actor,
+      );
+
+      const antes = await f.portal.abrirSesion(clienteRow, meta);
+      expect(antes.ventana.abierta).toBe(true);
+      expect(antes.ventana.fechaOperacion).toBe("2026-08-19");
+
+      await f.cfg.guardarVentana(
+        {
+          dias: WEEKDAYS_ISO.map((weekday) => ({
+            weekday,
+            activa: weekday !== 7,
+            apertura: "15:00",
+            cierre: "01:00",
+            cruzaMedianoche: true,
+          })),
+        },
+        f.actor,
+      );
+
+      // 1. Lo que devuelve /configuracion.
+      const leido = await f.cfg.leerVentana(f.orgId);
+      expect(leido.dias.every((d) => d.cierre === "01:00")).toBe(true);
+
+      // 2. El motor de calendario, que es lo que ve el badge del panel.
+      const cal = await f.calendar.load(f.orgId);
+      expect(cal.isVentanaAbierta(now)).toBe(false);
+      expect(cal.getHorarioReferencia(now)).toEqual({
+        apertura: "15:00",
+        cierre: "01:00",
+      });
+
+      // 3. El portal, que valida en servidor con el mismo calendario.
+      const despues = await f.portal.abrirSesion(clienteRow, meta);
+      expect(despues.ventana.abierta).toBe(false);
+      await expect(
+        f.pedidos.upsertPortal(
+          clienteRow,
+          { items: [{ productoId: tortilla.id, cantidad: 5 }] },
+          meta,
+        ),
+      ).rejects.toMatchObject({ code: "VENTANA_CERRADA" });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("apagar un weekday recalcula la entrega de las operaciones nuevas", async () => {
+    // Jueves 16:00: la operación del jueves entrega el viernes. Si el viernes
+    // se apaga, la siguiente operación tiene que saltar al sábado.
+    const now = instanteGT("2026-08-20T16:00:00");
+    const f = await fixture(fixedClock(now));
+    try {
+      const calAntes = await f.calendar.load(f.orgId);
+      expect(calAntes.getFechaEntrega("2026-08-20")).toBe("2026-08-21");
+
+      await f.cfg.guardarVentana(
+        {
+          dias: WEEKDAYS_ISO.map((weekday) => ({
+            weekday,
+            activa: weekday !== 7 && weekday !== 5,
+            apertura: "15:00",
+            cierre: "03:00",
+            cruzaMedianoche: true,
+          })),
+        },
+        f.actor,
+      );
+
+      const calDespues = await f.calendar.load(f.orgId);
+      expect(calDespues.isDiaNoLaborable("2026-08-21")).toBe(true);
+      expect(calDespues.getFechaEntrega("2026-08-20")).toBe("2026-08-22");
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("guardar rellena las filas que faltan, sin reabrir el ciclo en curso", async () => {
+    // Sin fallback, una organización sin filas tiene la semana apagada. Guardar
+    // desde /configuracion tiene que ser suficiente para salir de ahí.
+    const now = instanteGT("2026-08-20T16:00:00");
+    const f = await fixture(fixedClock(now));
+    try {
+      await f.db
+        .delete(ventanaSemanal)
+        .where(eq(ventanaSemanal.organizacionId, f.orgId));
+      expect((await f.calendar.load(f.orgId)).isVentanaAbierta(now)).toBe(false);
+
+      // El formulario propone el horario de fábrica; el admin solo confirma.
+      const propuesta = await f.cfg.leerVentana(f.orgId);
+      expect(propuesta.dias).toHaveLength(7);
+      await f.cfg.guardarVentana({ dias: propuesta.dias }, f.actor);
+
+      // El horario queda guardado y visible…
+      const cal = await f.calendar.load(f.orgId);
+      expect(cal.getHorarioReferencia(now)).toEqual({
+        apertura: "15:00",
+        cierre: "03:00",
+      });
+      const [orgRow] = await f.db
+        .select({ noAbrirHasta: organizacion.ventanaNoAbrirHasta })
+        .from(organizacion)
+        .where(eq(organizacion.id, f.orgId));
+      // …pero la guarda anti-reapertura se activa: a las 16:00 el ciclo de las
+      // 15:00 ya había empezado, así que configurar el horario NO lo reabre.
+      expect(orgRow?.noAbrirHasta).not.toBe(null);
+      expect(cal.isVentanaAbierta(now)).toBe(false);
+      expect(
+        (await f.calendar.load(f.orgId, { ignorarSupresion: true }))
+          .isVentanaAbierta(now),
+      ).toBe(true);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("adelantar apertura a las 11:00 a las 11:30 no abre el portal", async () => {
+    const clock = relojControlado(instanteGT("2026-08-20T11:30:00"));
+    const f = await fixture(clock);
+    try {
+      const cli = await f.clientes.crear(
+        { nombre: `Horario ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      await f.cfg.guardarVentana(
+        {
+          dias: WEEKDAYS_ISO.map((weekday) => ({
+            weekday,
+            activa: weekday !== 7,
+            apertura: "11:00",
+            cierre: "00:00",
+            cruzaMedianoche: true,
+          })),
+        },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+      const sesion = await f.portal.abrirSesion(clienteRow, meta);
+      expect(sesion.ventana.abierta).toBe(false);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
   test("14:59 rechaza; 15:00 confirma snapshot; edición no duplica pedido ni outbox", async () => {
     const clock = relojControlado(instanteGT("2026-08-20T14:59:00"));
     const f = await fixture(clock);
@@ -261,7 +614,7 @@ describe.skipIf(!listo)("portal E2", () => {
       clock.set(instanteGT("2026-08-20T15:00:00"));
       const sesionCerradaAntes = await f.portal.abrirSesion(clienteRow, meta);
       expect(sesionCerradaAntes.ventana.abierta).toBe(true);
-      expect(sesionCerradaAntes.ventana.fechaOperacion).toBe("2026-08-21");
+      expect(sesionCerradaAntes.ventana.fechaOperacion).toBe("2026-08-20");
       expect(
         sesionCerradaAntes.catalogo.find((p) => p.productoId === tortilla.id)
           ?.alias,
@@ -291,7 +644,7 @@ describe.skipIf(!listo)("portal E2", () => {
       );
       expect(confirmado.estado).toBe("CONFIRMADO");
       expect(confirmado.origen).toBe("PORTAL");
-      expect(confirmado.fechaOperacion).toBe("2026-08-21");
+      expect(confirmado.fechaOperacion).toBe("2026-08-20");
       expect(confirmado.totalCentavos).toBe(74500);
       expect(confirmado.items[0]?.precioUnitarioCentavos).toBe(1250);
       expect(JSON.stringify(confirmado)).not.toContain(token);
@@ -329,7 +682,7 @@ describe.skipIf(!listo)("portal E2", () => {
         .where(
           and(
             eq(pedido.clienteId, cli.id),
-            eq(pedido.fechaOperacion, "2026-08-21"),
+            eq(pedido.fechaOperacion, "2026-08-20"),
             eq(pedido.origen, "PORTAL"),
           ),
         );
@@ -342,7 +695,7 @@ describe.skipIf(!listo)("portal E2", () => {
           and(
             eq(outbox.tipo, "PedidoConfirmado"),
             eq(outbox.destinatarioId, cli.id),
-            eq(outbox.fechaOperacion, "2026-08-21"),
+            eq(outbox.fechaOperacion, "2026-08-20"),
           ),
         );
       expect(outboxFilas).toHaveLength(1);
@@ -364,7 +717,9 @@ describe.skipIf(!listo)("portal E2", () => {
         true,
       );
 
-      clock.set(instanteGT("2026-08-21T00:00:00"));
+      // A medianoche la ventana del jueves sigue viva (cierra a las 03:00);
+      // hay que pasarse del cierre real para verla cerrada.
+      clock.set(instanteGT("2026-08-21T03:00:00"));
       const sesionCerrada = await f.portal.abrirSesion(clienteRow, meta);
       expect(sesionCerrada.ventana.abierta).toBe(false);
       await expect(
@@ -413,6 +768,7 @@ describe.skipIf(!listo)("portal E2", () => {
           organizacionId: f.orgId,
           correlativo: 1,
           fechaOperacion: "2026-08-05",
+          fechaEntrega: "2026-08-06",
           clienteId: cli.id,
           estado: "ENTREGADO",
           origen: "MANUAL",
@@ -424,6 +780,7 @@ describe.skipIf(!listo)("portal E2", () => {
           organizacionId: f.orgId,
           correlativo: 2,
           fechaOperacion: "2026-08-01",
+          fechaEntrega: "2026-08-03",
           clienteId: cli.id,
           estado: "ENTREGADO",
           origen: "MANUAL",
@@ -500,7 +857,7 @@ describe.skipIf(!listo)("portal E2", () => {
       await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 1250 }, f.actor);
       await f.db.insert(diaOperacion).values({
         organizacionId: f.orgId,
-        fechaOperacion: "2026-08-21",
+        fechaOperacion: "2026-08-20",
         estado: "CERRADO",
       });
       const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
@@ -514,6 +871,65 @@ describe.skipIf(!listo)("portal E2", () => {
           meta,
         ),
       ).rejects.toMatchObject({ code: "DIA_CERRADO", httpStatus: 409 });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("portal sigue abierto cuando el admin reabre el día fuera de horario", async () => {
+    // Viernes 09:00: la ventana del jueves ya venció por reloj. El día 20 está
+    // REABIERTO, así que el portal debe seguir capturando sobre esa operación
+    // —lo mismo que ya deja hacer el panel— en vez de rotular «cerrada».
+    const clock = relojControlado(instanteGT("2026-08-21T09:00:00"));
+    const f = await fixture(clock);
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `REAB-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla reapertura",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `Reabierto ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 1250 }, f.actor);
+      await f.db.insert(diaOperacion).values({
+        organizacionId: f.orgId,
+        fechaOperacion: "2026-08-20",
+        estado: "REABIERTO",
+        motivoReapertura: "corrección de pedidos",
+        reabiertoAt: instanteGT("2026-08-21T08:30:00"),
+      });
+
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+      const sesion = await f.portal.abrirSesion(clienteRow, meta);
+
+      expect(sesion.ventana.abierta).toBe(true);
+      expect(sesion.ventana.fechaOperacion).toBe("2026-08-20");
+      // Sin ventana de reloj no hay cuenta atrás ni próxima apertura que
+      // prometer: cierra el admin a mano.
+      expect(sesion.ventana.cierraAt).toBeNull();
+      expect(sesion.ventana.proximaAperturaAt).toBeNull();
+
+      const creado = await f.pedidos.upsertPortal(
+        clienteRow,
+        { items: [{ productoId: prod.id, cantidad: 10 }] },
+        meta,
+      );
+      expect(creado.fechaOperacion).toBe("2026-08-20");
+
+      const [fila] = await f.db
+        .select({ fechaOperacion: pedido.fechaOperacion, origen: pedido.origen })
+        .from(pedido)
+        .where(eq(pedido.id, creado.id));
+      expect(fila?.fechaOperacion).toBe("2026-08-20");
+      expect(fila?.origen).toBe("PORTAL");
     } finally {
       await f.client.end({ timeout: 1 });
     }
@@ -548,6 +964,7 @@ describe.skipIf(!listo)("portal E2", () => {
           organizacionId: f.orgId,
           correlativo: 101,
           fechaOperacion: "2026-08-10",
+          fechaEntrega: "2026-08-11",
           clienteId: cliA.id,
           estado: "CONFIRMADO",
           origen: "MANUAL",
@@ -570,6 +987,7 @@ describe.skipIf(!listo)("portal E2", () => {
           organizacionId: f.orgId,
           correlativo: 102,
           fechaOperacion: "2026-08-11",
+          fechaEntrega: "2026-08-12",
           clienteId: cliA.id,
           estado: "ANULADO",
           origen: "PORTAL",
@@ -593,6 +1011,7 @@ describe.skipIf(!listo)("portal E2", () => {
           organizacionId: f.orgId,
           correlativo: 103,
           fechaOperacion: "2026-08-12",
+          fechaEntrega: "2026-08-13",
           clienteId: cliB.id,
           estado: "CONFIRMADO",
           origen: "MANUAL",
@@ -693,10 +1112,7 @@ describe.skipIf(!listo)("portal E2", () => {
         f.portal.assetContent(clienteRow, crypto.randomUUID()),
       ).rejects.toMatchObject({ code: "NO_ENCONTRADO", httpStatus: 404 });
 
-      const [orgB] = await f.db
-        .insert(organizacion)
-        .values({ nombre: `org-b-${crypto.randomUUID()}` })
-        .returning({ id: organizacion.id });
+      const orgB = await crearOrgDePrueba(f.db, "org-b-");
       const shaB = `sha-b-${crypto.randomUUID()}`;
       await f.storage.put(shaB, Buffer.from("otro"), "image/png");
       const [assetB] = await f.db

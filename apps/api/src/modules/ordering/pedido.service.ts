@@ -27,13 +27,17 @@ import {
   type PedidoDetalle,
   type PedidoSseEvent,
   type PortalPedido,
+  capturaAbierta,
   type BusinessCalendar,
 } from "@misupertostada/shared";
 import { DRIZZLE } from "../shared/tokens";
 import type { AppDatabase } from "../shared/database.module";
 import { AuditWriter } from "../shared/audit.writer";
 import { OutboxWriter } from "../shared/outbox.writer";
-import { BusinessCalendarService } from "../shared/calendar.service";
+import {
+  BusinessCalendarService,
+  type EjesOperacion,
+} from "../shared/calendar.service";
 import { DomainException } from "../shared/domain.exception";
 import { parseBody } from "../shared/zod-body";
 import { esViolacionUnica } from "../shared/pg-error";
@@ -59,6 +63,9 @@ export type PortalMeta = { ip: string | null; userAgent: string | null };
 
 type ClienteRef = { id: string; organizacionId: string };
 
+/** Operación (llave interna) y entrega (lo que ve el cliente), ya resueltas. */
+type FechasPedido = { operacion: string; entrega: string };
+
 @Injectable()
 export class PedidoService {
   constructor(
@@ -75,10 +82,14 @@ export class PedidoService {
     meta: PortalMeta,
   ): Promise<PortalPedido> {
     const input = parseBody(confirmarPedidoRequestSchema, body);
-    const cal = await this.calendar.load();
+    const cal = await this.calendar.load(clienteRow.organizacionId);
     const now = this.calendar.now();
-    const fechaOperacion = cal.getFechaOperacion(now);
-    this.exigirVentanaPortal(cal, now);
+    // Mismo eje de captura que el panel: con el día reabierto el portal escribe
+    // sobre esa operación, no sobre la ventana siguiente. Ver `PortalService`.
+    const ejes = await this.calendar.ejes(clienteRow.organizacionId);
+    const fechaOperacion = ejes.captura;
+    const fechaEntrega = ejes.entregaCaptura;
+    this.exigirVentanaPortal(cal, now, ejes);
     const [abierto] = await this.db
       .select()
       .from(pedido)
@@ -136,9 +147,12 @@ export class PedidoService {
           const esEdicion = Boolean(existente);
           const pedidoId = existente
             ? existente.id
-            : await this.insertarPedido(tx, clienteRow, fechaOperacion, {
-                origen: "PORTAL",
-              });
+            : await this.insertarPedido(
+                tx,
+                clienteRow,
+                { operacion: fechaOperacion, entrega: fechaEntrega },
+                { origen: "PORTAL" },
+              );
 
           if (existente) {
             await tx
@@ -228,14 +242,31 @@ export class PedidoService {
   async listar(actor: Actor, query: unknown): Promise<PedidoBandeja[]> {
     const input = parseBody(listarPedidosQuerySchema, query);
     /** Historial: cliente + flag, sin fecha → últimos pedidos de ese restaurante. */
+    const desdeRango =
+      input.desde && input.hasta
+        ? input.desde <= input.hasta
+          ? input.desde
+          : input.hasta
+        : (input.desde ?? input.fechaOperacion);
+    const hastaRango =
+      input.desde && input.hasta
+        ? input.desde <= input.hasta
+          ? input.hasta
+          : input.desde
+        : (input.hasta ?? input.fechaOperacion ?? desdeRango);
     const historialCliente =
-      Boolean(input.clienteId) && !input.fechaOperacion && input.historial === true;
+      Boolean(input.clienteId) && !desdeRango && input.historial === true;
     const filtros = [eq(pedido.organizacionId, actor.organizacionId)];
-    if (input.fechaOperacion) {
-      filtros.push(eq(pedido.fechaOperacion, input.fechaOperacion));
+    if (desdeRango && hastaRango) {
+      if (desdeRango === hastaRango) {
+        filtros.push(eq(pedido.fechaOperacion, desdeRango));
+      } else {
+        filtros.push(sql`${pedido.fechaOperacion} >= ${desdeRango}`);
+        filtros.push(sql`${pedido.fechaOperacion} <= ${hastaRango}`);
+      }
     } else if (!historialCliente) {
-      const fechaOperacion = await this.fechaCapturaPanel(actor.organizacionId);
-      filtros.push(eq(pedido.fechaOperacion, fechaOperacion));
+      const fechas = await this.fechaCapturaPanel(actor.organizacionId);
+      filtros.push(eq(pedido.fechaOperacion, fechas.operacion));
     }
     if (input.clienteId) filtros.push(eq(pedido.clienteId, input.clienteId));
     if (input.estado) filtros.push(eq(pedido.estado, input.estado));
@@ -245,6 +276,7 @@ export class PedidoService {
         id: pedido.id,
         correlativo: pedido.correlativo,
         fechaOperacion: pedido.fechaOperacion,
+        fechaEntrega: pedido.fechaEntrega,
         clienteId: pedido.clienteId,
         clienteNombre: cliente.nombre,
         estado: pedido.estado,
@@ -261,7 +293,7 @@ export class PedidoService {
       ? await base
           .orderBy(desc(pedido.fechaOperacion), desc(pedido.correlativo))
           .limit(80)
-      : await base.orderBy(desc(pedido.correlativo));
+      : await base.orderBy(desc(pedido.fechaOperacion), desc(pedido.correlativo));
 
     const ids = rows.map((r) => r.id);
     const totales = new Map<string, number>();
@@ -284,6 +316,7 @@ export class PedidoService {
         id: row.id,
         correlativo: row.correlativo,
         fechaOperacion: row.fechaOperacion,
+        fechaEntrega: row.fechaEntrega,
         clienteId: row.clienteId,
         clienteNombre: row.clienteNombre,
         estado: row.estado,
@@ -303,7 +336,8 @@ export class PedidoService {
   async crearManual(body: unknown, actor: Actor): Promise<PedidoDetalle> {
     exigirCaptura(actor);
     const input = parseBody(crearPedidoManualRequestSchema, body);
-    const fechaOperacion = await this.fechaCapturaPanel(actor.organizacionId);
+    const fechas = await this.fechaCapturaPanel(actor.organizacionId);
+    const fechaOperacion = fechas.operacion;
     const clienteRow = await this.clienteDe(
       input.clienteId,
       actor.organizacionId,
@@ -324,7 +358,7 @@ export class PedidoService {
             .from(cliente)
             .where(eq(cliente.id, clienteRow.id))
             .for("update");
-          const id = await this.insertarPedido(tx, clienteRow, fechaOperacion, {
+          const id = await this.insertarPedido(tx, clienteRow, fechas, {
             origen: "MANUAL",
             capturadoPor: actor.usuarioId,
             notasAdmin,
@@ -542,12 +576,13 @@ export class PedidoService {
       correlativo: row.correlativo,
       estado: row.estado,
       fechaOperacion: row.fechaOperacion,
+      fechaEntrega: row.fechaEntrega,
       origen: "PORTAL",
       items: mapped,
       totalCentavos,
       textoConfirmacion: textoConfirmacionPedido({
         correlativo: row.correlativo,
-        fechaOperacion: row.fechaOperacion,
+        fechaEntrega: row.fechaEntrega,
         totalCentavos,
         horarioEntregaFijo,
       }),
@@ -567,10 +602,11 @@ export class PedidoService {
     if (!cli) {
       throw new DomainException("NO_ENCONTRADO", "Cliente no encontrado", 404);
     }
-    const cal = await this.calendar.load();
+    const cal = await this.calendar.load(organizacionId);
     const lineas = await this.db
       .select({
         item: pedidoItem,
+        nombreCanonico: producto.nombreCanonico,
         puntoCarga: producto.puntoCarga,
         notaProduccion: clienteProducto.notaProduccion,
       })
@@ -589,6 +625,7 @@ export class PedidoService {
       productoId: linea.item.productoId,
       cantidad: linea.item.cantidadPedida,
       nombreMostrado: linea.item.nombreMostrado,
+      nombreCanonico: linea.nombreCanonico,
       unidadMedida: linea.item.unidadMedida,
       precioUnitarioCentavos: linea.item.precioUnitarioCentavos,
       subtotalCentavos:
@@ -637,6 +674,7 @@ export class PedidoService {
       id: row.id,
       correlativo: row.correlativo,
       fechaOperacion: row.fechaOperacion,
+      fechaEntrega: row.fechaEntrega,
       clienteId: cli.id,
       clienteNombre: cli.nombre,
       clienteContacto: cli.contacto ?? null,
@@ -727,14 +765,16 @@ export class PedidoService {
     });
   }
 
-  private async fechaCapturaPanel(organizacionId: string): Promise<string> {
-    const cal = await this.calendar.load();
-    const now = this.calendar.now();
-    const fechaOperacion = cal.getFechaOperacion(now);
-    if (cal.isVentanaAbierta(now)) return fechaOperacion;
-    const reciente = cal.getFechaOperacionDeVentanaReciente(now);
-    const { diaEstado } = await leerEstadoDia(this.db, organizacionId, reciente);
-    return diaEstado === "REABIERTO" ? reciente : fechaOperacion;
+  /**
+   * Un pedido capturado desde el panel entra siempre en el eje de **captura**,
+   * nunca en el de reparto: si se digita a las 09:00, pertenece a la ventana
+   * que abre esa tarde, no a la que Tony está entregando.
+   */
+  private async fechaCapturaPanel(
+    organizacionId: string,
+  ): Promise<FechasPedido> {
+    const ejes = await this.calendar.ejes(organizacionId);
+    return { operacion: ejes.captura, entrega: ejes.entregaCaptura };
   }
 
   private async exigirDiaNoCerrado(
@@ -747,16 +787,28 @@ export class PedidoService {
     if (diaEstado === "CERRADO") throw diaCerrado();
   }
 
-  private exigirVentanaPortal(cal: BusinessCalendar, now: Date): void {
-    if (!cal.isVentanaAbierta(now)) {
-      throw ventanaCerrada(cal.getProximaApertura(now));
-    }
+  /**
+   * Un día REABIERTO acepta pedidos del portal aunque el reloj diga que la
+   * ventana venció: es lo mismo que ya permite el panel, y `exigirDiaNoCerrado`
+   * cierra la carrera dentro de la transacción.
+   */
+  private exigirVentanaPortal(
+    cal: BusinessCalendar,
+    now: Date,
+    ejes: EjesOperacion,
+  ): void {
+    if (capturaAbierta(ejes.ventanaAbierta, ejes.estadoCaptura)) return;
+    // Un día CERRADO con el reloj todavía corriendo lo rechaza
+    // `exigirDiaNoCerrado` dentro de la transacción: su mensaje dice lo que
+    // pasó de verdad, en vez de prometer una apertura que no es la causa.
+    if (ejes.ventanaAbierta) return;
+    throw ventanaCerrada(cal.getProximaApertura(now));
   }
 
   private async insertarPedido(
     tx: AppDatabase,
     clienteRow: ClienteRef,
-    fechaOperacion: string,
+    fechas: FechasPedido,
     opts: {
       origen: "PORTAL" | "MANUAL";
       capturadoPor?: string | null;
@@ -775,7 +827,8 @@ export class PedidoService {
       .values({
         organizacionId: clienteRow.organizacionId,
         correlativo,
-        fechaOperacion,
+        fechaOperacion: fechas.operacion,
+        fechaEntrega: fechas.entrega,
         clienteId: clienteRow.id,
         estado: "CONFIRMADO",
         origen: opts.origen,

@@ -8,7 +8,11 @@ import { SessionService } from "./session.service";
 import { UsuariosService } from "./usuarios.service";
 import { AuditWriter } from "../shared/audit.writer";
 import { DomainException } from "../shared/domain.exception";
-import { openTestDb, postgresListo } from "../../test/db";
+import {
+  crearOrgDePrueba,
+  openTestDb,
+  postgresListo,
+} from "../../test/db";
 import type { Actor } from "./actor";
 import type { SessionCookieConfig } from "./actor";
 
@@ -27,10 +31,7 @@ async function fixture() {
   const auth = new AuthService(db, systemClock, passwords, sessions, audit);
   const usuarios = new UsuariosService(db, passwords, sessions, audit);
 
-  const [org] = await db
-    .insert(organizacion)
-    .values({ nombre: `org-${crypto.randomUUID()}` })
-    .returning({ id: organizacion.id });
+  const org = await crearOrgDePrueba(db, "org-");
 
   const password = "clave-dev-local-10";
   const hash = await passwords.hash(password);
@@ -72,6 +73,19 @@ function actorJefe(f: Awaited<ReturnType<typeof fixture>>): Actor {
     userAgent: "test",
   };
 }
+
+describe("SessionService cookie", () => {
+  test("maxAge de la cookie es TTL en milisegundos (contrato Express)", () => {
+    // Sin DB: solo verifica unidades. Un TTL de 3600s mal pasado como ms ≈ 1h de sesión en DB
+    // pero cookie del navegador de ~1 minuto.
+    const sessions = new SessionService(
+      {} as never,
+      systemClock,
+      cookie,
+    );
+    expect(sessions.cookieOptions().maxAge).toBe(cookie.ttlSeconds * 1000);
+  });
+});
 
 describe.skipIf(!listo)("AuthService", () => {
   test("login correcto emite token de sesión; el hash no es el token", async () => {
@@ -180,6 +194,50 @@ describe.skipIf(!listo)("UsuariosService", () => {
           jefe,
         ),
       ).rejects.toMatchObject({ code: "PERMISO_NO_DELEGABLE" });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("listar incluye activo; activar, reset de clave y no se desactiva el último jefe", async () => {
+    const f = await fixture();
+    try {
+      const jefe = actorJefe(f);
+      const creado = await f.usuarios.crear(
+        {
+          username: `admin-${crypto.randomUUID().slice(0, 8)}`,
+          password: "clave-dev-local-10",
+          rol: "ADMIN",
+        },
+        jefe,
+      );
+      expect(creado.activo).toBe(true);
+      const list = await f.usuarios.listar(f.orgId);
+      expect(list.find((u) => u.id === creado.id)?.activo).toBe(true);
+
+      await f.usuarios.desactivar(creado.id, jefe);
+      const inactivos = await f.usuarios.listar(f.orgId);
+      expect(inactivos.find((u) => u.id === creado.id)?.activo).toBe(false);
+
+      const reactivado = await f.usuarios.activar(
+        creado.id,
+        { activo: true },
+        jefe,
+      );
+      expect(reactivado.activo).toBe(true);
+
+      await f.usuarios.resetPassword(
+        creado.id,
+        { password: "nueva-clave-10" },
+        jefe,
+      );
+
+      await expect(
+        f.usuarios.cambiarRol(f.jefeId, { rol: "ADMIN" }, jefe),
+      ).rejects.toMatchObject({ code: "ULTIMO_ADMIN_JEFE" });
+      await expect(f.usuarios.desactivar(f.jefeId, jefe)).rejects.toMatchObject({
+        code: "VALIDACION",
+      });
     } finally {
       await f.client.end({ timeout: 1 });
     }

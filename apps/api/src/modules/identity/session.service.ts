@@ -48,7 +48,8 @@ export class SessionService {
       sameSite: "lax",
       secure: this.cookie.secure,
       path: "/",
-      maxAge: this.cookie.ttlSeconds,
+      // Express espera maxAge en milisegundos; el TTL de negocio está en segundos.
+      maxAge: this.cookie.ttlSeconds * 1000,
     };
   }
 

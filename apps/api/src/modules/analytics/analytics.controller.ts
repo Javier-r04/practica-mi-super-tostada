@@ -16,17 +16,24 @@ export class AnalyticsController {
     return envelopeOk(await this.tablero.consultar(actor, query));
   }
 
+  /**
+   * El reporte del recorte actual. La ruta conserva el nombre histórico
+   * `quincena.pdf`, pero el documento y el archivo siguen al periodo elegido.
+   * El nombre sale del rango ya resuelto y saneado, nunca del query crudo:
+   * la cabecera `Content-Disposition` no puede llevar texto del cliente.
+   */
   @Get("quincena.pdf")
   async pdf(
     @Query() query: Record<string, string | undefined>,
     @CurrentActor() actor: Actor,
   ) {
-    const buf = await this.tablero.exportarPdf(actor, query);
-    const desde = query.desde ?? "periodo";
-    const hasta = query.hasta ?? "actual";
-    return new StreamableFile(buf, {
+    const { buffer, nombreArchivo } = await this.tablero.exportarPdf(
+      actor,
+      query,
+    );
+    return new StreamableFile(buffer, {
       type: "application/pdf",
-      disposition: `attachment; filename="cierre-quincena-${desde}-${hasta}.pdf"`,
+      disposition: `attachment; filename="${nombreArchivo}"`,
     });
   }
 }

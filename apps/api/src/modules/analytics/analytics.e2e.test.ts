@@ -16,7 +16,11 @@ import { OutboxWriter } from "../shared/outbox.writer";
 import { DomainEventWriter } from "../shared/domain-event.writer";
 import { BusinessCalendarService } from "../shared/calendar.service";
 import { PedidoEvents } from "../shared/panel-events";
-import { openTestDb, postgresListo } from "../../test/db";
+import {
+  crearOrgDePrueba,
+  openTestDb,
+  postgresListo,
+} from "../../test/db";
 import type { Actor } from "../identity/actor";
 import { ProductosService } from "../catalog/productos.service";
 import { ClientesService } from "../catalog/clientes.service";
@@ -97,10 +101,7 @@ async function fixture(clock: Clock) {
   const pagos = new PagoService(db, audit, calendar, events, facturas);
   const tablero = new TableroService(db, calendar, audit);
 
-  const [org] = await db
-    .insert(organizacion)
-    .values({ nombre: `org-e6-${crypto.randomUUID()}` })
-    .returning({ id: organizacion.id });
+  const org = await crearOrgDePrueba(db, "org-e6-");
 
   const username = `cristian-${crypto.randomUUID().slice(0, 8)}`;
   const [jefe] = await db
@@ -608,15 +609,17 @@ describe.skipIf(!listo)("E6 tablero", () => {
     const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
     const f = await fixture(clock);
     try {
-      const buf = await f.tablero.exportarPdf(f.actor, {
-        periodo: "quincena",
-        familia: "TORTILLA",
-      });
+      const { buffer: buf, nombreArchivo } = await f.tablero.exportarPdf(
+        f.actor,
+        { periodo: "quincena", familia: "TORTILLA" },
+      );
       expect(buf.subarray(0, 4).toString()).toBe("%PDF");
+      expect(nombreArchivo).toBe("cierre-quincena-2026-08-16-2026-08-31.pdf");
       const texto = buf.toString("latin1").replaceAll("\u0000", "");
       expect(texto).toContain("2026-08-16");
       expect(texto).toContain("2026-08-31");
-      expect(texto).toContain("TORTILLA");
+      // El recorte se anuncia con la etiqueta del negocio, no con el enum.
+      expect(texto).toContain("Tortilla");
       expect(texto).toContain("react-pdf");
 
       const src = readFileSync(
@@ -631,6 +634,25 @@ describe.skipIf(!listo)("E6 tablero", () => {
         .from(auditLog)
         .where(eq(auditLog.accion, "tablero.exportar_pdf"));
       expect(audits.length).toBeGreaterThan(0);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-602 el reporte sigue al recorte: un día no baja como quincena", async () => {
+    const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
+    const f = await fixture(clock);
+    try {
+      const dia = await f.tablero.exportarPdf(f.actor, {
+        periodo: "hoy",
+      });
+      expect(dia.nombreArchivo).toBe("resumen-dia-2026-08-20.pdf");
+      const texto = dia.buffer.toString("latin1").replaceAll("\u0000", "");
+      expect(texto).toContain("Resumen del d");
+      expect(texto).not.toContain("Cierre de quincena");
+
+      const mes = await f.tablero.exportarPdf(f.actor, { periodo: "mes" });
+      expect(mes.nombreArchivo).toBe("cierre-mes-2026-08-01-2026-08-31.pdf");
     } finally {
       await f.client.end({ timeout: 1 });
     }
@@ -741,12 +763,17 @@ describe.skipIf(!listo)("E6 tablero", () => {
     const f = await fixture(clock);
     try {
       const hoy = await f.tablero.consultar(f.actor, { periodo: "hoy" });
-      expect(hoy.filtrosAplicados.desde).toBe("2026-08-21");
-      expect(hoy.filtrosAplicados.hasta).toBe("2026-08-21");
+      expect(hoy.filtrosAplicados.desde).toBe("2026-08-20");
+      expect(hoy.filtrosAplicados.hasta).toBe("2026-08-20");
       expect(hoy.kpis.clientesAlertaTipo).toBe("SIN_PEDIDO");
 
       const q = await f.tablero.consultar(f.actor, { periodo: "quincena" });
       expect(q.kpis.clientesAlertaTipo).toBe("DEJO_DE_PEDIR");
+
+      const mes = await f.tablero.consultar(f.actor, { periodo: "mes" });
+      expect(mes.filtrosAplicados.desde).toBe("2026-08-01");
+      expect(mes.filtrosAplicados.hasta).toBe("2026-08-31");
+      expect(mes.filtrosAplicados.periodo).toBe("mes");
     } finally {
       await f.client.end({ timeout: 1 });
     }

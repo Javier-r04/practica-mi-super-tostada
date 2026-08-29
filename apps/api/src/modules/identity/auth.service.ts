@@ -38,6 +38,7 @@ export class AuthService {
       rol: actor.rol,
       permisos: actor.permisos,
       organizacionId: actor.organizacionId,
+      activo: true,
     });
   }
 

@@ -15,7 +15,6 @@ import {
   TIPO_EVENTO_PEDIDO_ENTREGADO,
   entregarPedidoRequestSchema,
   entregaResultadoSchema,
-  fechaDeInstante,
   montoFacturaCentavos,
   repartoQuerySchema,
   rutaRepartoSchema,
@@ -231,10 +230,22 @@ export class EntregaService {
 
   async ruta(query: unknown, actor: Actor): Promise<RutaReparto> {
     const q = parseBody(repartoQuerySchema, query ?? {});
-    const cal = await this.calendar.load();
-    const now = this.calendar.now();
-    const fecha = q.fechaOperacion ?? cal.getFechaOperacion(now);
-    const hoy = fechaDeInstante(now);
+    const cal = await this.calendar.load(actor.organizacionId);
+    const ejes = await this.calendar.ejes(actor.organizacionId);
+    // La ruta se ancla al DÍA DE CALLE, no a la ventana. Antes miraba la
+    // operación y a las 15:00 —cuando abre la ventana siguiente— la ruta del
+    // día se vaciaba con Tony todavía repartiendo. `fecha_entrega` está
+    // congelada en el pedido, así que el eje no se mueve durante el día.
+    const diaReparto =
+      q.fechaEntrega ??
+      (q.fechaOperacion ? cal.getFechaEntrega(q.fechaOperacion) : ejes.hoyCivil);
+    const fecha = q.fechaOperacion ?? cal.getOperacionQueEntregaEn(diaReparto);
+    // `fecha_entrega` está congelada en el pedido; recalcularla desde el
+    // calendario actual puede diferir si el horario cambió después. Con un
+    // deep-link por operación se filtra por operación, que es lo que pidieron.
+    const filtroDia = q.fechaOperacion
+      ? eq(pedido.fechaOperacion, q.fechaOperacion)
+      : eq(pedido.fechaEntrega, diaReparto);
 
     const [cobrado] = await this.db
       .select({
@@ -244,7 +255,10 @@ export class EntregaService {
       .innerJoin(factura, eq(factura.id, pago.facturaId))
       .innerJoin(pedido, eq(pedido.id, factura.pedidoId))
       .where(
-        and(eq(pedido.organizacionId, actor.organizacionId), eq(pago.fecha, hoy)),
+        and(
+          eq(pedido.organizacionId, actor.organizacionId),
+          eq(pago.fecha, diaReparto),
+        ),
       );
 
     const pedidos = await this.db
@@ -257,7 +271,7 @@ export class EntregaService {
       .where(
         and(
           eq(pedido.organizacionId, actor.organizacionId),
-          eq(pedido.fechaOperacion, fecha),
+          filtroDia,
           inArray(pedido.estado, ["EN_PRODUCCION", "ENTREGADO"]),
         ),
       )
@@ -304,6 +318,7 @@ export class EntregaService {
     }
 
     return rutaRepartoSchema.parse({
+      fechaEntrega: diaReparto,
       fechaOperacion: fecha,
       cobradoHoyCentavos: Number(cobrado?.total ?? 0),
       paradas,

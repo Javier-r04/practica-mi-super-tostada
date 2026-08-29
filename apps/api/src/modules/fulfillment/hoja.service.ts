@@ -165,6 +165,7 @@ export class HojaService {
 
     return hojaSnapshotSchema.parse({
       fechaOperacion,
+      fechaEntrega: cal.getFechaEntrega(fechaOperacion),
       esSabado: cal.isSabado(fechaOperacion),
       version,
       productos,

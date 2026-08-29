@@ -9,6 +9,7 @@ import {
   producto,
 } from "@misupertostada/db";
 import {
+  capturaAbierta,
   instanteAIso,
   portalCuentaSchema,
   portalHistorialSchema,
@@ -35,9 +36,13 @@ import { AssetsService } from "../shared/storage/assets.service";
 import { PedidoService, type PortalMeta } from "./pedido.service";
 import { horarioDe } from "./pedido-reglas";
 import type { ClientePortal } from "./portal-token.service";
-import { leerEstadoDia } from "../shared/dia-operacion";
 
 const HISTORIAL_DEFAULT = 20;
+
+/** Sin horario configurado no hay cierre ni próxima apertura que prometerle al cliente. */
+function isoOpcional(instante: Date | null): string | null {
+  return instante ? instanteAIso(instante) : null;
+}
 
 @Injectable()
 export class PortalService {
@@ -63,15 +68,20 @@ export class PortalService {
       userAgent: meta.userAgent,
     });
 
-    const cal = await this.calendar.load();
+    const cal = await this.calendar.load(clienteRow.organizacionId);
     const now = this.calendar.now();
-    const fechaOperacion = cal.getFechaOperacion(now);
+    /*
+     * El portal se ancla al **mismo** eje de captura que el panel, no a
+     * `getFechaOperacion(now)` a secas: si el admin reabrió el día, `ejes()`
+     * devuelve esa operación y no la ventana siguiente. Sin esto el cliente
+     * seguía viendo «cerrada» —y pidiendo sobre otra fecha— después de una
+     * reapertura.
+     */
+    const ejes = await this.calendar.ejes(clienteRow.organizacionId);
+    const fechaOperacion = ejes.captura;
+    const diaEstado = ejes.estadoCaptura;
+    const abierta = capturaAbierta(ejes.ventanaAbierta, diaEstado);
     const horario = horarioDe(clienteRow);
-    const { diaEstado } = await leerEstadoDia(
-      this.db,
-      clienteRow.organizacionId,
-      fechaOperacion,
-    );
     const [catalogo, pedidoAbierto, cuenta, ultimoPedido] = await Promise.all([
       this.catalogoDe(clienteRow),
       this.pedidos.portalAbierto(clienteRow.id, fechaOperacion, horario),
@@ -86,10 +96,19 @@ export class PortalService {
         horarioEntregaFijo: horario,
       },
       ventana: {
-        abierta: cal.isVentanaAbierta(now) && diaEstado !== "CERRADO",
+        abierta,
         fechaOperacion,
-        cierraAt: instanteAIso(cal.getCierreVentana(now)),
-        proximaAperturaAt: instanteAIso(cal.getProximaApertura(now)),
+        fechaEntrega: ejes.entregaCaptura,
+        // La cuenta atrás solo existe mientras corre la ventana del reloj. En
+        // un día reabierto no hay cierre que prometer (lo cierra el admin a
+        // mano), y `getCierreVentana` habría devuelto el de la ventana
+        // siguiente: un contador a mañana sobre una ventana abierta hoy.
+        cierraAt: ejes.ventanaAbierta
+          ? isoOpcional(cal.getCierreVentana(now))
+          : null,
+        proximaAperturaAt: abierta
+          ? null
+          : isoOpcional(cal.getProximaApertura(now)),
         horarioEntregaFijo: horario,
       },
       catalogo,
@@ -102,7 +121,7 @@ export class PortalService {
   }
 
   async cuentaDe(clienteRow: ClientePortal): Promise<PortalCuenta> {
-    const cal = await this.calendar.load();
+    const cal = await this.calendar.load(clienteRow.organizacionId);
     const now = this.calendar.now();
     const filas = await this.db
       .select({
@@ -187,6 +206,7 @@ export class PortalService {
         id: pedido.id,
         correlativo: pedido.correlativo,
         fechaOperacion: pedido.fechaOperacion,
+        fechaEntrega: pedido.fechaEntrega,
         estado: pedido.estado,
         origen: pedido.origen,
       })
@@ -203,6 +223,7 @@ export class PortalService {
         id: row.id,
         correlativo: row.correlativo,
         fechaOperacion: row.fechaOperacion,
+        fechaEntrega: row.fechaEntrega,
         estado: row.estado,
         totalCentavos: totales.get(row.id) ?? 0,
         origen: row.origen,
@@ -276,6 +297,7 @@ export class PortalService {
       id: row.id,
       correlativo: row.correlativo,
       fechaOperacion: row.fechaOperacion,
+      fechaEntrega: row.fechaEntrega,
       estado: row.estado,
       totalCentavos,
       origen: row.origen,
@@ -328,6 +350,7 @@ export class PortalService {
         id: pedido.id,
         correlativo: pedido.correlativo,
         fechaOperacion: pedido.fechaOperacion,
+        fechaEntrega: pedido.fechaEntrega,
         estado: pedido.estado,
         origen: pedido.origen,
       })
@@ -341,6 +364,7 @@ export class PortalService {
       id: row.id,
       correlativo: row.correlativo,
       fechaOperacion: row.fechaOperacion,
+      fechaEntrega: row.fechaEntrega,
       estado: row.estado,
       totalCentavos: totales.get(row.id) ?? 0,
       origen: row.origen,

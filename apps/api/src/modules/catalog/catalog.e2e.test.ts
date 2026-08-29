@@ -11,7 +11,11 @@ import {
 import { permisosEfectivos } from "@misupertostada/shared";
 import { AuditWriter } from "../shared/audit.writer";
 import { DomainException } from "../shared/domain.exception";
-import { openTestDb, postgresListo } from "../../test/db";
+import {
+  crearOrgDePrueba,
+  openTestDb,
+  postgresListo,
+} from "../../test/db";
 import type { Actor } from "../identity/actor";
 import { ProductosService } from "./productos.service";
 import { ClientesService } from "./clientes.service";
@@ -34,10 +38,7 @@ async function fixture() {
     clienteProductoSvc,
   );
 
-  const [org] = await db
-    .insert(organizacion)
-    .values({ nombre: `org-${crypto.randomUUID()}` })
-    .returning({ id: organizacion.id });
+  const org = await crearOrgDePrueba(db, "org-");
 
   const username = `jefe-${crypto.randomUUID().slice(0, 8)}`;
   const [jefe] = await db

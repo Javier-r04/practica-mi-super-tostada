@@ -27,7 +27,11 @@ import {
   renderCuerpoPlantilla,
   type Clock,
 } from "@misupertostada/shared";
-import { openTestDb, postgresListo } from "../../test/db";
+import {
+  crearOrgDePrueba,
+  openTestDb,
+  postgresListo,
+} from "../../test/db";
 import type { Actor } from "../identity/actor";
 import { AuditWriter } from "../shared/audit.writer";
 import { OutboxWriter } from "../shared/outbox.writer";
@@ -102,10 +106,7 @@ async function fixture(clock: Clock) {
   const processor = new OutboxProcessor(db, registry);
   const invitaciones = new InvitacionJob(db, clock, calendar, outboxWriter, enc);
 
-  const [org] = await db
-    .insert(organizacion)
-    .values({ nombre: `org-e7-${crypto.randomUUID()}` })
-    .returning({ id: organizacion.id });
+  const org = await crearOrgDePrueba(db, "org-e7-");
   const username = `jefe-${crypto.randomUUID().slice(0, 8)}`;
   const [jefe] = await db
     .insert(usuario)
@@ -132,7 +133,13 @@ async function fixture(clock: Clock) {
     permisos: permisosEfectivos("PRODUCCION"),
   };
   await plantillas.ensureFakeSeed(org!.id, clock.now());
-  const tel = `5025555${Math.floor(1000 + Math.random() * 8999)}`;
+  // La BD de test es compartida y nunca se limpia: con 4 dígitos aleatorios
+  // los números chocan con clientes de corridas viejas y el webhook entrega la
+  // conversación a la organización equivocada. 12 dígitos de UUID no chocan.
+  const tel = `502${BigInt(`0x${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`)
+    .toString()
+    .padStart(12, "0")
+    .slice(-12)}`;
   const token = `tok-${crypto.randomUUID()}`;
   const [cli] = await db
     .insert(cliente)
@@ -398,6 +405,7 @@ describe.skipIf(!listo)("mensajería E7", () => {
           organizacionId: f.orgId,
           correlativo: 9001,
           fechaOperacion: "2026-08-21",
+          fechaEntrega: "2026-08-22",
           clienteId: f.cli.id,
           estado: "CONFIRMADO",
           origen: "PORTAL",
@@ -449,6 +457,7 @@ describe.skipIf(!listo)("mensajería E7", () => {
           organizacionId: f.orgId,
           correlativo: 9002,
           fechaOperacion: "2026-08-21",
+          fechaEntrega: "2026-08-22",
           clienteId: f.cli.id,
           estado: "ENTREGADO",
           origen: "MANUAL",

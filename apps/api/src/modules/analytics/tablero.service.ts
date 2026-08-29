@@ -15,22 +15,20 @@ import {
   desplazarFecha,
   evaluaDejoDePedir,
   etiquetaPeriodo,
-  fechaDeInstante,
   fechasEnRango,
   instanteDeFecha,
   medianaEntera,
   puntosBase,
-  rangoAnterior,
-  rangoQuincena,
-  rangoSemanaIsoGT,
   repartirPuntosBase,
+  rangoAnterior,
+  reporteTablero,
+  resolverRangoTablero,
   tableroQuerySchema,
   tableroSchema,
   ticketPromedioCentavos,
   tramoAntiguedad,
   ultimosDiasHabiles,
   type FiltrosAplicados,
-  type PeriodoTablero,
   type Tablero,
   type TableroQuery,
 } from "@misupertostada/shared";
@@ -66,7 +64,7 @@ export class TableroService {
     const q = parseBody(tableroQuerySchema, query ?? {});
     const cal = await this.calendar.load();
     const now = this.calendar.now();
-    const filtros = this.resolverFiltros(q, cal, now);
+    const filtros = this.resolverFiltros(q, now);
     const orgId = actor.organizacionId;
 
     const [
@@ -171,51 +169,48 @@ export class TableroService {
     });
   }
 
-  async exportarPdf(actor: Actor, query: unknown): Promise<Buffer> {
+  /**
+   * Reporte del recorte actual, no siempre «la quincena». El título y el
+   * nombre del archivo salen del rango ya resuelto (`reporteTablero`), así que
+   * un día suelto baja como «Resumen del día» y no pisa el cierre del mes.
+   */
+  async exportarPdf(
+    actor: Actor,
+    query: unknown,
+  ): Promise<{ buffer: Buffer; nombreArchivo: string }> {
     const data = await this.consultar(actor, query);
+    const f = data.filtrosAplicados;
+    const { nombreArchivo } = reporteTablero({
+      periodo: f.periodo,
+      desde: f.desde,
+      hasta: f.hasta,
+    });
     await this.audit.insert({
       actorTipo: "usuario",
       actorId: actor.usuarioId,
       accion: "tablero.exportar_pdf",
       entidad: "tablero",
-      entidadId: `${actor.organizacionId}:${data.filtrosAplicados.desde}:${data.filtrosAplicados.hasta}`,
-      despues: data.filtrosAplicados,
+      entidadId: `${actor.organizacionId}:${f.desde}:${f.hasta}`,
+      despues: f,
       ip: actor.ip,
       userAgent: actor.userAgent,
     });
-    return renderQuincenaPdf(data);
+    const buffer = await renderQuincenaPdf(data, {
+      generadoAt: this.calendar.now(),
+    });
+    return { buffer, nombreArchivo };
   }
 
   private resolverFiltros(
     q: TableroQuery,
-    cal: Awaited<ReturnType<BusinessCalendarService["load"]>>,
     now: Date,
   ): FiltrosInternos {
-    const fechaOp = cal.isVentanaAbierta(now)
-      ? cal.getFechaOperacion(now)
-      : cal.getFechaOperacionDeVentanaReciente(now);
-    const hoyCal = fechaDeInstante(now);
-    let periodo: PeriodoTablero = q.periodo ?? "quincena";
-    let desde = q.desde;
-    let hasta = q.hasta;
-    if (!desde || !hasta) {
-      if (periodo === "hoy") {
-        desde = fechaOp;
-        hasta = fechaOp;
-      } else if (periodo === "semana") {
-        const r = rangoSemanaIsoGT(hoyCal);
-        desde = r.desde;
-        hasta = r.hasta;
-      } else {
-        periodo = periodo === "rango" ? "quincena" : periodo;
-        const r = rangoQuincena(hoyCal);
-        desde = r.desde;
-        hasta = r.hasta;
-        if (periodo !== "quincena" && periodo !== "semana" && periodo !== "hoy") {
-          periodo = "quincena";
-        }
-      }
-    }
+    const { periodo, desde, hasta } = resolverRangoTablero({
+      periodo: q.periodo,
+      desde: q.desde,
+      hasta: q.hasta,
+      now,
+    });
     const recorteProducto = Boolean(q.familia || q.puntoCarga);
     return {
       periodo,
@@ -574,7 +569,7 @@ export class TableroService {
     const recorte = this.productoRecorte(filtros);
     const rows = await this.db
       .select({
-        nombreMostrado: pedidoItem.nombreMostrado,
+        nombreMostrado: producto.nombreCanonico,
         unidadMedida: pedidoItem.unidadMedida,
         puntoCarga: producto.puntoCarga,
         familia: producto.familia,
@@ -592,7 +587,7 @@ export class TableroService {
         ),
       )
       .groupBy(
-        pedidoItem.nombreMostrado,
+        producto.nombreCanonico,
         pedidoItem.unidadMedida,
         producto.puntoCarga,
         producto.familia,

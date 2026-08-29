@@ -42,12 +42,12 @@ import { PlantillaService } from "./plantilla.service";
 import { WebhookService } from "./webhook.service";
 import { antiguedadDiasDe } from "../receivables/factura-presentacion";
 
-const TIPOS = new Set([
+const TIPOS = [
   TIPO_OUTBOX_PEDIDO_CONFIRMADO,
   TIPO_OUTBOX_INVITACION,
   TIPO_OUTBOX_RECORDATORIO,
   TIPO_EVENTO_VENTANA_CERRADA,
-]);
+] as const;
 
 @Injectable()
 export class MessagingDispatcher implements OutboxDispatcher {
@@ -62,8 +62,8 @@ export class MessagingDispatcher implements OutboxDispatcher {
     private readonly calendar: BusinessCalendarService,
   ) {}
 
-  canHandle(tipo: string): boolean {
-    return TIPOS.has(tipo);
+  tipos(): readonly string[] {
+    return TIPOS;
   }
 
   async dispatch(row: OutboxRow): Promise<void> {
@@ -107,7 +107,7 @@ export class MessagingDispatcher implements OutboxDispatcher {
       proposito: "CONFIRMACION",
       params: paramsConfirmacion({
         correlativo: ped.correlativo,
-        fechaOperacion: ped.fechaOperacion,
+        fechaEntrega: ped.fechaEntrega,
         totalCentavos: total,
         horarioEntregaFijo: cli.horarioEntregaFijo,
       }),
@@ -120,13 +120,14 @@ export class MessagingDispatcher implements OutboxDispatcher {
     const token = this.crypto.decrypt(cli.tokenPortalCifrado);
     if (!token) return;
     const env = loadEnv();
+    const cal = await this.calendar.load(cli.organizacionId);
     await this.enviarProposito({
       rowId: row.id,
       orgId: cli.organizacionId,
       clienteId: cli.id,
       to: cli.telefonoWa,
       proposito: "INVITACION",
-      params: paramsInvitacion(row.fechaOperacion),
+      params: paramsInvitacion(cal.getFechaEntrega(row.fechaOperacion)),
       buttonParams: [`${env.WEB_ORIGIN}/p/${token}`],
     });
   }
@@ -201,8 +202,10 @@ export class MessagingDispatcher implements OutboxDispatcher {
       mime: "application/pdf",
       filename: `hoja-${row.fechaOperacion}.pdf`,
     });
+    const cal = await this.calendar.load(orgId);
     const params = paramsConsolidado({
       fechaOperacion: row.fechaOperacion,
+      fechaEntrega: cal.getFechaEntrega(row.fechaOperacion),
       version: hoja.version,
     });
     for (const to of destinos) {

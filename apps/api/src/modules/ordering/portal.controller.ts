@@ -7,6 +7,7 @@ import {
   Put,
   Query,
   Req,
+  Sse,
   StreamableFile,
   UseGuards,
 } from "@nestjs/common";
@@ -17,6 +18,10 @@ import { CurrentPortalCliente, PortalTokenGuard } from "./portal.guard";
 import type { ClientePortal } from "./portal-token.service";
 import { PortalService } from "./portal.service";
 import { PedidoService } from "./pedido.service";
+import { PedidoEvents } from "./pedido-events";
+import { visibleParaCliente, type EventoPortal } from "./portal-stream";
+import { Observable } from "rxjs";
+import { filter } from "rxjs/operators";
 
 function meta(req: Request): { ip: string | null; userAgent: string | null } {
   return {
@@ -32,6 +37,7 @@ export class PortalController {
   constructor(
     private readonly portal: PortalService,
     private readonly pedidos: PedidoService,
+    private readonly events: PedidoEvents,
   ) {}
 
   @Get(":token/cuenta")
@@ -103,5 +109,25 @@ export class PortalController {
     @CurrentPortalCliente() clienteRow: ClientePortal,
   ) {
     return envelopeOk(await this.portal.abrirSesion(clienteRow, meta(req)));
+  }
+
+  /**
+   * SSE del portal sobre el mismo bus del panel.
+   *
+   * Filtra a lo que el cliente puede ver: los eventos de operación —cerrar y
+   * **reabrir** el día, y la hoja— que cambian si su ventana está abierta, y
+   * los suyos propios. Sin `dia.reabierto` aquí, una reapertura hecha en el
+   * panel no llegaba al portal hasta que el cliente recargara.
+   */
+  @Sse(":token/stream")
+  @Header("Cache-Control", "no-cache, no-transform")
+  @Header("X-Accel-Buffering", "no")
+  @Header("Connection", "keep-alive")
+  stream(
+    @CurrentPortalCliente() clienteRow: ClientePortal,
+  ): Observable<{ data: EventoPortal }> {
+    return this.events
+      .stream(clienteRow.organizacionId)
+      .pipe(filter(({ data }) => visibleParaCliente(data, clienteRow.id)));
   }
 }

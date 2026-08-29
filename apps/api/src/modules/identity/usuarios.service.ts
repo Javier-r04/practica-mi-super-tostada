@@ -3,10 +3,13 @@ import { and, eq } from "drizzle-orm";
 import { permiso, usuario, usuarioPermiso } from "@misupertostada/db";
 import {
   actorPublicoSchema,
+  activarUsuarioRequestSchema,
+  cambiarRolRequestSchema,
   crearUsuarioRequestSchema,
   delegarPermisoRequestSchema,
   puedeDelegar,
   permisosEfectivos,
+  resetPasswordRequestSchema,
   type ActorPublico,
 } from "@misupertostada/shared";
 import { DRIZZLE } from "../shared/tokens";
@@ -27,20 +30,15 @@ export class UsuariosService {
     private readonly audit: AuditWriter,
   ) {}
 
-  async listar(): Promise<ActorPublico[]> {
-    const rows = await this.db.select().from(usuario);
+  async listar(organizacionId: string): Promise<ActorPublico[]> {
+    const rows = await this.db
+      .select()
+      .from(usuario)
+      .where(eq(usuario.organizacionId, organizacionId));
     const result: ActorPublico[] = [];
     for (const row of rows) {
       const extras = await this.sessions.extras(row.id);
-      result.push(
-        actorPublicoSchema.parse({
-          id: row.id,
-          username: row.username,
-          rol: row.rol,
-          permisos: permisosEfectivos(row.rol, extras),
-          organizacionId: row.organizacionId,
-        }),
-      );
+      result.push(this.publico(row, extras));
     }
     return result;
   }
@@ -91,13 +89,16 @@ export class UsuariosService {
       userAgent: actor.userAgent,
     });
 
-    return actorPublicoSchema.parse({
-      id: created.id,
-      username: input.username,
-      rol: input.rol,
-      permisos: permisosEfectivos(input.rol),
-      organizacionId: actor.organizacionId,
-    });
+    return this.publico(
+      {
+        id: created.id,
+        username: input.username,
+        rol: input.rol,
+        organizacionId: actor.organizacionId,
+        activo: true,
+      },
+      [],
+    );
   }
 
   async delegar(
@@ -168,13 +169,7 @@ export class UsuariosService {
       userAgent: actor.userAgent,
     });
 
-    return actorPublicoSchema.parse({
-      id: target.id,
-      username: target.username,
-      rol: target.rol,
-      permisos: permisosEfectivos(target.rol, extrasDespues),
-      organizacionId: target.organizacionId,
-    });
+    return this.publico(target, extrasDespues);
   }
 
   async desactivar(usuarioId: string, actor: Actor): Promise<void> {
@@ -193,6 +188,7 @@ export class UsuariosService {
     if (!target) {
       throw new DomainException("NO_ENCONTRADO", "Usuario no encontrado", 404);
     }
+    await this.asegurarNoUltimoJefe(target, "desactivar");
     await this.db
       .update(usuario)
       .set({ activo: false })
@@ -208,5 +204,156 @@ export class UsuariosService {
       ip: actor.ip,
       userAgent: actor.userAgent,
     });
+  }
+
+  async activar(usuarioId: string, body: unknown, actor: Actor): Promise<ActorPublico> {
+    const input = parseBody(activarUsuarioRequestSchema, body);
+    const [target] = await this.db
+      .select()
+      .from(usuario)
+      .where(eq(usuario.id, usuarioId))
+      .limit(1);
+    if (!target) {
+      throw new DomainException("NO_ENCONTRADO", "Usuario no encontrado", 404);
+    }
+    if (!input.activo) {
+      if (usuarioId === actor.usuarioId) {
+        throw new DomainException(
+          "VALIDACION",
+          "No puede desactivar su propia cuenta",
+          400,
+        );
+      }
+      await this.asegurarNoUltimoJefe(target, "desactivar");
+    }
+    await this.db
+      .update(usuario)
+      .set({ activo: input.activo })
+      .where(eq(usuario.id, usuarioId));
+    await this.audit.insert({
+      actorTipo: "usuario",
+      actorId: actor.usuarioId,
+      accion: input.activo ? "usuarios.activar" : "usuarios.desactivar",
+      entidad: "usuario",
+      entidadId: usuarioId,
+      antes: { activo: target.activo },
+      despues: { activo: input.activo },
+      ip: actor.ip,
+      userAgent: actor.userAgent,
+    });
+    const extras = await this.sessions.extras(usuarioId);
+    return this.publico({ ...target, activo: input.activo }, extras);
+  }
+
+  async resetPassword(
+    usuarioId: string,
+    body: unknown,
+    actor: Actor,
+  ): Promise<void> {
+    const input = parseBody(resetPasswordRequestSchema, body);
+    const [target] = await this.db
+      .select()
+      .from(usuario)
+      .where(eq(usuario.id, usuarioId))
+      .limit(1);
+    if (!target) {
+      throw new DomainException("NO_ENCONTRADO", "Usuario no encontrado", 404);
+    }
+    const passwordHash = await this.passwords.hash(input.password);
+    await this.db
+      .update(usuario)
+      .set({ passwordHash })
+      .where(eq(usuario.id, usuarioId));
+    await this.audit.insert({
+      actorTipo: "usuario",
+      actorId: actor.usuarioId,
+      accion: "usuarios.reset_password",
+      entidad: "usuario",
+      entidadId: usuarioId,
+      ip: actor.ip,
+      userAgent: actor.userAgent,
+    });
+  }
+
+  async cambiarRol(
+    usuarioId: string,
+    body: unknown,
+    actor: Actor,
+  ): Promise<ActorPublico> {
+    const input = parseBody(cambiarRolRequestSchema, body);
+    const [target] = await this.db
+      .select()
+      .from(usuario)
+      .where(eq(usuario.id, usuarioId))
+      .limit(1);
+    if (!target) {
+      throw new DomainException("NO_ENCONTRADO", "Usuario no encontrado", 404);
+    }
+    if (target.rol === "ADMIN_JEFE" && input.rol !== "ADMIN_JEFE") {
+      await this.asegurarNoUltimoJefe(target, "degradar");
+    }
+    await this.db
+      .update(usuario)
+      .set({ rol: input.rol })
+      .where(eq(usuario.id, usuarioId));
+    await this.audit.insert({
+      actorTipo: "usuario",
+      actorId: actor.usuarioId,
+      accion: "usuarios.cambiar_rol",
+      entidad: "usuario",
+      entidadId: usuarioId,
+      antes: { rol: target.rol },
+      despues: { rol: input.rol },
+      ip: actor.ip,
+      userAgent: actor.userAgent,
+    });
+    const extras = await this.sessions.extras(usuarioId);
+    return this.publico({ ...target, rol: input.rol }, extras);
+  }
+
+  private publico(
+    row: {
+      id: string;
+      username: string;
+      rol: ActorPublico["rol"];
+      organizacionId: string;
+      activo: boolean;
+    },
+    extras: Parameters<typeof permisosEfectivos>[1],
+  ): ActorPublico {
+    return actorPublicoSchema.parse({
+      id: row.id,
+      username: row.username,
+      rol: row.rol,
+      permisos: permisosEfectivos(row.rol, extras),
+      organizacionId: row.organizacionId,
+      activo: row.activo,
+    });
+  }
+
+  private async asegurarNoUltimoJefe(
+    target: { id: string; rol: string; activo: boolean; organizacionId: string },
+    accion: "desactivar" | "degradar",
+  ): Promise<void> {
+    if (target.rol !== "ADMIN_JEFE" || !target.activo) return;
+    const jefes = await this.db
+      .select({ id: usuario.id })
+      .from(usuario)
+      .where(
+        and(
+          eq(usuario.rol, "ADMIN_JEFE"),
+          eq(usuario.activo, true),
+          eq(usuario.organizacionId, target.organizacionId),
+        ),
+      );
+    if (jefes.length <= 1) {
+      throw new DomainException(
+        "ULTIMO_ADMIN_JEFE",
+        accion === "degradar"
+          ? "No puede quitar el rol al último administrador jefe"
+          : "No puede desactivar al último administrador jefe",
+        400,
+      );
+    }
   }
 }
