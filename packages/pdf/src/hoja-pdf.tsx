@@ -82,8 +82,16 @@ export async function renderHojaPdf(input: {
             <Text style={s.titulo}>
               Hoja de producción · {dia} {snapshot.fechaOperacion}
             </Text>
+            {snapshot.fechaEntrega ? (
+              <Text style={s.meta}>
+                Entrega {nombreDiaOperacion(snapshot.fechaEntrega).toLowerCase()}{" "}
+                {snapshot.fechaEntrega}
+              </Text>
+            ) : null}
             <Text style={s.meta}>
-              Versión {version}
+              {version > 1
+                ? `Hoja corregida · solo los cambios (v${version})`
+                : "Hoja del día"}
               {snapshot.esSabado ? " · sábado: toda la carga sale de planta" : ""}
             </Text>
           </View>
