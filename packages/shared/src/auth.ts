@@ -38,10 +38,29 @@ export type DelegarPermisoRequest = z.infer<typeof delegarPermisoRequestSchema>;
 
 export const actorPublicoSchema = z.object({
   id: z.string().uuid(),
-  username: usernameSchema,
+  username: z.string().min(1),
   rol: z.enum(ROLES),
   permisos: z.array(z.enum(PERMISOS)),
   organizacionId: z.string().uuid(),
+  activo: z.boolean(),
 });
 
 export type ActorPublico = z.infer<typeof actorPublicoSchema>;
+
+export const activarUsuarioRequestSchema = z.object({
+  activo: z.boolean(),
+});
+
+export type ActivarUsuarioRequest = z.infer<typeof activarUsuarioRequestSchema>;
+
+export const resetPasswordRequestSchema = z.object({
+  password: z.string().min(10).max(200),
+});
+
+export type ResetPasswordRequest = z.infer<typeof resetPasswordRequestSchema>;
+
+export const cambiarRolRequestSchema = z.object({
+  rol: z.enum(ROLES),
+});
+
+export type CambiarRolRequest = z.infer<typeof cambiarRolRequestSchema>;

@@ -103,6 +103,15 @@ describe("listarPedidosQuerySchema", () => {
       historial: true,
     });
     expect(
+      listarPedidosQuerySchema.parse({
+        desde: "2026-08-01",
+        hasta: "2026-08-20",
+      }),
+    ).toEqual({
+      desde: "2026-08-01",
+      hasta: "2026-08-20",
+    });
+    expect(
       listarPedidosQuerySchema.safeParse({ estado: "CANCELADO" }).success,
     ).toBe(false);
   });
@@ -163,7 +172,7 @@ describe("textoConfirmacionPedido", () => {
     expect(
       textoConfirmacionPedido({
         correlativo: 1042,
-        fechaOperacion: "2026-08-21",
+        fechaEntrega: "2026-08-21",
         totalCentavos: 74500,
         horarioEntregaFijo: "08:30",
       }),
@@ -212,6 +221,7 @@ describe("portalSesionSchema", () => {
     ventana: {
       abierta: true,
       fechaOperacion: "2026-08-21",
+      fechaEntrega: "2026-08-22",
       cierraAt: "2026-08-21T00:00:00.000-06:00",
       proximaAperturaAt: "2026-08-21T15:00:00.000-06:00",
       horarioEntregaFijo: "08:30",
@@ -244,6 +254,7 @@ describe("portalPedidoResumenSchema / historial / detalle", () => {
     id: PEDIDO_ID,
     correlativo: 42,
     fechaOperacion: "2026-08-21",
+    fechaEntrega: "2026-08-22",
     estado: "CONFIRMADO" as const,
     totalCentavos: 12500,
     origen: "PORTAL" as const,

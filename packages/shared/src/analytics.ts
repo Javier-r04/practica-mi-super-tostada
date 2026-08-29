@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   ZONA_NEGOCIO,
   desplazarFecha,
+  fechaDeInstante,
   rangoSemanaIsoGT,
   type BusinessCalendar,
   type FechaCalendario,
@@ -16,7 +17,13 @@ export const DIAS_HABILES_DEJO_DE_PEDIR = 3;
 /** Ventana de hábito reciente (días de calendario) previo al silencio. */
 export const DIAS_CALENDARIO_HABITO = 30;
 
-export const PERIODOS_TABLERO = ["hoy", "semana", "quincena", "rango"] as const;
+export const PERIODOS_TABLERO = [
+  "hoy",
+  "semana",
+  "quincena",
+  "mes",
+  "rango",
+] as const;
 export type PeriodoTablero = (typeof PERIODOS_TABLERO)[number];
 
 export const TRAMOS_ANTIGUEDAD = ["0-7", "8-14", "15-30", "31+"] as const;
@@ -52,6 +59,18 @@ function parseFechaGt(fecha: FechaCalendario): DateTime {
     throw new Error(`Fecha de calendario inválida: ${fecha}`);
   }
   return dt.startOf("day");
+}
+
+/** Mes de calendario completo, zona GT. */
+export function rangoMes(fecha: FechaCalendario): {
+  desde: FechaCalendario;
+  hasta: FechaCalendario;
+} {
+  const dt = parseFechaGt(fecha);
+  return {
+    desde: dt.startOf("month").toISODate() ?? fecha,
+    hasta: dt.endOf("month").toISODate() ?? fecha,
+  };
 }
 
 /** 1–15 o 16–último del mes, zona GT. */
@@ -179,6 +198,55 @@ export function evaluaDejoDePedir(input: {
   return input.habito.some((f) => pedidos.has(f));
 }
 
+/**
+ * Recorte del tablero. Los presets (hoy, semana, quincena, mes) usan el día
+ * de calendario en America/Guatemala, no la fecha_operacion de la ventana reciente.
+ * Antes de las 15:00 “hoy” sigue siendo el día de calendario, no el de ayer.
+ */
+export function resolverRangoTablero(input: {
+  periodo?: PeriodoTablero | null;
+  desde?: string | null;
+  hasta?: string | null;
+  now: Date;
+}): {
+  periodo: PeriodoTablero;
+  desde: FechaCalendario;
+  hasta: FechaCalendario;
+} {
+  const hoyCal = fechaDeInstante(input.now);
+  let periodo: PeriodoTablero = input.periodo ?? "quincena";
+  let desde = input.desde || undefined;
+  let hasta = input.hasta || undefined;
+  if (!desde || !hasta) {
+    if (periodo === "hoy") {
+      desde = hoyCal;
+      hasta = hoyCal;
+    } else if (periodo === "semana") {
+      const r = rangoSemanaIsoGT(hoyCal);
+      desde = r.desde;
+      hasta = r.hasta;
+    } else if (periodo === "mes") {
+      const r = rangoMes(hoyCal);
+      desde = r.desde;
+      hasta = r.hasta;
+    } else {
+      periodo = periodo === "rango" ? "quincena" : periodo;
+      const r = rangoQuincena(hoyCal);
+      desde = r.desde;
+      hasta = r.hasta;
+      if (
+        periodo !== "quincena" &&
+        periodo !== "semana" &&
+        periodo !== "hoy" &&
+        periodo !== "mes"
+      ) {
+        periodo = "quincena";
+      }
+    }
+  }
+  return { periodo, desde, hasta };
+}
+
 export function fechasEnRango(
   desde: FechaCalendario,
   hasta: FechaCalendario,
@@ -206,13 +274,16 @@ export function etiquetaPeriodo(input: {
     return dt.isValid ? dt.toFormat("d LLL") : f;
   };
   if (input.periodo === "hoy" || input.desde === input.hasta) {
-    return `Hoy · ${input.desde}`;
+    return `Hoy · ${fmt(input.desde)}`;
   }
   if (input.periodo === "semana") {
     return `Semana ${fmt(input.desde)} – ${fmt(input.hasta)}`;
   }
   if (input.periodo === "quincena") {
     return `Quincena ${fmt(input.desde)} – ${fmt(input.hasta)}`;
+  }
+  if (input.periodo === "mes") {
+    return `Mes ${fmt(input.desde)} – ${fmt(input.hasta)}`;
   }
   return `${input.desde} – ${input.hasta}`;
 }
@@ -398,6 +469,12 @@ export function rangoAnterior(input: {
   if (input.periodo === "quincena") {
     return rangoQuincenaAnterior(input.desde);
   }
+  if (input.periodo === "mes") {
+    const prev = parseFechaGt(input.desde).minus({ months: 1 });
+    return rangoMes(
+      (prev.toISODate() ?? input.desde) as FechaCalendario,
+    );
+  }
   if (input.periodo === "semana") {
     const prev = desplazarFecha(input.desde, -1);
     return rangoSemanaIsoGT(prev);
@@ -417,4 +494,52 @@ export function rangoAnterior(input: {
   const hasta = desplazarFecha(input.desde, -1);
   const desde = desplazarFecha(hasta, -(dias - 1));
   return { desde, hasta };
+}
+
+/**
+ * Identidad del reporte exportable del tablero.
+ *
+ * El PDF se llamaba «Cierre de quincena» aunque el recorte fuera un día o un
+ * mes: el título mentía y todos los archivos descargados se pisaban entre sí.
+ * El nombre, el archivo y el botón salen de aquí, del recorte ya resuelto.
+ */
+export type ReporteTablero = {
+  /** Título del documento y del botón: «Cierre de quincena». */
+  titulo: string;
+  /** Slug estable del tipo de reporte: `cierre-quincena`. */
+  slug: string;
+  /** Nombre del archivo, con el rango: `cierre-quincena-2026-08-16-2026-08-31.pdf`. */
+  nombreArchivo: string;
+};
+
+/**
+ * Solo `quincena` y `mes` son cierres contables; el resto son consultas.
+ * Un día suelto es «del día» aunque el periodo diga `rango`.
+ */
+export function reporteTablero(input: {
+  periodo: PeriodoTablero;
+  desde: FechaCalendario;
+  hasta: FechaCalendario;
+}): ReporteTablero {
+  const unDia = Boolean(input.desde) && input.desde === input.hasta;
+  const { titulo, slug } = unDia
+    ? { titulo: "Resumen del día", slug: "resumen-dia" }
+    : input.periodo === "quincena"
+      ? { titulo: "Cierre de quincena", slug: "cierre-quincena" }
+      : input.periodo === "mes"
+        ? { titulo: "Cierre de mes", slug: "cierre-mes" }
+        : input.periodo === "semana"
+          ? { titulo: "Resumen de la semana", slug: "resumen-semana" }
+          : { titulo: "Resumen del periodo", slug: "resumen-periodo" };
+  // Las fechas ya vienen validadas como AAAA-MM-DD, pero el nombre viaja en
+  // una cabecera HTTP: se sanea igual antes de concatenar.
+  const iso = (f: FechaCalendario) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(String(f)) ? String(f) : "sin-fecha";
+  return {
+    titulo,
+    slug,
+    nombreArchivo: unDia
+      ? `${slug}-${iso(input.desde)}.pdf`
+      : `${slug}-${iso(input.desde)}-${iso(input.hasta)}.pdf`,
+  };
 }

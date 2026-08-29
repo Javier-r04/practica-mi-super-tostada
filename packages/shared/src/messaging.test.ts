@@ -133,7 +133,7 @@ describe("textos deterministas", () => {
   test("confirmación rellena correlativo, fecha y total", () => {
     const params = paramsConfirmacion({
       correlativo: 1042,
-      fechaOperacion: "2026-08-21",
+      fechaEntrega: "2026-08-21",
       totalCentavos: 74500,
       horarioEntregaFijo: "08:30",
     });

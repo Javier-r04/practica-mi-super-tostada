@@ -140,22 +140,23 @@ export function ventanaWaAbierta(
   return now.getTime() < expira.getTime();
 }
 
-export function textoInvitacion(fechaOperacion: string): string {
-  const fecha = formatearFechaLarga(fechaOperacion);
+/** `fechaEntrega`: el día en que se reparte, no el día en que abre la ventana. */
+export function textoInvitacion(fechaEntrega: string): string {
+  const fecha = formatearFechaLarga(fechaEntrega);
   return `Buenas noches. Ya está abierta la toma de pedidos para ${fecha}. Puede responder aquí o abrir su portal.`;
 }
 
-export function paramsInvitacion(fechaOperacion: string): string[] {
-  return [formatearFechaLarga(fechaOperacion)];
+export function paramsInvitacion(fechaEntrega: string): string[] {
+  return [formatearFechaLarga(fechaEntrega)];
 }
 
 export function paramsConfirmacion(input: {
   correlativo: number;
-  fechaOperacion: string;
+  fechaEntrega: string;
   totalCentavos: number;
   horarioEntregaFijo: string | null;
 }): string[] {
-  const fecha = formatearFechaLarga(input.fechaOperacion);
+  const fecha = formatearFechaLarga(input.fechaEntrega);
   const conHorario = input.horarioEntregaFijo
     ? `${fecha}. Entrega a las ${input.horarioEntregaFijo}`
     : fecha;
@@ -184,19 +185,26 @@ export function paramsEstadoCuenta(input: {
   ];
 }
 
+/** Interno (planta): lleva las dos fechas, que no coinciden. */
 export function textoConsolidado(input: {
   fechaOperacion: string;
+  fechaEntrega: string;
   version: number;
 }): string {
-  const fecha = formatearFechaLarga(input.fechaOperacion);
-  return `Pedido consolidado para ${fecha} (v${input.version}).`;
+  const operacion = formatearFechaLarga(input.fechaOperacion);
+  const entrega = formatearFechaLarga(input.fechaEntrega);
+  return `Pedido consolidado de la operación del ${operacion} · entrega ${entrega} (v${input.version}).`;
 }
 
 export function paramsConsolidado(input: {
   fechaOperacion: string;
+  fechaEntrega: string;
   version: number;
 }): string[] {
-  return [formatearFechaLarga(input.fechaOperacion), String(input.version)];
+  return [
+    `${formatearFechaLarga(input.fechaOperacion)} · entrega ${formatearFechaLarga(input.fechaEntrega)}`,
+    String(input.version),
+  ];
 }
 
 export function normalizarTelefonoWa(raw: string): string {

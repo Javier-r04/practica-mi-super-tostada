@@ -22,27 +22,36 @@ export function redondearBancario(valor: number): number {
 }
 
 /**
- * Convierte texto de quetzales (`12.50`, `Q 12.50`, `12,50`) a centavos enteros.
- * No acepta miles ni más de dos decimales. El float no entra al stack.
+ * Convierte texto de quetzales a centavos enteros.
+ * Acepta `12.50`, `12,50`, `Q 12.50`, `1,240.50` (como `formatearCentavos`)
+ * y un punto/coma suelto al final. Nunca más de dos decimales. El float no entra al stack.
  */
 export function quetzalesTextoACentavos(texto: string): number {
-  const recortado = texto.trim().replace(/^Q\s*/i, "");
+  const recortado = texto
+    .trim()
+    .replace(/^Q\s*/i, "")
+    .replace(/[\s\u00A0\u202F]/g, "");
   if (recortado === "") {
     throw new Error("El precio está vacío");
   }
-  const normalizado = recortado.includes(".")
-    ? recortado
-    : recortado.replace(",", ".");
-  if (!/^\d+(\.\d{1,2})?$/.test(normalizado)) {
+  let candidato = recortado;
+  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(candidato)) {
+    candidato = candidato.replace(/,/g, "");
+  } else if (/^\d+[.,]$/.test(candidato)) {
+    candidato = candidato.slice(0, -1);
+  } else if (/^\d+,\d{1,2}$/.test(candidato)) {
+    candidato = candidato.replace(",", ".");
+  }
+  if (!/^\d+(\.\d{1,2})?$/.test(candidato)) {
     throw new Error(`Precio inválido: ${texto.trim()}`);
   }
-  const [entero, dec = ""] = normalizado.split(".");
+  const [entero, dec = ""] = candidato.split(".");
   return Number(entero) * 100 + Number(dec.padEnd(2, "0"));
 }
 
 export function formatearCentavos(
   centavos: number,
-  { simbolo = true }: { simbolo?: boolean } = {},
+  { simbolo = true, miles = true }: { simbolo?: boolean; miles?: boolean } = {},
 ): string {
   if (!Number.isInteger(centavos)) {
     throw new Error(
@@ -50,9 +59,10 @@ export function formatearCentavos(
     );
   }
   const n = Math.abs(centavos);
-  const entero = Math.floor(n / 100)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  let entero = Math.floor(n / 100).toString();
+  if (miles) {
+    entero = entero.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
   const dec = String(n % 100).padStart(2, "0");
   const signo = centavos < 0 ? "−" : "";
   return `${signo}${simbolo ? "Q " : ""}${entero}.${dec}`;

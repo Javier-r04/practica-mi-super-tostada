@@ -15,6 +15,8 @@ describe("permisos por rol", () => {
     expect(tienePermiso(efectivos, "precios.cambiar")).toBe(true);
     expect(tienePermiso(efectivos, "ventana.reabrir")).toBe(true);
     expect(tienePermiso(efectivos, "ventana.cerrar")).toBe(true);
+    expect(tienePermiso(efectivos, "ventana.configurar")).toBe(true);
+    expect(tienePermiso(efectivos, "audit.leer")).toBe(true);
     expect(tienePermiso(efectivos, "mensajeria.enviar")).toBe(true);
     expect(tienePermiso(efectivos, "mensajeria.conectar")).toBe(true);
   });
@@ -32,6 +34,8 @@ describe("permisos por rol", () => {
     const base = permisosEfectivos("ADMIN");
     expect(tienePermiso(base, "ventana.cerrar")).toBe(true);
     expect(tienePermiso(base, "ventana.reabrir")).toBe(false);
+    expect(tienePermiso(base, "ventana.configurar")).toBe(false);
+    expect(tienePermiso(base, "audit.leer")).toBe(false);
     expect(tienePermiso(base, "mensajeria.enviar")).toBe(true);
     expect(tienePermiso(base, "mensajeria.conectar")).toBe(false);
     expect(puedeDelegar("ADMIN_JEFE", "ventana.cerrar")).toBe(true);

@@ -76,6 +76,8 @@ export type BloqueCliente = z.infer<typeof bloqueClienteSchema>;
 
 export const hojaSnapshotSchema = z.object({
   fechaOperacion: fechaOperacionSchema,
+  /** Opcional: las hojas anteriores a la fecha de entrega no la traen. */
+  fechaEntrega: fechaOperacionSchema.optional(),
   esSabado: z.boolean(),
   version: z.number().int().min(1),
   productos: z.array(lineaProductoSchema),
@@ -123,6 +125,8 @@ export const clienteSinPedidoSchema = z.object({
 
 export const operacionResumenSchema = z.object({
   fechaOperacion: fechaOperacionSchema,
+  /** Día de reparto de esta operación. */
+  fechaEntrega: fechaOperacionSchema,
   diaEstado: z.enum(["SIN_CIERRE", "CERRADO", "REABIERTO"]),
   versionHoja: z.number().int().nullable(),
   pedidosPortal: z.number().int(),
@@ -221,7 +225,7 @@ export function textoHoja(
   const dia = nombreDiaOperacion(snapshot.fechaOperacion);
   const lineas: string[] = [];
   if (soloCambios && snapshot.version > 1) {
-    lineas.push(`CAMBIOS v${snapshot.version} · PEDIDO PARA ${dia}`);
+    lineas.push(`CAMBIOS · PEDIDO PARA ${dia}`);
   } else {
     lineas.push(`PEDIDO PARA ${dia}`);
   }

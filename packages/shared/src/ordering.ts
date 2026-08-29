@@ -78,8 +78,12 @@ export type PortalProducto = z.infer<typeof portalProductoSchema>;
 export const portalVentanaSchema = z.object({
   abierta: z.boolean(),
   fechaOperacion: z.string().min(10),
-  cierraAt: z.string().min(20),
-  proximaAperturaAt: z.string().min(20),
+  /** Día de reparto de esta ventana. Es la fecha que se le dice al cliente. */
+  fechaEntrega: z.string().min(10),
+  /** `null` cuando no hay horario configurado: no hay cierre que prometer. */
+  cierraAt: z.string().min(20).nullable(),
+  /** `null` cuando la semana entera está apagada. */
+  proximaAperturaAt: z.string().min(20).nullable(),
   horarioEntregaFijo: z.string().nullable(),
 });
 
@@ -101,6 +105,7 @@ export const portalPedidoSchema = z.object({
   correlativo: z.number().int().positive(),
   estado: z.enum(PEDIDO_ESTADOS),
   fechaOperacion: z.string(),
+  fechaEntrega: z.string(),
   origen: z.literal("PORTAL"),
   items: z.array(portalPedidoItemSchema),
   totalCentavos: centavosSchema,
@@ -136,6 +141,7 @@ export const portalPedidoResumenSchema = z.object({
   id: z.string().uuid(),
   correlativo: z.number().int().positive(),
   fechaOperacion: z.string(),
+  fechaEntrega: z.string(),
   estado: z.enum(PEDIDO_ESTADOS),
   totalCentavos: centavosSchema,
   origen: z.enum(PEDIDO_ORIGENES),
@@ -209,11 +215,12 @@ export type PortalSesion = z.infer<typeof portalSesionSchema>;
 
 export function textoConfirmacionPedido(input: {
   correlativo: number;
-  fechaOperacion: string;
+  /** Día de reparto, no el día en que abrió la ventana. */
+  fechaEntrega: string;
   totalCentavos: number;
   horarioEntregaFijo: string | null;
 }): string {
-  const fecha = formatearFechaLarga(input.fechaOperacion);
+  const fecha = formatearFechaLarga(input.fechaEntrega);
   const total = formatearCentavos(input.totalCentavos);
   const horario = input.horarioEntregaFijo
     ? ` Entrega a las ${input.horarioEntregaFijo}.`
@@ -240,6 +247,8 @@ const fechaOperacionSchema = z
 
 export const listarPedidosQuerySchema = z.object({
   fechaOperacion: opcionalVacio(fechaOperacionSchema),
+  desde: opcionalVacio(fechaOperacionSchema),
+  hasta: opcionalVacio(fechaOperacionSchema),
   clienteId: opcionalVacio(z.string().uuid()),
   estado: opcionalVacio(z.enum(PEDIDO_ESTADOS)),
   /** Con clienteId y sin fecha: últimos pedidos del restaurante (no solo el día). */
@@ -254,6 +263,7 @@ export const pedidoBandejaSchema = z.object({
   id: z.string().uuid(),
   correlativo: z.number().int().positive(),
   fechaOperacion: z.string(),
+  fechaEntrega: z.string(),
   clienteId: z.string().uuid(),
   clienteNombre: z.string(),
   estado: z.enum(PEDIDO_ESTADOS),
@@ -269,7 +279,10 @@ export type PedidoBandeja = z.infer<typeof pedidoBandejaSchema>;
 export const pedidoDetalleItemSchema = z.object({
   productoId: z.string().uuid(),
   cantidad: z.number().int().positive(),
+  /** Snapshot comercial (alias del cliente al capturar). */
   nombreMostrado: z.string(),
+  /** Nombre de producción vivo; el panel interno muestra este. */
+  nombreCanonico: z.string(),
   unidadMedida: z.enum(UNIDADES_MEDIDA),
   precioUnitarioCentavos: centavosSchema,
   subtotalCentavos: centavosSchema,
@@ -294,6 +307,7 @@ export const pedidoDetalleSchema = z.object({
   id: z.string().uuid(),
   correlativo: z.number().int().positive(),
   fechaOperacion: z.string(),
+  fechaEntrega: z.string(),
   clienteId: z.string().uuid(),
   clienteNombre: z.string(),
   clienteContacto: z.string().nullable(),

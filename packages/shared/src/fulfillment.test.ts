@@ -226,7 +226,7 @@ describe("grupos y diff", () => {
     expect(tostada?.cambio).toBe("nuevo");
 
     const diffTexto = textoHoja(v2, { soloCambios: true });
-    expect(diffTexto).toContain("CAMBIOS v2");
+    expect(diffTexto).toContain("CAMBIOS · PEDIDO PARA");
     expect(diffTexto).toContain("Tostada grande");
     expect(diffTexto).not.toContain("Palitos amarillos");
   });

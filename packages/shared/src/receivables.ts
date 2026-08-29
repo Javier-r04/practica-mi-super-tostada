@@ -208,7 +208,12 @@ export const cuadreQuerySchema = z.object({
 });
 export type CuadreQuery = z.infer<typeof cuadreQuerySchema>;
 
+/**
+ * La ruta se pide por **día de reparto**, que es como trabaja Tony. Se acepta
+ * `fechaOperacion` para deep-links viejos, pero el eje real es `fechaEntrega`.
+ */
 export const repartoQuerySchema = z.object({
+  fechaEntrega: opcionalVacio(fechaCalendarioSchema),
   fechaOperacion: opcionalVacio(fechaCalendarioSchema),
 });
 export type RepartoQuery = z.infer<typeof repartoQuerySchema>;
@@ -279,6 +284,9 @@ export const rutaParadaSchema = z.object({
 export type RutaParada = z.infer<typeof rutaParadaSchema>;
 
 export const rutaRepartoSchema = z.object({
+  /** Día de calle. Es el eje de la ruta. */
+  fechaEntrega: fechaCalendarioSchema.optional(),
+  /** Operación de origen. Informativo: una fecha de entrega la determina. */
   fechaOperacion: fechaCalendarioSchema,
   /** KPI de calle; snapshot offline antiguo sin el campo → 0. */
   cobradoHoyCentavos: z.preprocess(
@@ -328,7 +336,13 @@ export type ClienteSobreLimite = z.infer<typeof clienteSobreLimiteSchema>;
 export const carteraResumenSchema = z.object({
   pendientesCount: z.number().int().nonnegative(),
   pendientesSaldoCentavos: centavosSchema,
+  /**
+   * Cobrado el día de calle de la operación consultada, no «hoy» a secas:
+   * navegar a una operación pasada debe mostrar lo que se cobró ese día.
+   */
   cobradoHoyCentavos: centavosSchema,
+  /** Día de calendario al que corresponde `cobradoHoyCentavos`. */
+  fechaCobro: fechaCalendarioSchema.optional(),
   porCobrarFechaOperacionCentavos: centavosSchema,
   clientesSobreLimite: z.array(clienteSobreLimiteSchema),
 });

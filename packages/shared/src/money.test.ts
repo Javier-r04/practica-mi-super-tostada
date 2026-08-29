@@ -29,6 +29,12 @@ describe("formatearCentavos", () => {
     expect(formatearCentavos(-1250, { simbolo: false })).toBe("−12.50");
   });
 
+  test("miles false deja el entero sin comas (campos de captura)", () => {
+    expect(formatearCentavos(124050, { simbolo: false, miles: false })).toBe(
+      "1240.50",
+    );
+  });
+
   test("rechaza floats: no enmascara corrupción de centavos", () => {
     expect(() => formatearCentavos(1250.4)).toThrow(/entero en centavos/);
     expect(() => formatearCentavos(1250.6)).toThrow(/entero en centavos/);
@@ -58,6 +64,21 @@ describe("quetzalesTextoACentavos", () => {
     expect(quetzalesTextoACentavos("12,50")).toBe(1250);
     expect(quetzalesTextoACentavos("12")).toBe(1200);
     expect(quetzalesTextoACentavos("12.5")).toBe(1250);
+  });
+
+  test("acepta el formato que produce formatearCentavos (coma de miles)", () => {
+    expect(quetzalesTextoACentavos("1,240.50")).toBe(124050);
+    expect(quetzalesTextoACentavos("Q 1,240.50")).toBe(124050);
+    expect(quetzalesTextoACentavos(formatearCentavos(124050, { simbolo: false }))).toBe(
+      124050,
+    );
+  });
+
+  test("acepta coma decimal, espacios y punto/coma sueltos al final", () => {
+    expect(quetzalesTextoACentavos("  12,5  ")).toBe(1250);
+    expect(quetzalesTextoACentavos("1 240.50")).toBe(124050);
+    expect(quetzalesTextoACentavos("12.")).toBe(1200);
+    expect(quetzalesTextoACentavos("12,")).toBe(1200);
   });
 
   test("rechaza más de dos decimales, letras y vacío", () => {

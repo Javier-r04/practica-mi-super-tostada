@@ -7,9 +7,12 @@ import {
   medianaEntera,
   puntosBase,
   rangoAnterior,
+  rangoMes,
   rangoQuincena,
   rangoQuincenaAnterior,
   repartirPuntosBase,
+  reporteTablero,
+  resolverRangoTablero,
   ticketPromedioCentavos,
   tramoAntiguedad,
   ultimosDiasHabiles,
@@ -189,6 +192,69 @@ describe("D6 dejó de pedir", () => {
   });
 });
 
+function instanteGT(isoLocal: string): Date {
+  return DateTime.fromISO(isoLocal, { zone: ZONA_NEGOCIO }).toJSDate();
+}
+
+describe("resolverRangoTablero", () => {
+  test("hoy es el día de calendario GT, no la ventana que cerró anoche", () => {
+    const manana = instanteGT("2026-08-22T08:57:00");
+    expect(resolverRangoTablero({ periodo: "hoy", now: manana })).toEqual({
+      periodo: "hoy",
+      desde: "2026-08-22",
+      hasta: "2026-08-22",
+    });
+    const noche = instanteGT("2026-08-22T22:00:00");
+    expect(resolverRangoTablero({ periodo: "hoy", now: noche }).desde).toBe(
+      "2026-08-22",
+    );
+  });
+
+  test("semana / quincena / mes anclan en el día de calendario GT", () => {
+    const now = instanteGT("2026-08-22T08:57:00");
+    expect(resolverRangoTablero({ periodo: "semana", now })).toEqual({
+      periodo: "semana",
+      desde: "2026-08-17",
+      hasta: "2026-08-23",
+    });
+    expect(resolverRangoTablero({ periodo: "quincena", now })).toEqual({
+      periodo: "quincena",
+      desde: "2026-08-16",
+      hasta: "2026-08-31",
+    });
+    expect(resolverRangoTablero({ periodo: "mes", now })).toEqual({
+      periodo: "mes",
+      desde: "2026-08-01",
+      hasta: "2026-08-31",
+    });
+    expect(
+      resolverRangoTablero({
+        periodo: "quincena",
+        now: instanteGT("2026-08-10T10:00:00"),
+      }),
+    ).toEqual({
+      periodo: "quincena",
+      desde: "2026-08-01",
+      hasta: "2026-08-15",
+    });
+  });
+
+  test("desde+hasta explícitos no se recortan", () => {
+    expect(
+      resolverRangoTablero({
+        periodo: "hoy",
+        desde: "2026-08-01",
+        hasta: "2026-08-03",
+        now: instanteGT("2026-08-22T08:00:00"),
+      }),
+    ).toEqual({
+      periodo: "hoy",
+      desde: "2026-08-01",
+      hasta: "2026-08-03",
+    });
+  });
+});
+
 describe("rangoAnterior y etiqueta", () => {
   test("hoy salta domingo", () => {
     const r = rangoAnterior({
@@ -208,5 +274,90 @@ describe("rangoAnterior y etiqueta", () => {
         hasta: "2026-08-31",
       }),
     ).toMatch(/Quincena/);
+  });
+
+  test("mes es el mes de calendario GT y el anterior es el mes previo", () => {
+    expect(rangoMes("2026-08-22")).toEqual({
+      desde: "2026-08-01",
+      hasta: "2026-08-31",
+    });
+    expect(
+      rangoAnterior({
+        periodo: "mes",
+        desde: "2026-08-01",
+        hasta: "2026-08-31",
+        cal,
+      }),
+    ).toEqual({ desde: "2026-07-01", hasta: "2026-07-31" });
+    expect(
+      etiquetaPeriodo({
+        periodo: "mes",
+        desde: "2026-08-01",
+        hasta: "2026-08-31",
+      }),
+    ).toMatch(/Mes/);
+  });
+});
+
+describe("reporteTablero", () => {
+  test("solo quincena y mes son cierres; el resto son resúmenes", () => {
+    expect(
+      reporteTablero({
+        periodo: "quincena",
+        desde: "2026-08-16",
+        hasta: "2026-08-31",
+      }),
+    ).toEqual({
+      titulo: "Cierre de quincena",
+      slug: "cierre-quincena",
+      nombreArchivo: "cierre-quincena-2026-08-16-2026-08-31.pdf",
+    });
+    expect(
+      reporteTablero({
+        periodo: "mes",
+        desde: "2026-08-01",
+        hasta: "2026-08-31",
+      }).titulo,
+    ).toBe("Cierre de mes");
+    expect(
+      reporteTablero({
+        periodo: "semana",
+        desde: "2026-08-17",
+        hasta: "2026-08-23",
+      }).titulo,
+    ).toBe("Resumen de la semana");
+    expect(
+      reporteTablero({
+        periodo: "rango",
+        desde: "2026-08-03",
+        hasta: "2026-08-09",
+      }).titulo,
+    ).toBe("Resumen del periodo");
+  });
+
+  test("un día suelto nunca se llama quincena, venga del preset que venga", () => {
+    const hoy = reporteTablero({
+      periodo: "hoy",
+      desde: "2026-08-22",
+      hasta: "2026-08-22",
+    });
+    expect(hoy.titulo).toBe("Resumen del día");
+    expect(hoy.nombreArchivo).toBe("resumen-dia-2026-08-22.pdf");
+    expect(
+      reporteTablero({
+        periodo: "rango",
+        desde: "2026-08-22",
+        hasta: "2026-08-22",
+      }).titulo,
+    ).toBe("Resumen del día");
+  });
+
+  test("el nombre del archivo no arrastra texto que no sea una fecha", () => {
+    const r = reporteTablero({
+      periodo: "quincena",
+      desde: '2026-08-16"; rm -rf /' as never,
+      hasta: "2026-08-31",
+    });
+    expect(r.nombreArchivo).toBe("cierre-quincena-sin-fecha-2026-08-31.pdf");
   });
 });
