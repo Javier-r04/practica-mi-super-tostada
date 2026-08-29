@@ -1,12 +1,37 @@
 import { describe, expect, test } from "bun:test";
 import {
+  CLIENTES_SIN_PEDIDO_PASO,
+  copyHeroFoco,
+  copyVentanaHoy,
+  fechaDeFoco,
+  fechaDefectoHoy,
+  focoDeFecha,
+  hrefHoyFecha,
   hrefClienteSinPedido,
   hrefLimiteCredito,
   hrefPedidoNoche,
   mapaFotoCliente,
+  paginaClientesSinPedido,
   PEDIDOS_NOCHE_LIMITE,
   recortarPedidosNoche,
 } from "./hoy-vista";
+
+describe("copyVentanaHoy", () => {
+  test("usa el horario del servidor, no 15:00 fijo", () => {
+    const copy = copyVentanaHoy({ apertura: "11:00", cierre: "00:00" });
+    expect(copy.subtitle).toBe("11:00 → 00:00 · America/Guatemala");
+    expect(copy.empty).toContain("11:00");
+    expect(copy.empty).not.toContain("15:00");
+  });
+});
+
+describe("hrefHoyFecha", () => {
+  test("un atajo de varios días se queda en /hoy, no en /pedidos", () => {
+    expect(hrefHoyFecha("2026-08-21")).toBe("/hoy?fechaOperacion=2026-08-21");
+    expect(hrefHoyFecha("")).toBe("/hoy");
+    expect(hrefHoyFecha("2026-08-21")).not.toContain("pedidos");
+  });
+});
 
 describe("hrefPedidoNoche", () => {
   test("deep link con fecha y pedidoId", () => {
@@ -50,6 +75,33 @@ describe("recortarPedidosNoche", () => {
   });
 });
 
+describe("paginaClientesSinPedido", () => {
+  test("sin meta si cabe en el primer paso", () => {
+    const rows = [1, 2, 3];
+    const r = paginaClientesSinPedido(rows, CLIENTES_SIN_PEDIDO_PASO);
+    expect(r.visible).toEqual([1, 2, 3]);
+    expect(r.hayMas).toBe(false);
+    expect(r.meta).toBeNull();
+  });
+
+  test("meta y hayMás cuando supera el paso", () => {
+    const rows = Array.from({ length: 20 }, (_, i) => i + 1);
+    const r = paginaClientesSinPedido(rows, CLIENTES_SIN_PEDIDO_PASO);
+    expect(r.visible).toHaveLength(CLIENTES_SIN_PEDIDO_PASO);
+    expect(r.total).toBe(20);
+    expect(r.hayMas).toBe(true);
+    expect(r.meta).toBe("8 de 20");
+  });
+
+  test("cargar más amplía visibles", () => {
+    const rows = Array.from({ length: 20 }, (_, i) => i + 1);
+    const r = paginaClientesSinPedido(rows, CLIENTES_SIN_PEDIDO_PASO * 2);
+    expect(r.visible).toHaveLength(16);
+    expect(r.hayMas).toBe(true);
+    expect(r.meta).toBe("16 de 20");
+  });
+});
+
 describe("mapaFotoCliente", () => {
   test("clienteId → fotoAssetId", () => {
     const map = mapaFotoCliente([
@@ -60,5 +112,46 @@ describe("mapaFotoCliente", () => {
     expect(map.get("a")).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(map.get("b")).toBeNull();
     expect(map.get("c")).toBeNull();
+  });
+});
+
+describe("ejes de operación en /hoy", () => {
+  // Martes 18. La ventana del lunes cerró a las 03:00; la del martes abre a
+  // las 15:00. Entre medio se reparte lo del lunes.
+  const cerrada = {
+    ventanaAbierta: false,
+    fechaOperacionCaptura: "2026-08-18",
+    fechaOperacionEnCurso: "2026-08-17",
+  };
+  const abierta = { ...cerrada, ventanaAbierta: true };
+
+  test("con la ventana cerrada abre en el reparto, no en la ventana vacía", () => {
+    // A las 08:00 la operación del martes no ha recibido un solo pedido.
+    expect(fechaDefectoHoy(cerrada)).toBe("2026-08-17");
+  });
+
+  test("con la ventana abierta abre en la captura", () => {
+    expect(fechaDefectoHoy(abierta)).toBe("2026-08-18");
+  });
+
+  test("sin calendario todavía no inventa una fecha", () => {
+    expect(fechaDefectoHoy(undefined)).toBe("");
+  });
+
+  test("focoDeFecha distingue los dos ejes y las fechas históricas", () => {
+    expect(focoDeFecha("2026-08-17", cerrada)).toBe("curso");
+    expect(focoDeFecha("2026-08-18", cerrada)).toBe("captura");
+    expect(focoDeFecha("2026-08-11", cerrada)).toBe("otra");
+  });
+
+  test("fechaDeFoco es la inversa de focoDeFecha", () => {
+    expect(fechaDeFoco("curso", cerrada)).toBe("2026-08-17");
+    expect(fechaDeFoco("captura", cerrada)).toBe("2026-08-18");
+  });
+
+  test("el hero no llama «noche» a un reparto ya hecho", () => {
+    expect(copyHeroFoco("captura").titulo).toBe("Monto de la noche");
+    expect(copyHeroFoco("curso").titulo).not.toContain("noche");
+    expect(copyHeroFoco("otra").nota).toContain("pasada");
   });
 });

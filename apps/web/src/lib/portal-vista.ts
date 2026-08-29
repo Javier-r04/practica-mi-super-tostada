@@ -1,7 +1,9 @@
 import {
   FAMILIA_ETIQUETA,
   FAMILIAS,
+  fechaDeInstante,
   formatearFechaLarga,
+  horaEnZona,
   type Familia,
   type PortalPedido,
   type PortalProducto,
@@ -16,17 +18,28 @@ export function saludoCopy(saludo: PortalSaludo, nombre: string): string {
 }
 
 export function entregaCopy(sesion: Pick<PortalSesion, "ventana">): string {
-  const fecha = formatearFechaLarga(sesion.ventana.fechaOperacion);
+  const fecha = formatearFechaLarga(sesion.ventana.fechaEntrega);
   const hora = sesion.ventana.horarioEntregaFijo;
   return hora
     ? `Su pedido llega el ${fecha} a las ${hora}.`
     : `Su pedido llega el ${fecha}.`;
 }
 
-export function copyProximaApertura(iso: string): string {
-  const fecha = formatearFechaLarga(iso.slice(0, 10));
-  const hora = iso.slice(11, 16);
-  return `Abre de nuevo el ${fecha} a las ${hora}.`;
+/**
+ * `null` cuando el negocio no tiene horario configurado: no hay apertura que
+ * prometer, y es mejor pedirle al cliente que vuelva que inventarle una fecha.
+ */
+export function copyProximaApertura(iso: string | null): string {
+  if (!iso) return "Vuelva a consultar más tarde.";
+  const instante = new Date(iso);
+  const fecha = formatearFechaLarga(fechaDeInstante(instante));
+  return `Abre de nuevo el ${fecha} a las ${horaEnZona(instante)}.`;
+}
+
+/** El cierre es configurable por weekday: nunca lo escribas a mano en el copy. */
+export function copyEdicionHasta(cierraAt: string | null): string | null {
+  if (!cierraAt) return null;
+  return `Puede cambiarlo hasta las ${horaEnZona(new Date(cierraAt))}. Después entra a producción.`;
 }
 
 export type CtaInicio =

@@ -117,3 +117,92 @@ export function agruparProductosPorFamilia(
 export function puntosBaseAPct(puntosBase: number): number {
   return Math.trunc(puntosBase / 100);
 }
+
+/** Mediana de días de pago que ya merece atención en el tablero. */
+export const DIAS_PAGO_LENTO = 7;
+
+export type ClienteSaludVista = {
+  clienteId: string;
+  nombre: string;
+  pedidos: number;
+  ticketPromedioCentavos: number;
+  diasPagoMediana: number;
+  ultimoPedidoFecha: string | null;
+  dejoDePedir: boolean;
+};
+
+export type SaludClientesVista = {
+  dejaronDePedir: ClienteSaludVista[];
+  paganLento: ClienteSaludVista[];
+  topTicket: ClienteSaludVista[];
+  resumen: {
+    dejaron: number;
+    lentos: number;
+    conPedidos: number;
+  };
+};
+
+/**
+ * Parte la lista cruda en señales accionables.
+ * El tablero no debe listar todos los activos: solo atención + top ticket.
+ */
+export function segmentarSaludClientes(
+  clientes: readonly ClienteSaludVista[],
+  opts?: { maxAtencion?: number; maxTicket?: number; diasLento?: number },
+): SaludClientesVista {
+  const maxAtencion = opts?.maxAtencion ?? 6;
+  const maxTicket = opts?.maxTicket ?? 5;
+  const diasLento = opts?.diasLento ?? DIAS_PAGO_LENTO;
+
+  const dejaronDePedir = [...clientes]
+    .filter((c) => c.dejoDePedir)
+    .sort((a, b) => {
+      const fa = a.ultimoPedidoFecha ?? "";
+      const fb = b.ultimoPedidoFecha ?? "";
+      return fa.localeCompare(fb);
+    })
+    .slice(0, maxAtencion);
+
+  const idsAtencion = new Set(dejaronDePedir.map((c) => c.clienteId));
+
+  const paganLento = [...clientes]
+    .filter(
+      (c) =>
+        !idsAtencion.has(c.clienteId) &&
+        c.diasPagoMediana >= diasLento &&
+        c.pedidos > 0,
+    )
+    .sort((a, b) => b.diasPagoMediana - a.diasPagoMediana)
+    .slice(0, Math.max(0, maxAtencion - dejaronDePedir.length));
+
+  const topTicket = [...clientes]
+    .filter((c) => c.pedidos > 0 && c.ticketPromedioCentavos > 0)
+    .sort((a, b) => b.ticketPromedioCentavos - a.ticketPromedioCentavos)
+    .slice(0, maxTicket);
+
+  return {
+    dejaronDePedir,
+    paganLento,
+    topTicket,
+    resumen: {
+      dejaron: clientes.filter((c) => c.dejoDePedir).length,
+      lentos: clientes.filter(
+        (c) =>
+          !c.dejoDePedir &&
+          c.diasPagoMediana >= diasLento &&
+          c.pedidos > 0,
+      ).length,
+      conPedidos: clientes.filter((c) => c.pedidos > 0).length,
+    },
+  };
+}
+
+/** Top N productos por cantidad (aplana familias). */
+export function topProductosVolumen<T extends { cantidad: number }>(
+  productos: readonly T[],
+  n = 8,
+): { items: T[]; ocultos: number } {
+  const sorted = [...productos].sort((a, b) => b.cantidad - a.cantidad);
+  if (sorted.length <= n) return { items: sorted, ocultos: 0 };
+  return { items: sorted.slice(0, n), ocultos: sorted.length - n };
+}

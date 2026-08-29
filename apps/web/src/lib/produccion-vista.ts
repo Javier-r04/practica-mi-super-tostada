@@ -19,7 +19,7 @@ export type TotalFamilia = {
   unidadDominante: UnidadMedida;
 };
 
-/** Filtra la hoja a solo líneas con `cambio` cuando v2 pide “Solo cambios”. */
+/** Filtra la hoja a solo líneas con `cambio` cuando la corregida pide “Solo cambios”. */
 export function lineasVisibles(
   lineas: readonly LineaProducto[],
   soloCambios: boolean,
@@ -28,7 +28,7 @@ export function lineasVisibles(
   return lineas.filter((l) => Boolean(l.cambio));
 }
 
-/** En v2 ajustado: cantidad anterior → nueva. */
+/** En una hoja corregida, línea ajustada: cantidad anterior → nueva. */
 export function deltaCantidad(
   linea: LineaProducto,
 ): DeltaCantidad | undefined {

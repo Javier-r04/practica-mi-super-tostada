@@ -3,8 +3,10 @@ import {
   etiquetasEjeX,
   formatearFechaCorta,
   participacionTopN,
+  segmentarSaludClientes,
   serieTodoCero,
   ticksEjeCentavos,
+  topProductosVolumen,
 } from "./tablero-vista";
 
 describe("formatearFechaCorta", () => {
@@ -86,5 +88,62 @@ describe("etiquetasEjeX", () => {
     expect(marks.at(-1)).toBe(true);
     expect(marks.filter(Boolean).length).toBeLessThanOrEqual(6);
     expect(marks.filter(Boolean).length).toBeGreaterThan(2);
+  });
+});
+
+describe("segmentarSaludClientes", () => {
+  const base = {
+    pedidos: 3,
+    ticketPromedioCentavos: 50000,
+    diasPagoMediana: 2,
+    ultimoPedidoFecha: "2026-08-20",
+    dejoDePedir: false,
+  };
+
+  test("prioriza dejaron de pedir y pagan lento; top ticket aparte", () => {
+    const out = segmentarSaludClientes([
+      {
+        ...base,
+        clienteId: "a",
+        nombre: "Silencio",
+        dejoDePedir: true,
+        ultimoPedidoFecha: "2026-08-10",
+      },
+      {
+        ...base,
+        clienteId: "b",
+        nombre: "Lento",
+        diasPagoMediana: 12,
+      },
+      {
+        ...base,
+        clienteId: "c",
+        nombre: "Ticket alto",
+        ticketPromedioCentavos: 200000,
+      },
+      {
+        ...base,
+        clienteId: "d",
+        nombre: "Normal",
+        ticketPromedioCentavos: 10000,
+      },
+    ]);
+    expect(out.resumen.dejaron).toBe(1);
+    expect(out.resumen.lentos).toBe(1);
+    expect(out.dejaronDePedir.map((c) => c.clienteId)).toEqual(["a"]);
+    expect(out.paganLento.map((c) => c.clienteId)).toEqual(["b"]);
+    expect(out.topTicket[0]?.clienteId).toBe("c");
+  });
+});
+
+describe("topProductosVolumen", () => {
+  test("recorta a N y cuenta ocultos", () => {
+    const productos = Array.from({ length: 10 }, (_, i) => ({
+      cantidad: i + 1,
+    }));
+    const out = topProductosVolumen(productos, 8);
+    expect(out.items).toHaveLength(8);
+    expect(out.ocultos).toBe(2);
+    expect(out.items[0]?.cantidad).toBe(10);
   });
 });

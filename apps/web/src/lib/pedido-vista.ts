@@ -5,7 +5,13 @@ import {
   type Familia,
   type PedidoBandeja,
   type PedidoEstado,
+  type PeriodoTablero,
 } from "@misupertostada/shared";
+import {
+  esFechaIso,
+  rangoUiDePreset,
+  type PresetCalendario,
+} from "./fecha-ui";
 
 /** Filtro de segmento en la bandeja (además de la fecha de operación). */
 export type PedidoSegmento = "todos" | "vivos" | "ANULADO";
@@ -17,6 +23,9 @@ export type GrupoCaptura = {
 };
 
 export type PedidosUrlState = {
+  periodo?: PeriodoTablero;
+  desde?: string;
+  hasta?: string;
   fechaOperacion?: string;
   clienteId?: string;
   historial?: boolean;
@@ -131,13 +140,92 @@ export function productosAgregables(
 /** Query string de `/pedidos` a partir del estado de filtros. */
 export function buildPedidosHref(state: PedidosUrlState): string {
   const s = new URLSearchParams();
-  if (state.fechaOperacion) s.set("fechaOperacion", state.fechaOperacion);
-  if (state.clienteId) s.set("clienteId", state.clienteId);
-  if (state.historial) s.set("historial", "1");
+  if (state.historial) {
+    if (state.clienteId) s.set("clienteId", state.clienteId);
+    s.set("historial", "1");
+  } else if (state.periodo || state.desde) {
+    if (state.periodo) s.set("periodo", state.periodo);
+    if (state.desde) s.set("desde", state.desde);
+    if (state.hasta) s.set("hasta", state.hasta);
+    if (state.clienteId) s.set("clienteId", state.clienteId);
+  } else {
+    if (state.fechaOperacion) s.set("fechaOperacion", state.fechaOperacion);
+    if (state.clienteId) s.set("clienteId", state.clienteId);
+  }
   if (state.pedidoId) s.set("pedidoId", state.pedidoId);
   if (state.estado && state.estado !== "todos") s.set("estado", state.estado);
   const q = s.toString();
   return q ? `/pedidos?${q}` : "/pedidos";
+}
+
+/**
+ * Rango de la bandeja. `null` = historial de un cliente (sin recorte de fechas).
+ * Deep link `fechaOperacion` (Hoy / ficha) sigue siendo un solo día.
+ *
+ * `fechaHoy` es la operación **en curso**: el atajo «Hoy» y el ancla de los
+ * rangos multi-día. `fechaDefecto` es la operación con la que abre la bandeja
+ * sin filtro —el foco: captura con la ventana abierta, en curso cuando cerró—.
+ * Son distintas media jornada: a las 20:00 los pedidos entran en la ventana de
+ * captura, y abrir en la operación que ya se repartió mostraba una bandeja
+ * congelada mientras el SSE llenaba otra. Omitir `fechaDefecto` conserva el
+ * comportamiento viejo (todo anclado a «hoy»).
+ */
+export function parsePedidosRango(
+  sp: URLSearchParams,
+  fechaHoy: string,
+  fechaDefecto: string = fechaHoy,
+): { periodo: PeriodoTablero; desde: string; hasta: string } | null {
+  const clienteId = sp.get("clienteId");
+  const historial = sp.get("historial") === "1";
+  const fechaOp = sp.get("fechaOperacion") ?? "";
+  const desdeUrl = sp.get("desde") ?? "";
+  const hastaUrl = sp.get("hasta") ?? "";
+  const periodoRaw = sp.get("periodo");
+
+  if (historial && clienteId && !fechaOp && !desdeUrl) return null;
+
+  // Sin nada en la URL manda el foco, no «hoy».
+  if (!fechaOp && !desdeUrl && !hastaUrl && !periodoRaw) {
+    return {
+      periodo: fechaDefecto === fechaHoy ? "hoy" : "rango",
+      desde: fechaDefecto,
+      hasta: fechaDefecto,
+    };
+  }
+
+  if (fechaOp && esFechaIso(fechaOp) && !desdeUrl && !periodoRaw) {
+    return {
+      periodo: fechaOp === fechaHoy ? "hoy" : "rango",
+      desde: fechaOp,
+      hasta: fechaOp,
+    };
+  }
+
+  const periodo: PeriodoTablero =
+    periodoRaw === "hoy" ||
+    periodoRaw === "semana" ||
+    periodoRaw === "quincena" ||
+    periodoRaw === "mes" ||
+    periodoRaw === "rango"
+      ? periodoRaw
+      : "hoy";
+
+  if (periodo === "rango") {
+    const desde = esFechaIso(desdeUrl) ? desdeUrl : fechaHoy;
+    const hasta = esFechaIso(hastaUrl) ? hastaUrl : desde;
+    return { periodo, desde, hasta };
+  }
+
+  const preset = periodo as PresetCalendario;
+  const resuelto = rangoUiDePreset(preset, fechaHoy);
+  if (periodo === "hoy") {
+    return { periodo: "hoy", desde: fechaHoy, hasta: fechaHoy };
+  }
+  return {
+    periodo,
+    desde: resuelto?.desde ?? fechaHoy,
+    hasta: resuelto?.hasta ?? fechaHoy,
+  };
 }
 
 export function parsePedidoSegmento(

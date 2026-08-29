@@ -5,6 +5,7 @@ import {
   aplicarSegmentoLista,
   buildPedidosHref,
   debeAplicarSnapshotServidor,
+  parsePedidosRango,
   estadoDeSegmento,
   filtrarBandeja,
   parsePedidoSegmento,
@@ -203,5 +204,98 @@ describe("buildPedidosHref", () => {
         pedidoId: "11111111-1111-4111-8111-111111111111",
       }),
     ).toContain("historial=1");
+  });
+
+  test("rango de periodo queda en la URL como el tablero", () => {
+    expect(
+      buildPedidosHref({
+        periodo: "semana",
+        desde: "2026-08-17",
+        hasta: "2026-08-23",
+      }),
+    ).toBe("/pedidos?periodo=semana&desde=2026-08-17&hasta=2026-08-23");
+  });
+});
+
+describe("parsePedidosRango", () => {
+  const hoy = "2026-08-22";
+
+  test("sin query usa hoy de operación", () => {
+    expect(parsePedidosRango(new URLSearchParams(), hoy)).toEqual({
+      periodo: "hoy",
+      desde: hoy,
+      hasta: hoy,
+    });
+  });
+
+  test("fechaOperacion suelta (Hoy / ficha) es un día", () => {
+    expect(
+      parsePedidosRango(
+        new URLSearchParams("fechaOperacion=2026-08-21"),
+        hoy,
+      ),
+    ).toEqual({
+      periodo: "rango",
+      desde: "2026-08-21",
+      hasta: "2026-08-21",
+    });
+  });
+
+  test("historial de cliente no arma rango", () => {
+    expect(
+      parsePedidosRango(
+        new URLSearchParams(
+          "clienteId=22222222-2222-4222-8222-222222222222&historial=1",
+        ),
+        hoy,
+      ),
+    ).toBeNull();
+  });
+
+  test("periodo semana resuelve el rango con el ancla", () => {
+    expect(
+      parsePedidosRango(new URLSearchParams("periodo=semana"), hoy),
+    ).toEqual({
+      periodo: "semana",
+      desde: "2026-08-17",
+      hasta: "2026-08-23",
+    });
+  });
+});
+
+describe("parsePedidosRango · foco de la bandeja", () => {
+  const enCurso = "2026-08-24";
+  const captura = "2026-08-25";
+
+  test("sin filtro abre en el foco, no en la operación en curso", () => {
+    expect(parsePedidosRango(new URLSearchParams(), enCurso, captura)).toEqual({
+      periodo: "rango",
+      desde: captura,
+      hasta: captura,
+    });
+  });
+
+  test("con los dos ejes juntos sigue siendo periodo hoy", () => {
+    expect(parsePedidosRango(new URLSearchParams(), enCurso, enCurso)).toEqual({
+      periodo: "hoy",
+      desde: enCurso,
+      hasta: enCurso,
+    });
+  });
+
+  test("el atajo Hoy explícito sigue apuntando al eje en curso", () => {
+    expect(
+      parsePedidosRango(new URLSearchParams("periodo=hoy"), enCurso, captura),
+    ).toEqual({ periodo: "hoy", desde: enCurso, hasta: enCurso });
+  });
+
+  test("un deep link de fecha manda sobre el foco", () => {
+    expect(
+      parsePedidosRango(
+        new URLSearchParams("fechaOperacion=2026-08-03"),
+        enCurso,
+        captura,
+      ),
+    ).toEqual({ periodo: "rango", desde: "2026-08-03", hasta: "2026-08-03" });
   });
 });
