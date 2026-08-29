@@ -66,8 +66,9 @@ Vocabulario real del negocio. Úsalo en código, UI y conversación.
 | **DTE** | Documento Tributario Electrónico (factura). Se emite en un sistema **externo** |
 | **Cancelado** | En Guatemala significa **pagado**, no anulado. Cuidado con esta palabra en la UI |
 | **Pedido consolidado** | El mensaje único con todos los pedidos del día siguiente |
-| **Ventana de pedido** | Franja en que el cliente puede pedir: 15:00–00:00 |
-| **Fecha de operación** | Día de entrega al que pertenece un pedido (≠ fecha de captura) |
+| **Ventana de pedido** | Franja en que el cliente puede pedir: 15:00–03:00 del día siguiente, lun–sáb. Configurable por weekday en `/configuracion`; la fuente única es la tabla `ventana_semanal` |
+| **Fecha de operación** | Día en que **abrió** la ventana a la que pertenece el pedido (≠ fecha de captura). Es la llave de la operación: hoja, cierre, ruta |
+| **Fecha de entrega** | Día en que se reparte: el siguiente día activo después de la fecha de operación. Es la fecha que se le dice al cliente |
 | **Grosor especial** | Algunos clientes piden la tortilla más gruesa. Es fijo por cliente |
 
 > **Nota crítica de UI:** en el sistema, "cancelado" para un pedido significa **anulado**, pero
@@ -335,7 +336,9 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 
 **F-602 · Exportación a PDF**
 - [x] Con `@react-pdf/renderer`, sin Chrome headless
-- [x] Cierre de quincena listo para imprimir
+- [x] Reporte listo para imprimir; el título y el archivo siguen al recorte
+  (`reporteTablero`): cierre de quincena, cierre de mes, resumen de la semana,
+  del día o del periodo
 
 ### E7 — Mensajería *(semana 7)*
 

@@ -52,8 +52,13 @@ Estas producen bugs caros si se rompen. No las replantees.
 - Todo se guarda en `timestamptz` en UTC.
 - **Toda** la lógica de fechas pasa por el módulo `BusinessCalendar`. Prohibido usar `new Date()`
   o `Date.now()` disperso para decisiones de negocio.
-- Concepto formal: **`fecha_operacion`**. Los pedidos capturados dentro de la ventana del día D
-  pertenecen a la entrega del siguiente día hábil. No es lo mismo que `created_at`.
+- Dos conceptos formales, **no los confundas**:
+  - **`fecha_operacion`** — el día en que **abrió** la ventana. Todo lo capturado dentro de esa
+    ventana pertenece a esa operación, aunque el pedido entre a las 02:00 del día de calendario siguiente.
+    Es la llave interna: hoja de producción, cierre, ruta, outbox, filtros. No es `created_at`.
+  - **`fecha_entrega`** — el día en que se reparte: el **siguiente día activo** después de
+    `fecha_operacion`, saltando feriados y weekdays sin ventana. Es la fecha que ven el cliente y
+    el personal. Se **congela** en el pedido al capturarlo; reconfigurar la ventana no la reescribe.
 
 ### 2.4 Eliminación
 - **Nada se borra.** Ni productos, ni clientes, ni pedidos, ni pagos.
@@ -106,6 +111,17 @@ regresiones que rompen los controladores entre versiones de parche.
 
 Por eso:
 - `bun install`, `bun test`, `bun run <script>` → **sí**.
+
+**Los tests corren contra su propia base, nunca contra la de desarrollo.** `testDatabaseUrl()`
+(`packages/db/src/test-url.ts`) deriva `<DATABASE_URL>_test`, o toma `TEST_DATABASE_URL` si está.
+Crearla una vez con `bun run db:test:setup`. El motivo es concreto: `dev-all.ts` levanta
+`bun test --watch` junto a los servidores, los e2e crean una organización por test y no truncan
+nada, así que apuntando a la base de desarrollo cada guardado dejaba cientos de organizaciones
+muertas —31 003 acumuladas en agosto de 2026, con el cron de cierre recorriéndolas todas cada
+minuto—. Al terminar la corrida, un `afterAll` global (`apps/api/src/test/preload.ts`, cargado por
+los `bunfig.toml`) borra lo que quedó. Para limpiar una base ya contaminada:
+`bun run db:purge:test-data` (`--dry` para solo contar).
+
 - `bun src/main.ts` en producción → **no**, salvo decisión explícita posterior.
 - Si algún día se migra el runtime: fijar versión **exacta** (sin `^`) en `package.json` y
   Dockerfile, y agregar un smoke test en CI que levante la app y consulte `/health`.
@@ -245,18 +261,29 @@ outbox                  tipo, destinatario_id, fecha_operacion, payload, estado,
 
 ```ts
 BusinessCalendar {
-  isVentanaAbierta(now): boolean          // 15:00 – 00:00 America/Guatemala, configurable
-  getFechaOperacion(now): Date            // siguiente día hábil
-  getSiguienteDiaHabil(from): Date        // salta DiaNoLaborable
-  isDiaNoLaborable(fecha): boolean
+  isVentanaAbierta(now): boolean          // 15:00 – 03:00 America/Guatemala, configurable
+  getFechaOperacion(now): Date            // día que abrió la ventana viva; si no hay, día activo
+  getFechaEntrega(fechaOperacion): Date   // siguiente día activo: el día de reparto
+  getSiguienteDiaHabil(from): Date        // salta DiaNoLaborable y weekdays sin ventana
+  isDiaNoLaborable(fecha): boolean        // feriado o weekday sin ventana configurada
   isSabado(fecha): boolean                // sábado ⇒ TODO carga en PLANTA
 }
 ```
 
-- Ventana por defecto **15:00 → 00:00**, configurable por organización.
+- Ventana de fábrica **15:00 → 03:00** del día de calendario siguiente, lun–sáb, configurable por weekday.
+- **`ventana_semanal` es la única fuente de horario. No hay fallback.** Ni columnas en
+  `organizacion`, ni default del motor, ni literales en la UI: una organización sin sus 7 filas
+  tiene la semana apagada, `GET /calendario/ahora` devuelve `horarioApertura/Cierre` en `null` y el
+  portal rechaza todo. Toda organización nueva se siembra con `sembrarVentanaSemanal`
+  (`@misupertostada/db`); el horario en TypeScript vive una sola vez en `HORARIO_SEMANAL_DEFAULT`
+  (`packages/shared/src/configuracion.ts`) y solo sirve como borrador del formulario.
 - Se valida **del lado del servidor**, siempre. Nunca confíes en el reloj del navegador.
 - **Domingo** marcado como no laborable por defecto; feriados nacionales de Guatemala precargados.
-  Editable desde el panel. Si un pedido cae en día no laborable, se programa al siguiente hábil.
+  Editable desde el panel. Un weekday con la ventana desactivada cuenta como no laborable: ni abre
+  ni se entrega ese día.
+- Ejemplos de la regla de entrega: ventana lunes 15:00 → martes 03:00 ⇒ operación lunes, entrega
+  martes (da igual que el pedido entre a las 16:00 del lunes o a las 02:00 del martes). Ventana
+  sábado 15:00 → domingo 03:00 con domingo inactivo ⇒ operación sábado, entrega lunes.
 - **Regla de sábado**: el sábado la carga completa sale de planta, sin importar el
   `punto_carga` del producto.
 
@@ -272,6 +299,36 @@ BusinessCalendar {
   4. **No se reenvían** los mensajes ya enviados.
   5. Al cerrar de nuevo se genera **hoja versión 2 con los cambios resaltados**, no la hoja completa.
   6. Queda en `audit_log`: quién, cuándo, por qué.
+  7. **La reapertura vence.** Mientras está viva, el barrido
+     (`CierreService.cerrarSiToca`) no toca el día: alguien lo está corrigiendo a mano y cerrarlo
+     por debajo le borraría el trabajo. Vence al **cerrar la ventana del propio día** —un día
+     reabierto termina cuando termina cualquier otro—, nunca antes de
+     `MARGEN_MINIMO_REAPERTURA_MINUTOS` (60): sin ese piso, reabrir a las 02:50 con la ventana
+     cerrando a las 03:00 daría diez minutos para corregir, y la gracia dependería del azar. El
+     cálculo vive en `BusinessCalendar.getLimiteDeReapertura`.
+
+     El ancla **no puede ser la próxima apertura de ventana**, que es la primera idea que viene a
+     la cabeza: la entrega de una operación cae al día siguiente y esa apertura son las 15:00 de
+     ese mismo día, o sea después de que Alex produjo y Tony salió. Llegaría siempre tarde. Con la
+     operación del 22 de agosto de 2026 (entrega el lunes 24) ese ancla habría cerrado el día el
+     lunes a las 15:00, con el reparto ya perdido; el cierre de la ventana propia lo habría cerrado
+     el domingo a las 03:00.
+  8. Mientras la reapertura está viva el día se queda sin hoja y con los pedidos en `CONFIRMADO`
+     —o sea, producción y reparto vacíos—, así que el panel lo rotula: chip en el navbar y vacíos
+     explicados en `/produccion` y `/reparto` (`avisoReabierto`,
+     `apps/web/src/lib/reabierto-vista.ts`). Ese aviso es la red de verdad: dispara en segundos,
+     no en horas.
+
+### Cierre automático
+
+- El cron (`CierreJob`, cada 60 s) **barre toda operación con la ventana vencida y sin cerrar**, no
+  solo la última. Si el proceso no está vivo en el minuto del cierre —deploy, reinicio, laptop
+  apagada— esa operación se recupera en el siguiente barrido. Antes solo miraba
+  `getFechaOperacionDeVentanaReciente(now)` y la operación saltada quedaba abierta para siempre.
+- Los candidatos con pedidos salen de **una sola consulta** para todas las organizaciones: el
+  barrido no puede costar una carga de calendario por organización.
+- También entra todo `dia_operacion` pasado sin cerrar, tenga pedidos o no: es lo que devuelve al
+  redil un día reabierto y olvidado.
 
 ---
 
@@ -390,7 +447,9 @@ dato **no se puede perder ni parecer guardado sin estarlo**.
 
 Cuando toques estas áreas, **pregunta antes de asumir**:
 
-- Confirmación de si trabajan domingos y qué feriados cierran realmente.
+- Qué feriados cierran realmente.
+  **Resuelto (2026-08):** la ventana real es **lun–sáb 15:00 → 03:00**, domingo inactivo; el sábado
+  abre igual y su operación entrega el lunes. `ventana_semanal` es la fuente única.
 - Política de retención de conversaciones de WhatsApp.
 - Si el cliente puede ver su historial completo de pedidos en el portal o solo el estado de cuenta.
   **Resuelto (2026-08):** sí ve historial **recortado** (últimos 20 + cargar más) de *sus* pedidos;
