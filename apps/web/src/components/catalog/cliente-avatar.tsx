@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar } from "@heroui/react";
 import { AssetImage } from "@/components/ui/asset-image";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,8 @@ function iniciales(nombre: string): string {
   return `${parts[0]!.slice(0, 1)}${parts[1]!.slice(0, 1)}`.toUpperCase();
 }
 
+/* Los tamaños son del panel, no de HeroUI: la misma ficha aparece en reparto,
+   cartera y tablero, y ahí el diámetro está calibrado con la altura de fila. */
 const SIZE = {
   sm: "size-9 text-[10px]",
   md: "size-14 text-sm",
@@ -27,35 +30,35 @@ export function ClienteAvatar({
   size?: keyof typeof SIZE;
   className?: string;
 }) {
-  const box = cn(
-    "relative shrink-0 overflow-hidden rounded-full font-semibold",
-    SIZE[size],
-    className,
-  );
-
-  if (fotoAssetId) {
-    return (
-      <span className={cn(box, "bg-[var(--ink-200)]")}>
+  return (
+    <Avatar
+      className={cn(
+        "rounded-full font-semibold",
+        fotoAssetId ? "bg-[var(--ink-200)]" : "bg-[var(--green-200)]",
+        SIZE[size],
+        className,
+      )}
+    >
+      {/* La foto se sirve tras cookie de sesión: la trae AssetImage como blob,
+          no Avatar.Image, que solo sabe de URLs públicas. */}
+      {fotoAssetId ? (
         <AssetImage
           assetId={fotoAssetId}
           alt={nombre}
           variante="thumb"
           className="absolute inset-0 size-full"
         />
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        box,
-        "grid place-items-center bg-[var(--green-200)] text-[var(--green-850)]",
-        "ring-1 ring-inset ring-[var(--green-300)]",
+      ) : (
+        <Avatar.Fallback
+          aria-hidden
+          className={cn(
+            "bg-[var(--green-200)] text-[var(--green-850)]",
+            "text-[length:inherit] ring-1 ring-inset ring-[var(--green-300)]",
+          )}
+        >
+          {iniciales(nombre)}
+        </Avatar.Fallback>
       )}
-      aria-hidden
-    >
-      {iniciales(nombre)}
-    </span>
+    </Avatar>
   );
 }

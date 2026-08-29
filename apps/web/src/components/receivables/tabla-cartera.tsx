@@ -2,18 +2,29 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronDown, MessageCircle, Receipt } from "lucide-react";
+import {
+  Button,
+  Chip,
+  Disclosure,
+  Modal,
+  Spinner,
+  Table,
+} from "@heroui/react";
+import { MessageCircle, Receipt } from "lucide-react";
 import type { FacturaCartera } from "@misupertostada/shared";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 import { CapturaDte } from "./captura-dte";
 
 export type VistaCartera = "factura" | "cliente";
+
+/** El saldo se lee por color antes que por cifra: vencido rojo, pagado verde. */
+function tonoSaldo(f: FacturaCartera) {
+  if (f.estado === "VENCIDO") return "vencido" as const;
+  if (f.estado === "PAGADO") return "pagado" as const;
+  return "pendiente" as const;
+}
 
 export function TablaCartera({
   facturas,
@@ -44,191 +55,200 @@ export function TablaCartera({
 }) {
   const [dteTarget, setDteTarget] = useState<FacturaCartera | null>(null);
 
+  const modalDte = dteTarget ? (
+    <DialogoCapturaDte
+      factura={dteTarget}
+      hintDte={hintDte}
+      loading={dteLoadingId === dteTarget.id}
+      puedeDte={puedeDte}
+      onClose={() => setDteTarget(null)}
+      onSave={(numeroDte) => {
+        onDte(dteTarget, numeroDte);
+        setDteTarget(null);
+      }}
+    />
+  ) : null;
+
   if (vista === "cliente") {
     return (
       <>
         <CarteraPorCliente
-          facturas={facturas}
-          puedeDte={puedeDte}
-          puedeCobrar={puedeCobrar}
-          puedeRecordar={puedeRecordar}
-          hintDte={hintDte}
-          hintCobro={hintCobro}
           dteLoadingId={dteLoadingId}
+          facturas={facturas}
+          hintCobro={hintCobro}
+          hintDte={hintDte}
+          puedeCobrar={puedeCobrar}
+          puedeDte={puedeDte}
+          puedeRecordar={puedeRecordar}
           recordarLoadingId={recordarLoadingId}
           onCobrar={onCobrar}
-          onRecordar={onRecordar}
           onPedirDte={setDteTarget}
+          onRecordar={onRecordar}
         />
-        {dteTarget ? (
-          <DialogoCapturaDte
-            factura={dteTarget}
-            puedeDte={puedeDte}
-            hintDte={hintDte}
-            loading={dteLoadingId === dteTarget.id}
-            onClose={() => setDteTarget(null)}
-            onSave={(numeroDte) => {
-              onDte(dteTarget, numeroDte);
-              setDteTarget(null);
-            }}
-          />
-        ) : null}
+        {modalDte}
       </>
     );
   }
 
   return (
     <>
+      {/* Móvil: fila-tarjeta. En tablet en ruta la fila de tabla no cabe sin
+          scroll horizontal, y el cobro se hace con el pulgar. */}
       <ul className="grid gap-2 p-3 md:hidden">
         {facturas.map((f) => (
           <li key={f.id}>
             <FacturaCard
               factura={f}
-              puedeDte={puedeDte}
-              puedeCobrar={puedeCobrar}
-              puedeRecordar={puedeRecordar}
               hintCobro={hintCobro}
+              puedeCobrar={puedeCobrar}
+              puedeDte={puedeDte}
+              puedeRecordar={puedeRecordar}
               recordarLoading={recordarLoadingId === f.clienteId}
               onCobrar={onCobrar}
-              onRecordar={onRecordar}
               onPedirDte={setDteTarget}
+              onRecordar={onRecordar}
             />
           </li>
         ))}
       </ul>
 
       <div className="hidden md:block">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
-            <thead className="sticky top-0 z-[1]">
-              <tr className="bg-tinta-50">
-                {(
-                  [
-                    ["Cliente", "text-left"],
-                    ["DTE", "text-left"],
-                    ["Pedido", "text-left"],
-                    ["Saldo", "text-right"],
-                    ["Estado", "text-left"],
-                    ["", "text-right"],
-                  ] as const
-                ).map(([h, align]) => (
-                  <th
-                    key={h || "acciones"}
-                    scope="col"
-                    className={`px-4 py-2.5 mst-label text-[11px] ${align}`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {facturas.map((f) => (
-                <tr
-                  key={f.id}
-                  className="border-b border-[var(--border-subtle)] align-middle"
-                >
-                  <td className="px-4 py-2.5">
-                    <ClienteCell
-                      clienteId={f.clienteId}
-                      nombre={f.clienteNombre}
-                      fotoAssetId={f.fotoAssetId}
-                    />
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {f.numeroDte ? (
-                      <span className="font-mono text-xs tabular-nums">
-                        {f.numeroDte}
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!puedeDte}
-                        title={hintDte ?? "Capturar número DTE"}
-                        onClick={() => setDteTarget(f)}
-                        className="inline-flex min-h-9 items-center rounded-campo border border-dashed border-aviso/50 bg-aviso/5 px-2 text-xs font-semibold text-aviso transition-colors hover:border-aviso disabled:opacity-50"
-                      >
-                        Sin DTE
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-tinta-500">
-                    #{f.correlativo}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    <div className="grid justify-items-end gap-0.5">
-                      <Money
-                        centavos={f.saldoCentavos}
-                        tone={
-                          f.estado === "VENCIDO"
-                            ? "vencido"
-                            : f.estado === "PAGADO"
-                              ? "pagado"
-                              : "pendiente"
-                        }
+        <Table>
+          <Table.ScrollContainer>
+            <Table.Content
+              aria-label="Facturas de cartera"
+              className="min-w-[760px]"
+            >
+              <Table.Header>
+                <Table.Column isRowHeader id="cliente">
+                  Cliente
+                </Table.Column>
+                <Table.Column id="dte">DTE</Table.Column>
+                <Table.Column id="pedido">Pedido</Table.Column>
+                <Table.Column id="saldo">Saldo</Table.Column>
+                <Table.Column id="estado">Estado</Table.Column>
+                <Table.Column id="acciones">Acciones</Table.Column>
+              </Table.Header>
+              <Table.Body items={facturas}>
+                {(f: FacturaCartera) => (
+                  <Table.Row id={f.id}>
+                    <Table.Cell>
+                      <ClienteCell
+                        clienteId={f.clienteId}
+                        fotoAssetId={f.fotoAssetId}
+                        nombre={f.clienteNombre}
                       />
-                      {f.abonadoCentavos > 0 && f.estado !== "PAGADO" ? (
-                        <span className="text-[11px] tabular-nums text-tinta-500">
-                          de <Money centavos={f.montoCentavos} tone="muted" />
+                    </Table.Cell>
+                    <Table.Cell>
+                      {f.numeroDte ? (
+                        <span className="font-mono text-xs tabular-nums">
+                          {f.numeroDte}
                         </span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <EstadoBadge estado={f.estado} size="sm" />
-                  </td>
-                  <td className="px-4 py-2">
-                    {f.estado !== "PAGADO" ? (
-                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      ) : (
                         <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={!puedeRecordar}
-                          title={
-                            puedeRecordar
-                              ? "Envía el estado de cuenta por WhatsApp"
-                              : "No tiene permiso para enviar WhatsApp"
+                          aria-label={
+                            hintDte ?? `Capturar DTE del pedido #${f.correlativo}`
                           }
-                          loading={recordarLoadingId === f.clienteId}
-                          onClick={() => onRecordar(f.clienteId)}
-                          aria-label={`Recordar a ${f.clienteNombre}`}
-                        >
-                          <MessageCircle size={15} aria-hidden />
-                        </Button>
-                        <Button
+                          className="border-dashed border-aviso/50 text-aviso"
+                          isDisabled={!puedeDte}
                           size="sm"
-                          variant="secondary"
-                          disabled={!puedeCobrar}
-                          title={hintCobro}
-                          aria-label={`Registrar pago de ${f.clienteNombre}`}
-                          onClick={() => onCobrar(f)}
+                          variant="outline"
+                          onPress={() => setDteTarget(f)}
                         >
-                          Cobrar
+                          <Receipt size={14} aria-hidden />
+                          Sin DTE
                         </Button>
+                      )}
+                    </Table.Cell>
+                    <Table.Cell className="font-mono text-xs tabular-nums text-tinta-500">
+                      #{f.correlativo}
+                      {f.antiguedadDias > 0 ? ` · ${f.antiguedadDias}d` : ""}
+                    </Table.Cell>
+                    <Table.Cell className="text-right">
+                      <div className="grid justify-items-end gap-0.5">
+                        <Money centavos={f.saldoCentavos} tone={tonoSaldo(f)} />
+                        {f.abonadoCentavos > 0 && f.estado !== "PAGADO" ? (
+                          <span className="text-[11px] tabular-nums text-tinta-500">
+                            de <Money centavos={f.montoCentavos} tone="muted" />
+                          </span>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <EstadoBadge estado={f.estado} size="sm" />
+                    </Table.Cell>
+                    <Table.Cell>
+                      {f.estado !== "PAGADO" ? (
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <BotonRecordar
+                            cargando={recordarLoadingId === f.clienteId}
+                            nombre={f.clienteNombre}
+                            puedeRecordar={puedeRecordar}
+                            onRecordar={() => onRecordar(f.clienteId)}
+                          />
+                          <Button
+                            aria-label={
+                              hintCobro ??
+                              `Registrar pago de ${f.clienteNombre}`
+                            }
+                            isDisabled={!puedeCobrar}
+                            size="sm"
+                            variant="secondary"
+                            onPress={() => onCobrar(f)}
+                          >
+                            Cobrar
+                          </Button>
+                        </div>
+                      ) : null}
+                    </Table.Cell>
+                  </Table.Row>
+                )}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table>
       </div>
 
-      {dteTarget ? (
-        <DialogoCapturaDte
-          factura={dteTarget}
-          puedeDte={puedeDte}
-          hintDte={hintDte}
-          loading={dteLoadingId === dteTarget.id}
-          onClose={() => setDteTarget(null)}
-          onSave={(numeroDte) => {
-            onDte(dteTarget, numeroDte);
-            setDteTarget(null);
-          }}
-        />
-      ) : null}
+      {modalDte}
     </>
+  );
+}
+
+function BotonRecordar({
+  nombre,
+  puedeRecordar,
+  cargando,
+  onRecordar,
+  className,
+}: {
+  nombre: string;
+  puedeRecordar: boolean;
+  cargando: boolean;
+  onRecordar: () => void;
+  className?: string;
+}) {
+  return (
+    <Button
+      aria-label={
+        puedeRecordar
+          ? `Recordar a ${nombre}: envía el estado de cuenta por WhatsApp`
+          : "No tiene permiso para enviar WhatsApp"
+      }
+      className={className}
+      isDisabled={!puedeRecordar}
+      isPending={cargando}
+      size="sm"
+      variant="secondary"
+      onPress={onRecordar}
+    >
+      {({ isPending }) =>
+        isPending ? (
+          <Spinner color="current" size="sm" />
+        ) : (
+          <MessageCircle size={15} aria-hidden />
+        )
+      }
+    </Button>
   );
 }
 
@@ -248,21 +268,34 @@ function DialogoCapturaDte({
   onSave: (numeroDte: string) => void;
 }) {
   return (
-    <Dialog
-      open
-      title="Capturar DTE"
-      description={`${factura.clienteNombre} · pedido #${factura.correlativo}`}
-      onClose={onClose}
+    <Modal.Backdrop
+      isOpen
+      onOpenChange={(abierto) => {
+        if (!abierto) onClose();
+      }}
     >
-      <CapturaDte
-        id={`dte-dialog-${factura.id}`}
-        numeroDte={factura.numeroDte}
-        disabled={!puedeDte}
-        hint={hintDte}
-        loading={loading}
-        onSave={onSave}
-      />
-    </Dialog>
+      <Modal.Container size="sm">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>Capturar DTE</Modal.Heading>
+            <p className="text-sm text-tinta-500">
+              {factura.clienteNombre} · pedido #{factura.correlativo}
+            </p>
+          </Modal.Header>
+          <Modal.Body>
+            <CapturaDte
+              disabled={!puedeDte}
+              hint={hintDte}
+              id={`dte-dialog-${factura.id}`}
+              loading={loading}
+              numeroDte={factura.numeroDte}
+              onSave={onSave}
+            />
+          </Modal.Body>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
 
@@ -277,10 +310,10 @@ function ClienteCell({
 }) {
   return (
     <Link
-      href={`/clientes/${clienteId}`}
       className="group flex min-w-0 items-center gap-2.5 text-inherit no-underline hover:text-inherit hover:no-underline"
+      href={`/clientes/${clienteId}`}
     >
-      <ClienteAvatar nombre={nombre} fotoAssetId={fotoAssetId} size="sm" />
+      <ClienteAvatar fotoAssetId={fotoAssetId} nombre={nombre} size="sm" />
       <span className="truncate font-semibold text-tinta-900 group-hover:text-marca">
         {nombre}
       </span>
@@ -313,14 +346,14 @@ function FacturaCard({
     <article className="grid gap-2.5 rounded-[calc(var(--radius-card)-0.25rem)] border border-[var(--border-subtle)] bg-blanco p-3">
       <div className="flex items-start gap-2.5">
         <ClienteAvatar
-          nombre={f.clienteNombre}
           fotoAssetId={f.fotoAssetId}
+          nombre={f.clienteNombre}
           size="sm"
         />
         <div className="min-w-0 flex-1">
           <Link
-            href={`/clientes/${f.clienteId}`}
             className="block truncate font-semibold text-tinta-900 no-underline hover:text-marca hover:no-underline"
+            href={`/clientes/${f.clienteId}`}
           >
             {f.clienteNombre}
           </Link>
@@ -335,58 +368,41 @@ function FacturaCard({
 
       <div className="flex items-center justify-between gap-2 rounded-[calc(var(--radius-card)-0.5rem)] bg-tinta-50 px-2.5 py-2">
         <span className="mst-label text-[10px]">Saldo</span>
-        <Money
-          centavos={f.saldoCentavos}
-          tone={
-            f.estado === "VENCIDO"
-              ? "vencido"
-              : f.estado === "PAGADO"
-                ? "pagado"
-                : "pendiente"
-          }
-        />
+        <Money centavos={f.saldoCentavos} tone={tonoSaldo(f)} />
       </div>
 
       {!f.numeroDte ? (
-        <button
-          type="button"
-          disabled={!puedeDte}
-          onClick={() => onPedirDte(f)}
-          className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-campo border border-dashed border-aviso/50 bg-aviso/5 text-xs font-semibold text-aviso disabled:opacity-50"
+        <Button
+          className="min-h-11 border-dashed border-aviso/50 text-aviso"
+          isDisabled={!puedeDte}
+          size="sm"
+          variant="outline"
+          onPress={() => onPedirDte(f)}
         >
           <Receipt size={14} aria-hidden />
           Capturar DTE
-        </button>
+        </Button>
       ) : null}
 
       {f.estado !== "PAGADO" ? (
         <div className="flex flex-wrap gap-2">
           <Button
+            aria-label={hintCobro ?? `Registrar pago de ${f.clienteNombre}`}
+            className="min-h-11 flex-1"
+            isDisabled={!puedeCobrar}
             size="sm"
             variant="secondary"
-            className="min-h-11 flex-1"
-            disabled={!puedeCobrar}
-            title={hintCobro}
-            onClick={() => onCobrar(f)}
+            onPress={() => onCobrar(f)}
           >
             Cobrar
           </Button>
-          <Button
-            size="sm"
-            variant="secondary"
+          <BotonRecordar
+            cargando={Boolean(recordarLoading)}
             className="min-h-11"
-            disabled={!puedeRecordar}
-            title={
-              puedeRecordar
-                ? "Envía el estado de cuenta por WhatsApp"
-                : "No tiene permiso para enviar WhatsApp"
-            }
-            loading={recordarLoading}
-            onClick={() => onRecordar(f.clienteId)}
-            aria-label={`Recordar a ${f.clienteNombre}`}
-          >
-            <MessageCircle size={15} aria-hidden />
-          </Button>
+            nombre={f.clienteNombre}
+            puedeRecordar={puedeRecordar}
+            onRecordar={() => onRecordar(f.clienteId)}
+          />
         </div>
       ) : null}
     </article>
@@ -429,148 +445,133 @@ function CarteraPorCliente({
   onPedirDte: (fac: FacturaCartera) => void;
 }) {
   const grupos = useMemo(() => agruparPorCliente(facturas), [facturas]);
-  const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set());
-
-  function toggle(id: string) {
-    setAbiertos((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
 
   return (
     <ul className="grid gap-2 p-3">
       {grupos.map((g) => {
-        const abierto = abiertos.has(g.clienteId);
         const cobrable = g.facturas.find((f) => f.estado !== "PAGADO");
         return (
           <li
             key={g.clienteId}
             className="rounded-[calc(var(--radius-card)-0.25rem)] border border-[var(--border-subtle)] bg-blanco"
           >
-            <div className="flex flex-wrap items-center gap-2 p-3">
-              <button
-                type="button"
-                onClick={() => toggle(g.clienteId)}
-                className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
-                aria-expanded={abierto}
-              >
-                <ClienteAvatar
-                  nombre={g.nombre}
-                  fotoAssetId={g.fotoAssetId}
-                  size="sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-tinta-900">
-                    {g.nombre}
-                  </p>
-                  <p className="mt-0.5 text-xs tabular-nums text-tinta-500">
-                    {g.facturas.length} factura
-                    {g.facturas.length === 1 ? "" : "s"}
-                    {g.sinDte > 0 ? ` · ${g.sinDte} sin DTE` : ""}
-                    {g.vencidas > 0 ? ` · ${g.vencidas} vencida${g.vencidas === 1 ? "" : "s"}` : ""}
-                  </p>
-                </div>
-                <Money
-                  centavos={g.saldoCentavos}
-                  tone={g.vencidas > 0 ? "vencido" : "pendiente"}
-                />
-                <ChevronDown
-                  size={16}
-                  className={cn(
-                    "shrink-0 text-tinta-500 transition-transform",
-                    abierto && "rotate-180",
-                  )}
-                  aria-hidden
-                />
-              </button>
-              {cobrable ? (
-                <div className="flex w-full gap-2 sm:w-auto">
+            <Disclosure>
+              <div className="flex flex-wrap items-center gap-2 p-3">
+                <Disclosure.Heading className="min-w-0 flex-1">
                   <Button
-                    size="sm"
-                    variant="secondary"
-                    className="min-h-10 flex-1 sm:flex-none"
-                    disabled={!puedeCobrar}
-                    title={hintCobro}
-                    onClick={() => onCobrar(cobrable)}
+                    className="w-full justify-start gap-2.5 text-left"
+                    slot="trigger"
+                    variant="ghost"
                   >
-                    Cobrar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="min-h-10"
-                    disabled={!puedeRecordar}
-                    loading={recordarLoadingId === g.clienteId}
-                    onClick={() => onRecordar(g.clienteId)}
-                    aria-label={`Recordar a ${g.nombre}`}
-                  >
-                    <MessageCircle size={15} aria-hidden />
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-
-            {abierto ? (
-              <ul className="border-t border-[var(--border-subtle)]">
-                {g.facturas.map((f) => (
-                  <li
-                    key={f.id}
-                    className="flex flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] px-3 py-2.5 last:border-b-0"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium tabular-nums text-tinta-900">
-                        #{f.correlativo}
-                        {f.numeroDte ? (
-                          <span className="ml-2 font-mono text-xs text-tinta-500">
-                            {f.numeroDte}
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={!puedeDte}
-                            title={hintDte}
-                            onClick={() => onPedirDte(f)}
-                            className="ml-2 inline-flex items-center rounded-campo px-1.5 py-0.5 text-[11px] font-semibold text-aviso disabled:opacity-50"
-                          >
-                            Sin DTE
-                          </button>
-                        )}
-                      </p>
-                      <div className="mt-1">
-                        <EstadoBadge estado={f.estado} size="sm" />
-                      </div>
-                    </div>
-                    <Money
-                      centavos={f.saldoCentavos}
-                      tone={
-                        f.estado === "VENCIDO"
-                          ? "vencido"
-                          : f.estado === "PAGADO"
-                            ? "pagado"
-                            : "pendiente"
-                      }
+                    <ClienteAvatar
+                      fotoAssetId={g.fotoAssetId}
+                      nombre={g.nombre}
+                      size="sm"
                     />
-                    {f.estado !== "PAGADO" ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={!puedeCobrar}
-                        title={hintCobro}
-                        onClick={() => onCobrar(f)}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold text-tinta-900">
+                        {g.nombre}
+                      </span>
+                      <span className="mt-0.5 block text-xs tabular-nums font-normal text-tinta-500">
+                        {g.facturas.length} factura
+                        {g.facturas.length === 1 ? "" : "s"}
+                        {g.sinDte > 0 ? ` · ${g.sinDte} sin DTE` : ""}
+                        {g.vencidas > 0
+                          ? ` · ${g.vencidas} vencida${g.vencidas === 1 ? "" : "s"}`
+                          : ""}
+                      </span>
+                    </span>
+                    <Money
+                      centavos={g.saldoCentavos}
+                      tone={g.vencidas > 0 ? "vencido" : "pendiente"}
+                    />
+                    <Disclosure.Indicator />
+                  </Button>
+                </Disclosure.Heading>
+                {cobrable ? (
+                  <div className="flex w-full gap-2 sm:w-auto">
+                    <Button
+                      aria-label={hintCobro ?? `Registrar pago de ${g.nombre}`}
+                      className="min-h-11 flex-1 sm:flex-none"
+                      isDisabled={!puedeCobrar}
+                      size="sm"
+                      variant="secondary"
+                      onPress={() => onCobrar(cobrable)}
+                    >
+                      Cobrar
+                    </Button>
+                    <BotonRecordar
+                      cargando={recordarLoadingId === g.clienteId}
+                      className="min-h-11"
+                      nombre={g.nombre}
+                      puedeRecordar={puedeRecordar}
+                      onRecordar={() => onRecordar(g.clienteId)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <Disclosure.Content>
+                <Disclosure.Body className="border-t border-[var(--border-subtle)] p-0">
+                  <ul>
+                    {g.facturas.map((f) => (
+                      <li
+                        key={f.id}
+                        className="flex flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] px-3 py-2.5 last:border-b-0"
                       >
-                        Cobrar
-                      </Button>
-                    ) : null}
-                    {dteLoadingId === f.id ? (
-                      <Badge tone="neutral">Guardando…</Badge>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium tabular-nums text-tinta-900">
+                            #{f.correlativo}
+                            {f.numeroDte ? (
+                              <span className="ml-2 font-mono text-xs text-tinta-500">
+                                {f.numeroDte}
+                              </span>
+                            ) : (
+                              <Button
+                                aria-label={
+                                  hintDte ??
+                                  `Capturar DTE del pedido #${f.correlativo}`
+                                }
+                                className="ml-2 text-aviso"
+                                isDisabled={!puedeDte}
+                                size="sm"
+                                variant="ghost"
+                                onPress={() => onPedirDte(f)}
+                              >
+                                Sin DTE
+                              </Button>
+                            )}
+                          </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <EstadoBadge estado={f.estado} size="sm" />
+                            {dteLoadingId === f.id ? (
+                              <Chip size="sm" variant="soft">
+                                Guardando…
+                              </Chip>
+                            ) : null}
+                          </div>
+                        </div>
+                        <Money centavos={f.saldoCentavos} tone={tonoSaldo(f)} />
+                        {f.estado !== "PAGADO" ? (
+                          <Button
+                            aria-label={
+                              hintCobro ??
+                              `Registrar pago del pedido #${f.correlativo}`
+                            }
+                            isDisabled={!puedeCobrar}
+                            size="sm"
+                            variant="secondary"
+                            onPress={() => onCobrar(f)}
+                          >
+                            Cobrar
+                          </Button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </Disclosure.Body>
+              </Disclosure.Content>
+            </Disclosure>
           </li>
         );
       })}

@@ -1,8 +1,15 @@
 "use client";
 
+import {
+  Button,
+  Card,
+  SearchField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@heroui/react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ClipboardList, Plus, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   horaEnZona,
@@ -12,6 +19,7 @@ import {
   type ClientePublico,
   type PedidoBandeja,
   type PedidoDetalle as PedidoDetalleDto,
+  type PeriodoTablero,
 } from "@misupertostada/shared";
 import { api } from "@/lib/api";
 import {
@@ -20,6 +28,7 @@ import {
   estadoDeSegmento,
   filtrarBandeja,
   parsePedidoSegmento,
+  parsePedidosRango,
   type PedidoSegmento,
 } from "@/lib/pedido-vista";
 import { PanelShell } from "@/components/layout/panel-shell";
@@ -28,26 +37,43 @@ import { CapturaManual } from "@/components/ordering/captura-manual";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import {
+  etiquetaDiaSemanaCorto,
+  periodoDePresetCalendario,
+  PRESETS_OPERACION,
+} from "@/lib/fecha-ui";
 import { DateField } from "@/components/ui/date-field";
-import { SearchField } from "@/components/ui/search-field";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { copyRangoPedidos, fechaFocoUi } from "@/lib/ejes-vista";
 import { EmptyState } from "@/components/ui/empty-state";
-import { RowSkeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-export default function PedidosPage() {
+type VistaPedidos = {
+  periodo: PeriodoTablero;
+  desde: string;
+  hasta: string;
+  clienteId: string;
+  historialMode: boolean;
+  segmento: PedidoSegmento;
+  sel: string | null;
+};
+
+const SEGMENTOS = [
+  { id: "todos", label: "Todos" },
+  { id: "vivos", label: "Vivos" },
+  { id: "ANULADO", label: "Anulados" },
+] as const;
+
+function PedidosInner() {
   const qc = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const clienteIdUrl = searchParams.get("clienteId") ?? "";
-  const historialUrl = searchParams.get("historial") === "1";
   const pedidoIdUrl = searchParams.get("pedidoId");
-  const fechaUrl = searchParams.get("fechaOperacion") ?? "";
   const segmentoUrl = parsePedidoSegmento(searchParams.get("estado"));
+  const searchKey = searchParams.toString();
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -63,29 +89,65 @@ export default function PedidosPage() {
     "pedidos.capturar_manual",
   );
 
-  const [fecha, setFecha] = useState(fechaUrl);
-  const [clienteId, setClienteId] = useState(clienteIdUrl);
-  const [historialMode, setHistorialMode] = useState(
-    historialUrl && Boolean(clienteIdUrl),
-  );
-  const [segmento, setSegmento] = useState<PedidoSegmento>(segmentoUrl);
+  // Tres fechas distintas, tres papeles distintos (ver `USAGE.md` §4):
+  // «Hoy» es la operación EN CURSO —la que se reparte—, «Esta noche» la de
+  // CAPTURA, y el FOCO es con la que abre la bandeja sin filtro. Usar «hoy»
+  // como default dejaba la bandeja en la operación ya repartida mientras el
+  // SSE llenaba la de esta noche.
+  const fechaHoy = calendario.data?.fechaOperacionEnCurso ?? "";
+  const fechaNoche = calendario.data?.fechaOperacionCaptura ?? "";
+  const fechaFoco = fechaFocoUi(calendario.data);
+
   const [q, setQ] = useState("");
-  const [sel, setSel] = useState<string | null>(pedidoIdUrl);
   const [captura, setCaptura] = useState(false);
 
-  // Sync when URL cambia (Hoy / ficha cliente).
-  useEffect(() => {
-    setClienteId(clienteIdUrl);
-    setHistorialMode(historialUrl && Boolean(clienteIdUrl));
-    if (fechaUrl) setFecha(fechaUrl);
-    setSegmento(segmentoUrl);
-    if (pedidoIdUrl) setSel(pedidoIdUrl);
-  }, [clienteIdUrl, historialUrl, fechaUrl, segmentoUrl, pedidoIdUrl]);
+  // Toda la vista (rango, cliente, segmento, selección) vive en la URL: es
+  // deep-linkeable y sobrevive al refresh. Antes se copiaba a siete `useState`
+  // desde un efecto, que reintroducía el estado duplicado que la URL ya tenía.
+  const claveUrl = `${searchKey}|${fechaHoy}|${fechaFoco}`;
+  const vistaUrl = useMemo<VistaPedidos>(() => {
+    const base = {
+      clienteId: clienteIdUrl,
+      segmento: segmentoUrl,
+      sel: pedidoIdUrl || null,
+    };
+    const parsed = fechaHoy
+      ? parsePedidosRango(new URLSearchParams(searchKey), fechaHoy, fechaFoco)
+      : null;
+    if (!parsed) {
+      return {
+        ...base,
+        periodo: "hoy" as PeriodoTablero,
+        desde: "",
+        hasta: "",
+        // Sin `fechaHoy` todavía no hay rango que mostrar, pero eso no es
+        // modo historial: eso solo lo decide `parsePedidosRango`.
+        historialMode: Boolean(fechaHoy),
+      };
+    }
+    return {
+      ...base,
+      periodo: parsed.periodo,
+      desde: parsed.desde,
+      hasta: parsed.hasta,
+      historialMode: false,
+    };
+  }, [clienteIdUrl, segmentoUrl, pedidoIdUrl, fechaHoy, fechaFoco, searchKey]);
 
-  const historialCliente = Boolean(clienteId) && historialMode && !fecha;
-  const fechaOperacion = historialCliente
-    ? ""
-    : fecha || calendario.data?.fechaOperacion || "";
+  // `syncUrl` navega dentro de una transición, así que el search param tarda
+  // un frame. El eco adelanta el cambio y cede en cuanto la URL lo alcanza.
+  const [eco, setEco] = useState<{ url: string; vista: VistaPedidos } | null>(
+    null,
+  );
+  const vista = eco && eco.url === claveUrl ? eco.vista : vistaUrl;
+  const { periodo, desde, hasta, clienteId, historialMode, segmento, sel } =
+    vista;
+
+  function aplicar(patch: Partial<VistaPedidos>) {
+    setEco({ url: claveUrl, vista: { ...vista, ...patch } });
+  }
+
+  const historialCliente = Boolean(clienteId) && historialMode && !desde;
   const estadoApi = estadoDeSegmento(segmento);
 
   const clientes = useQuery({
@@ -94,17 +156,18 @@ export default function PedidosPage() {
     enabled: Boolean(me.data),
   });
   const pedidos = useQuery({
-    queryKey: ["pedidos", { fechaOperacion, clienteId, estadoApi, historialCliente }],
+    queryKey: ["pedidos", { desde, hasta, clienteId, estadoApi, historialCliente }],
     queryFn: () =>
       api<PedidoBandeja[]>(
         `/pedidos${queryString({
-          fechaOperacion: fechaOperacion || undefined,
+          desde: historialCliente ? undefined : desde || undefined,
+          hasta: historialCliente ? undefined : hasta || undefined,
           clienteId: clienteId || undefined,
           estado: estadoApi,
           historial: historialCliente ? "1" : undefined,
         })}`,
       ),
-    enabled: historialCliente || Boolean(fechaOperacion),
+    enabled: historialCliente || Boolean(desde && hasta),
     placeholderData: keepPreviousData,
   });
   const detalle = useQuery({
@@ -124,42 +187,40 @@ export default function PedidosPage() {
     return filtrarBandeja(segmentados, q);
   }, [pedidos.data, segmento, q]);
 
+  const resumen = useMemo(
+    () => (pedidos.data ? resumenBandeja(pedidos.data) : null),
+    [pedidos.data],
+  );
+
   const historialNombre = clienteId
     ? (clientePorId.get(clienteId)?.nombre ?? "cliente")
     : null;
 
-  const meta = pedidos.data
-    ? `${pedidos.data.length} pedido${pedidos.data.length === 1 ? "" : "s"}${
-        fechaOperacion
-          ? ` · ${formatearFechaCorta(fechaOperacion)}`
-          : historialCliente
-            ? " · historial"
-            : ""
-      }`
-    : undefined;
+  const rotuloEje = copyRangoPedidos(desde, hasta, calendario.data);
+
+  const totalPedidos = pedidos.data?.length ?? 0;
+  const cargandoLista = pedidos.isLoading && !pedidos.data;
 
   function syncUrl(next: {
-    fecha?: string;
+    periodo?: PeriodoTablero;
+    desde?: string;
+    hasta?: string;
     clienteId?: string;
     historial?: boolean;
     pedidoId?: string | null;
     segmento?: PedidoSegmento;
   }) {
+    const nextHistorial =
+      next.historial !== undefined ? next.historial : historialCliente;
     const href = buildPedidosHref({
-      fechaOperacion:
-        next.fecha !== undefined
-          ? next.fecha || undefined
-          : historialCliente
-            ? undefined
-            : fechaOperacion || undefined,
+      periodo: nextHistorial ? undefined : (next.periodo ?? periodo),
+      desde: nextHistorial ? undefined : (next.desde !== undefined ? next.desde : desde) || undefined,
+      hasta: nextHistorial ? undefined : (next.hasta !== undefined ? next.hasta : hasta) || undefined,
       clienteId:
         next.clienteId !== undefined
           ? next.clienteId || undefined
           : clienteId || undefined,
-      historial:
-        next.historial !== undefined
-          ? next.historial
-          : historialCliente,
+      historial: nextHistorial,
       pedidoId:
         next.pedidoId === null
           ? undefined
@@ -171,139 +232,215 @@ export default function PedidosPage() {
     }
   }
 
-  function onFechaChange(next: string) {
-    setFecha(next);
-    if (next) setHistorialMode(false);
-    else if (clienteId) setHistorialMode(true);
+  function onRangoChange(
+    rango: { desde: string; hasta: string },
+    nextPeriodo: PeriodoTablero,
+  ) {
+    aplicar({
+      periodo: nextPeriodo,
+      desde: rango.desde,
+      hasta: rango.hasta,
+      historialMode: false,
+    });
     syncUrl({
-      fecha: next,
-      historial: !next && Boolean(clienteId),
+      periodo: nextPeriodo,
+      desde: rango.desde,
+      hasta: rango.hasta,
+      historial: false,
     });
   }
 
+  function onFechaChange(next: string) {
+    if (!next) {
+      if (clienteId) {
+        aplicar({ historialMode: true, desde: "", hasta: "" });
+        syncUrl({ historial: true, desde: "", hasta: "" });
+      }
+      return;
+    }
+    onRangoChange({ desde: next, hasta: next }, "rango");
+  }
+
   function onSegmentoChange(next: PedidoSegmento) {
-    setSegmento(next);
+    aplicar({ segmento: next });
     syncUrl({ segmento: next });
   }
 
   function onSelect(id: string) {
-    setSel(id);
+    aplicar({ sel: id });
     syncUrl({ pedidoId: id });
   }
 
   function salirHistorial() {
-    setHistorialMode(false);
-    setClienteId("");
-    setFecha(calendario.data?.fechaOperacion ?? "");
+    // Volver a la bandeja del día es volver al FOCO, no a la operación en
+    // curso: por la tarde el trabajo vivo es la ventana que está capturando.
+    const vuelta = fechaFoco || fechaHoy;
+    const periodoVuelta: PeriodoTablero =
+      vuelta === fechaHoy ? "hoy" : "rango";
+    aplicar({
+      historialMode: false,
+      clienteId: "",
+      periodo: periodoVuelta,
+      desde: vuelta,
+      hasta: vuelta,
+      sel: null,
+    });
     syncUrl({
       clienteId: "",
       historial: false,
-      fecha: calendario.data?.fechaOperacion ?? "",
+      periodo: periodoVuelta,
+      desde: vuelta,
+      hasta: vuelta,
       pedidoId: null,
     });
-    setSel(null);
   }
 
   return (
     <PanelShell title="Pedidos">
-      <div className="grid gap-4">
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto sm:contents">
-            {puedeEscribir ? (
-              <Button
-                size="sm"
-                variant="accent"
-                className="shrink-0"
-                onClick={() => setCaptura(true)}
-              >
-                <Plus size={15} aria-hidden />
-                Capturar pedido
-              </Button>
-            ) : null}
+      <div className="grid gap-5">
+        <BandejaResumen resumen={resumen} cargando={cargandoLista} />
+
+        <section className="grid gap-3" aria-label="Buscar y filtrar">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="w-full sm:w-auto sm:min-w-[11rem] sm:max-w-[15rem]">
+              <DateField
+                id="filtro-fecha-operacion"
+                value={desde}
+                rangeEnd={hasta || undefined}
+                onChange={onFechaChange}
+                onRangeChange={(rango, preset) =>
+                  onRangoChange(rango, periodoDePresetCalendario(preset))
+                }
+                clearable={Boolean(clienteId)}
+                ancla={desde || hasta || fechaHoy}
+                fechaHoy={fechaHoy || undefined}
+                fechaNoche={fechaNoche || undefined}
+                presets={PRESETS_OPERACION}
+              />
+            </div>
             <SearchField
+              aria-label="Buscar pedido"
+              className="min-w-0 flex-1"
               value={q}
               onChange={setQ}
-              label="Buscar pedido"
-              placeholder="Cliente o correlativo"
-              className="min-w-[10rem] flex-1"
-            />
-            <SegmentedControl
-              label="Filtrar por estado"
-              value={segmento}
-              onChange={onSegmentoChange}
-              className="shrink-0"
-              options={
-                [
-                  { id: "todos", label: "Todos" },
-                  { id: "vivos", label: "Vivos" },
-                  { id: "ANULADO", label: "Anulados" },
-                ] as const
-              }
-            />
-          </div>
-        </div>
-
-        {meta ? <p className="mst-label -mt-1 tabular-nums">{meta}</p> : null}
-
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] sm:items-end">
-          <DateField
-            id="filtro-fecha-operacion"
-            label="Fecha de operación"
-            value={
-              fecha ||
-              (historialCliente ? "" : (calendario.data?.fechaOperacion ?? ""))
-            }
-            onChange={onFechaChange}
-            clearable={Boolean(clienteId)}
-          />
-          {historialCliente && historialNombre ? (
-            <div className="flex min-h-11 items-center gap-2 rounded-campo border border-[var(--border-subtle)] bg-[var(--green-50)] px-3">
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-tinta-900 text-pretty">
-                Historial de {historialNombre}
-              </span>
+            >
+              <SearchField.Group>
+                <SearchField.SearchIcon />
+                <SearchField.Input placeholder="Restaurante o correlativo" />
+                <SearchField.ClearButton />
+              </SearchField.Group>
+            </SearchField>
+            {puedeEscribir && (
               <Button
-                size="sm"
-                variant="secondary"
-                onClick={salirHistorial}
-                aria-label="Volver a la bandeja del día"
+                className="shrink-0"
+                variant="primary"
+                onPress={() => setCaptura(true)}
               >
-                <X size={14} aria-hidden />
-                Día
+                <Plus size={16} aria-hidden />
+                Capturar pedido
               </Button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+              <ToggleButtonGroup
+                aria-label="Filtrar pedidos por estado"
+                disallowEmptySelection
+                selectedKeys={new Set([segmento])}
+                selectionMode="single"
+                size="sm"
+                onSelectionChange={(keys) => {
+                  const next = [...keys][0];
+                  if (typeof next === "string") {
+                    onSegmentoChange(next as PedidoSegmento);
+                  }
+                }}
+              >
+                {SEGMENTOS.map((s, i) => (
+                  <ToggleButton key={s.id} id={s.id}>
+                    {i > 0 && <ToggleButtonGroup.Separator />}
+                    {s.label}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+              {rotuloEje && !historialCliente ? (
+                <span className="text-xs tabular-nums text-tinta-500">
+                  {rotuloEje}
+                </span>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+
+            {!cargandoLista && pedidos.data ? (
+              <p className="mst-label tabular-nums" aria-live="polite">
+                {lista.length} de {totalPedidos}
+              </p>
+            ) : null}
+          </div>
+        </section>
+
+        {historialCliente && historialNombre ? (
+          <div className="flex min-h-11 items-center gap-2 rounded-campo border border-[var(--border-subtle)] bg-[var(--green-50)] px-3">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-tinta-900 text-pretty">
+              Historial de {historialNombre}
+            </span>
+            <Button
+              aria-label="Volver a la bandeja del día"
+              size="sm"
+              variant="secondary"
+              onPress={salirHistorial}
+            >
+              <X size={14} aria-hidden />
+              Día
+            </Button>
+          </div>
+        ) : null}
 
         <div className="grid items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
           <Card
-            flush
-            title="Pedidos"
-            subtitle={
-              historialCliente
-                ? "Historial del cliente"
-                : fechaOperacion || "Fecha de operación"
-            }
-            className={cn(sel && "hidden lg:block")}
+            className={cn(
+              "gap-0 overflow-hidden p-0",
+              sel && "hidden lg:flex",
+            )}
           >
             <div
               className={cn(
-                "border-t border-[var(--border-subtle)] transition-opacity duration-surface ease-out",
-                pedidos.isFetching && pedidos.data ? "opacity-55" : "opacity-100",
+                "transition-opacity duration-slow ease-out",
+                pedidos.isFetching && pedidos.data ? "opacity-70" : "opacity-100",
               )}
               aria-busy={pedidos.isFetching || undefined}
             >
-              {pedidos.isLoading && !pedidos.data ? (
-                <RowSkeleton rows={8} />
+              {cargandoLista ? (
+                <BandejaSkeleton />
               ) : lista.length === 0 ? (
                 <EmptyState
                   icon={<ClipboardList size={22} aria-hidden />}
-                  title={q ? "Sin resultados" : "Nadie ha pedido todavía"}
+                  title={
+                    q
+                      ? "Ningún pedido coincide"
+                      : segmento === "ANULADO"
+                        ? "Sin pedidos anulados"
+                        : "Nadie ha pedido todavía"
+                  }
                   description={
                     q
                       ? "Pruebe con el nombre del restaurante o el correlativo."
-                      : puedeEscribir
-                        ? "Capture el extra de una llamada o espere al portal."
-                        : "Los pedidos del portal y de tienda aparecen aquí."
+                      : segmento === "ANULADO"
+                        ? "En esta operación no se anuló ningún pedido."
+                        : puedeEscribir
+                          ? "Capture el extra de una llamada o espere al portal."
+                          : "Los pedidos del portal y de tienda aparecen aquí."
+                  }
+                  action={
+                    puedeEscribir && !q && segmento !== "ANULADO" ? (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onPress={() => setCaptura(true)}
+                      >
+                        Capturar pedido
+                      </Button>
+                    ) : null
                   }
                 />
               ) : (
@@ -318,12 +455,12 @@ export default function PedidosPage() {
                           onClick={() => onSelect(p.id)}
                           aria-current={activo ? "true" : undefined}
                           className={cn(
-                            "grid min-h-fila w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 border-b border-[var(--border-subtle)] px-4 py-2.5 text-left",
+                            "grid min-h-fila w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 border-b border-[var(--border-subtle)] px-4 py-2.5 text-left last:border-b-0",
                             "border-l-[3px] transition-[background-color,border-color] duration-control ease-out",
                             "focus-visible:outline-none focus-visible:shadow-foco",
                             activo
                               ? "border-l-marca bg-[var(--green-50)]"
-                              : "border-l-transparent hover:bg-tinta-50",
+                              : "border-l-transparent hover:bg-[var(--ink-50)]",
                           )}
                         >
                           <ClienteAvatar
@@ -344,6 +481,9 @@ export default function PedidosPage() {
                             <span className="flex gap-2 text-[12px] text-tinta-500">
                               <span>
                                 {p.origen === "PORTAL" ? "Portal" : "Manual"} ·{" "}
+                                {desde !== hasta
+                                  ? `${etiquetaDiaSemanaCorto(p.fechaOperacion)} · entrega ${etiquetaDiaSemanaCorto(p.fechaEntrega)} · `
+                                  : ""}
                                 {horaEnZona(new Date(p.capturadoAt))}
                               </span>
                               <span className="ml-auto">
@@ -363,23 +503,22 @@ export default function PedidosPage() {
           <div className={cn(!sel && "hidden lg:block")}>
             {sel ? (
               <div className="grid gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSel(null);
+                <Button
+                  className="lg:hidden"
+                  size="sm"
+                  variant="tertiary"
+                  onPress={() => {
+                    aplicar({ sel: null });
                     syncUrl({ pedidoId: null });
                   }}
-                  className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-marca hover:text-marca-hover lg:hidden"
                 >
                   <ChevronLeft size={16} aria-hidden />
                   Pedidos
-                </button>
+                </Button>
                 {detalle.isLoading || !detalle.data ? (
-                  <Card>
-                    <div className="grid gap-3">
-                      <div className="h-6 w-48 animate-pulse rounded-campo bg-[var(--ink-100)]" />
-                      <div className="h-32 animate-pulse rounded-campo bg-[var(--ink-100)]" />
-                    </div>
+                  <Card className="gap-3 p-5">
+                    <Skeleton className="h-6 w-48" />
+                    <Skeleton className="h-32 w-full rounded-campo" />
                   </Card>
                 ) : (
                   <PedidoDetalle
@@ -407,19 +546,147 @@ export default function PedidosPage() {
         onClose={() => setCaptura(false)}
         onCaptured={(pedido) => {
           setCaptura(false);
-          setSel(pedido.id);
           void qc.invalidateQueries({ queryKey: ["pedidos"] });
-          if (pedido.fechaOperacion !== fechaOperacion) {
-            setFecha(pedido.fechaOperacion);
-          }
+          const fueraDeRango =
+            pedido.fechaOperacion < desde || pedido.fechaOperacion > hasta;
+          aplicar({
+            sel: pedido.id,
+            ...(fueraDeRango
+              ? {
+                  periodo: "rango" as PeriodoTablero,
+                  desde: pedido.fechaOperacion,
+                  hasta: pedido.fechaOperacion,
+                }
+              : {}),
+          });
           syncUrl({
             pedidoId: pedido.id,
-            fecha: pedido.fechaOperacion,
+            periodo: "rango",
+            desde: pedido.fechaOperacion,
+            hasta: pedido.fechaOperacion,
             historial: false,
           });
         }}
       />
     </PanelShell>
+  );
+}
+
+type ResumenBandeja = {
+  pedidos: number;
+  vivos: number;
+  anulados: number;
+  totalCentavos: number;
+};
+
+/** Cifras de la ventana cargada: lo que ya se pidió y cuánto suma. */
+function resumenBandeja(rows: readonly PedidoBandeja[]): ResumenBandeja {
+  let vivos = 0;
+  let anulados = 0;
+  let totalCentavos = 0;
+  for (const p of rows) {
+    if (p.estado === "ANULADO") {
+      anulados += 1;
+      continue;
+    }
+    vivos += 1;
+    totalCentavos += p.totalCentavos;
+  }
+  return { pedidos: rows.length, vivos, anulados, totalCentavos };
+}
+
+function BandejaResumen({
+  resumen,
+  cargando,
+}: {
+  resumen: ResumenBandeja | null;
+  cargando: boolean;
+}) {
+  if (cargando) {
+    return (
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
+        ))}
+      </div>
+    );
+  }
+  if (!resumen) return null;
+  return (
+    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Cifra label="Pedidos" valor={resumen.pedidos} />
+      <Cifra label="Vivos" valor={resumen.vivos} tono="text-marca" />
+      <Cifra
+        label="Anulados"
+        valor={resumen.anulados}
+        tono={resumen.anulados > 0 ? "text-peligro" : "text-tinta-400"}
+      />
+      <Cifra
+        label="Total vivo"
+        valor={<Money centavos={resumen.totalCentavos} className="text-[22px]" />}
+      />
+    </dl>
+  );
+}
+
+function Cifra({
+  label,
+  valor,
+  tono = "text-tinta-900",
+}: {
+  label: string;
+  valor: ReactNode;
+  tono?: string;
+}) {
+  return (
+    <Card className="gap-1 p-4">
+      <dt className="mst-label text-[11px]">{label}</dt>
+      <dd
+        className={cn(
+          "text-[22px] font-semibold leading-none tabular-nums",
+          tono,
+        )}
+      >
+        {valor}
+      </dd>
+    </Card>
+  );
+}
+
+function BandejaSkeleton() {
+  return (
+    <ul aria-hidden>
+      {Array.from({ length: 8 }, (_, i) => (
+        <li
+          key={i}
+          className="flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-4 last:border-b-0"
+        >
+          <Skeleton className="size-9 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-2/3" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * `useSearchParams` obliga a un límite de Suspense: sin él el prerender
+ * estático falla en build.
+ */
+export default function PedidosPage() {
+  return (
+    <Suspense
+      fallback={
+        <PanelShell title="Pedidos">
+          <BandejaSkeleton />
+        </PanelShell>
+      }
+    >
+      <PedidosInner />
+    </Suspense>
   );
 }
 
@@ -430,15 +697,4 @@ function queryString(params: Record<string, string | undefined>): string {
   }
   const out = s.toString();
   return out ? `?${out}` : "";
-}
-
-function formatearFechaCorta(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.toLocaleDateString("es-GT", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
 }

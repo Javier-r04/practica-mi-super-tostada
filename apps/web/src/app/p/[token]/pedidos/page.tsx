@@ -2,17 +2,20 @@
 
 import Link from "next/link";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import type { PortalHistorial } from "@misupertostada/shared";
+import { Alert, Button, Card, Spinner } from "@heroui/react";
+import { ChevronRight, ClipboardList } from "lucide-react";
+import {
+  formatearFechaLarga,
+  type PortalHistorial,
+} from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import { origenPedidoLabel } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList } from "lucide-react";
 
 export default function PortalPedidosPage() {
   const { token, sesion } = usePortalSession();
@@ -41,64 +44,96 @@ export default function PortalPedidosPage() {
         </div>
 
         {historial.isPending ? (
-          <div className="grid gap-0 rounded-tarjeta border border-[var(--border-subtle)] bg-blanco">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 w-full rounded-none border-b border-[var(--border-subtle)] last:border-0" />
-            ))}
-          </div>
+          <PedidosSkeleton />
         ) : historial.error instanceof ApiError ? (
-          <EmptyState
-            title="No se pudo cargar el historial"
-            description={historial.error.message}
-          />
+          <Alert status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>No se pudo cargar el historial</Alert.Title>
+              <Alert.Description>{historial.error.message}</Alert.Description>
+            </Alert.Content>
+          </Alert>
         ) : items.length === 0 ? (
-          <EmptyState
-            icon={<ClipboardList size={20} aria-hidden />}
-            title="Aún no ha pedido por este enlace."
-            description="Cuando confirme un pedido, aparece aquí."
-          />
+          <Card className="p-0">
+            <EmptyState
+              icon={<ClipboardList size={22} aria-hidden />}
+              title="Aún no ha pedido por este enlace."
+              description="Cuando confirme un pedido, aparece aquí."
+            />
+          </Card>
         ) : (
-          <ul className="overflow-hidden rounded-tarjeta border border-[var(--border-subtle)] bg-blanco">
-            {items.map((p) => (
-              <li
-                key={p.id}
-                className="border-b border-[var(--border-subtle)] last:border-b-0"
-              >
-                <Link
-                  href={`${base}/pedidos/${p.id}`}
-                  className="flex min-h-fila items-center gap-3 px-4 py-2.5 text-inherit no-underline hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+          <Card className="gap-0 overflow-hidden p-0">
+            <ul>
+              {items.map((p) => (
+                <li
+                  key={p.id}
+                  className="border-b border-[var(--border-subtle)] last:border-b-0"
                 >
-                  <span className="w-14 shrink-0 font-mono text-xs text-tinta-500">
-                    #{p.correlativo}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold tabular-nums text-tinta-900">
-                      {p.fechaOperacion}
+                  <Link
+                    href={`${base}/pedidos/${p.id}`}
+                    className="flex min-h-[60px] items-center gap-3 px-4 py-3 text-inherit no-underline transition-colors duration-control ease-out hover:bg-[var(--ink-50)] hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-semibold tabular-nums text-tinta-900">
+                        {formatearFechaLarga(p.fechaEntrega)}
+                      </span>
+                      <span className="block text-xs text-tinta-500">
+                        <span className="font-mono">#{p.correlativo}</span> ·{" "}
+                        {origenPedidoLabel(p.origen)}
+                      </span>
                     </span>
-                    <span className="block text-xs text-tinta-500">
-                      {origenPedidoLabel(p.origen)}
+                    <span className="grid justify-items-end gap-1">
+                      <Money centavos={p.totalCentavos} />
+                      <EstadoBadge estado={p.estado} size="sm" />
                     </span>
-                  </span>
-                  <EstadoBadge estado={p.estado} size="sm" />
-                  <Money centavos={p.totalCentavos} />
-                </Link>
-              </li>
-            ))}
-          </ul>
+                    <ChevronRight
+                      size={18}
+                      className="shrink-0 text-tinta-400"
+                      aria-hidden
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
         )}
 
         {historial.hasNextPage ? (
           <Button
-            variant="secondary"
+            fullWidth
+            isPending={historial.isFetchingNextPage}
             size="lg"
-            className="w-full"
-            loading={historial.isFetchingNextPage}
-            onClick={() => historial.fetchNextPage()}
+            variant="secondary"
+            onPress={() => void historial.fetchNextPage()}
           >
-            Cargar más
+            {({ isPending }) => (
+              <>
+                {isPending && <Spinner color="current" size="sm" />}
+                Cargar más
+              </>
+            )}
           </Button>
         ) : null}
       </div>
     </PortalShell>
+  );
+}
+
+function PedidosSkeleton() {
+  return (
+    <Card className="gap-0 overflow-hidden p-0" aria-hidden>
+      {Array.from({ length: 4 }, (_, i) => (
+        <div
+          key={i}
+          className="flex min-h-[60px] items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
+        >
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-2/3 max-w-[14rem]" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-5 w-20 rounded-pill" />
+        </div>
+      ))}
+    </Card>
   );
 }

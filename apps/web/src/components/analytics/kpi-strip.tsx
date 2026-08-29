@@ -1,9 +1,11 @@
 "use client";
 
+import { Card } from "@heroui/react";
+import type { ReactNode } from "react";
 import { formatearCentavos, type Tablero } from "@misupertostada/shared";
 import { Money } from "@/components/domain/money";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
 
 function scrollToAnchor(id: string) {
   const el = document.getElementById(id);
@@ -12,59 +14,50 @@ function scrollToAnchor(id: string) {
   el.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
 }
 
-function MetricKpi({
-  id,
-  label,
-  hint,
-  brand,
-  children,
+/**
+ * Misma cifra que en clientes y catálogo: `dl` + `Card`, etiqueta chica y el
+ * número grande en tabular. Aquí además lleva al bloque que la explica, con
+ * un botón que cubre la tarjeta (el `dl`/`dt`/`dd` se conserva intacto).
+ */
+function Cifra({
+  ancla,
+  etiqueta,
+  valor,
+  nota,
+  tono = "neutro",
 }: {
-  id: string;
-  label: string;
-  hint?: string;
-  brand?: boolean;
-  children: ReactNode;
+  ancla: string;
+  etiqueta: string;
+  valor: ReactNode;
+  nota?: string;
+  tono?: "neutro" | "marca" | "aviso" | "peligro";
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => scrollToAnchor(id)}
-      className={cn(
-        "flex-1 rounded-tarjeta border p-4 text-left shadow-tarjeta",
-        "transition-[box-shadow] duration-control ease-out",
-        "focus-visible:outline-none focus-visible:shadow-foco",
-        brand
-          ? "border-[var(--green-900)] bg-[var(--surface-brand)] text-[var(--text-on-brand)]"
-          : "border-[var(--border-subtle)] bg-blanco",
-      )}
-    >
-      <div
+    <Card className="relative gap-1 p-4">
+      <dt className="mst-label text-[11px]">{etiqueta}</dt>
+      <dd
         className={cn(
-          "mst-label",
-          brand && "text-[var(--green-200)]",
+          "text-[22px] font-semibold leading-none tabular-nums",
+          tono === "peligro"
+            ? "text-peligro"
+            : tono === "aviso"
+              ? "text-aviso-700"
+              : tono === "marca"
+                ? "text-marca"
+                : "text-tinta-900",
         )}
       >
-        {label}
-      </div>
-      <div
-        className={cn(
-          "mt-1.5 font-display text-3xl leading-none tabular-nums",
-          brand ? "text-[var(--yellow-400)]" : "text-marca",
-        )}
+        {valor}
+      </dd>
+      {nota && <p className="text-[11px] leading-snug text-tinta-500">{nota}</p>}
+      <button
+        type="button"
+        onClick={() => scrollToAnchor(ancla)}
+        className="absolute inset-0 rounded-tarjeta transition-shadow duration-control ease-out hover:shadow-tarjeta focus-visible:outline-none focus-visible:shadow-foco"
       >
-        {children}
-      </div>
-      {hint && (
-        <div
-          className={cn(
-            "mt-1 text-xs",
-            brand ? "text-[var(--green-200)]" : "text-tinta-500",
-          )}
-        >
-          {hint}
-        </div>
-      )}
-    </button>
+        <span className="sr-only">Ver el detalle de {etiqueta}</span>
+      </button>
+    </Card>
   );
 }
 
@@ -82,70 +75,69 @@ function deltaTexto(centavos: number, puntosBase: number): string {
   return `${signoQ}${formatearCentavos(centavos)} · ${signoPct}${pctDePuntosBase(puntosBase)} % vs anterior`;
 }
 
+export function KpiStripSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+      {Array.from({ length: 5 }, (_, i) => (
+        <Skeleton key={i} className="h-[92px] w-full rounded-tarjeta" />
+      ))}
+    </div>
+  );
+}
+
 export function KpiStrip({ data }: { data: Tablero }) {
   const k = data.kpis;
   const unDia = data.filtrosAplicados.desde === data.filtrosAplicados.hasta;
+  const bajaronVentas = k.ventasDeltaPuntosBase < 0;
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-      <MetricKpi
-        id="chart-ventas"
-        label="Ventas"
-        hint={deltaTexto(k.ventasDeltaCentavos, k.ventasDeltaPuntosBase)}
-        brand={!unDia}
-      >
-        <Money
-          centavos={k.ventasCentavos}
-          className={!unDia ? "text-[var(--yellow-400)]" : undefined}
-        />
-      </MetricKpi>
-      <MetricKpi
-        id="chart-adopcion"
-        label="Pedidos"
-        hint={`${k.portal} del portal · ${k.manual} manuales`}
-      >
-        {k.pedidos}
-      </MetricKpi>
-      <MetricKpi
-        id="chart-cartera"
-        label="Por cobrar"
-        hint={
+    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+      <Cifra
+        ancla="chart-ventas"
+        etiqueta="Ventas"
+        valor={<Money centavos={k.ventasCentavos} tone="pagado" />}
+        nota={deltaTexto(k.ventasDeltaCentavos, k.ventasDeltaPuntosBase)}
+        tono={bajaronVentas ? "aviso" : "marca"}
+      />
+      <Cifra
+        ancla="chart-adopcion"
+        etiqueta="Pedidos"
+        valor={k.pedidos}
+        nota={`${k.portal} del portal · ${k.manual} manuales`}
+      />
+      <Cifra
+        ancla="chart-cartera"
+        etiqueta="Por cobrar"
+        valor={
+          data.filtrosAplicados.carteraAplica ? (
+            <Money centavos={k.porCobrarCentavos} tone="pendiente" />
+          ) : (
+            <span className="text-tinta-500">N/A</span>
+          )
+        }
+        nota={
           data.filtrosAplicados.carteraAplica
             ? "Saldo de facturas pendientes"
             : "Cartera no se recorta por producto"
         }
-        brand={unDia && data.filtrosAplicados.carteraAplica}
-      >
-        {data.filtrosAplicados.carteraAplica ? (
-          <Money
-            centavos={k.porCobrarCentavos}
-            className={
-              unDia && data.filtrosAplicados.carteraAplica
-                ? "text-[var(--yellow-400)]"
-                : undefined
-            }
-          />
-        ) : (
-          <span className={unDia ? undefined : "text-tinta-500"}>N/A</span>
-        )}
-      </MetricKpi>
-      <MetricKpi
-        id="chart-cobrado"
-        label="Cobrado"
-        hint={`Efectivo ${formatearCentavos(k.cobradoEfectivoCentavos)} · Transferencia ${formatearCentavos(k.cobradoTransferenciaCentavos)}`}
-      >
-        <Money centavos={k.cobradoCentavos} />
-      </MetricKpi>
-      <MetricKpi
-        id={unDia ? "chart-sin-pedido" : "chart-clientes"}
-        label={unDia ? "Aún no piden" : "Dejaron de pedir"}
-        hint={
+        tono="aviso"
+      />
+      <Cifra
+        ancla="chart-cobrado"
+        etiqueta="Cobrado"
+        valor={<Money centavos={k.cobradoCentavos} />}
+        nota={`Efectivo ${formatearCentavos(k.cobradoEfectivoCentavos)} · Transferencia ${formatearCentavos(k.cobradoTransferenciaCentavos)}`}
+      />
+      <Cifra
+        ancla={unDia ? "chart-sin-pedido" : "chart-clientes"}
+        etiqueta={unDia ? "Aún no piden" : "Dejaron de pedir"}
+        valor={k.clientesAlertaCount}
+        nota={
           unDia
             ? "Activos sin pedido en esta fecha de operación"
             : "Diarios en silencio 3 días hábiles"
         }
-      >
-        {k.clientesAlertaCount}
-      </MetricKpi>
-    </div>
+        tono={k.clientesAlertaCount > 0 ? "peligro" : "neutro"}
+      />
+    </dl>
   );
 }

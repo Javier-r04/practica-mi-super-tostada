@@ -1,5 +1,20 @@
 "use client";
 
+import {
+  Alert,
+  Button,
+  Card,
+  Chip,
+  ComboBox,
+  Description,
+  Input,
+  Label,
+  ListBox,
+  Modal,
+  Spinner,
+  TextArea,
+  TextField,
+} from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Phone, Pin, Plus } from "lucide-react";
 import Link from "next/link";
@@ -21,12 +36,7 @@ import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
-import { Badge, Tag } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Dialog } from "@/components/ui/dialog";
-import { Droplist } from "@/components/ui/droplist";
-import { Textarea } from "@/components/ui/field";
+import { etiquetaDiaSemanaCorto } from "@/lib/fecha-ui";
 
 const ACCION_TEXTO: Record<string, string> = {
   "portal.confirmar": "capturó el pedido desde el portal",
@@ -41,6 +51,7 @@ type ItemLocal = {
   productoId: string;
   cantidad: number;
   nombreMostrado: string;
+  nombreCanonico: string;
   unidadMedida: PedidoDetalleDto["items"][number]["unidadMedida"];
   precioUnitarioCentavos: number;
   puntoCarga?: PedidoDetalleDto["items"][number]["puntoCarga"];
@@ -66,13 +77,16 @@ export function PedidoDetalle({
   const [agregarId, setAgregarId] = useState("");
   const pedidoIdRef = useRef(pedido.id);
   const userEditedRef = useRef(false);
-  const baselineRef = useRef({
+  // El baseline se compara DURANTE el render para calcular `dirty`, así que
+  // es estado, no ref: leer un ref en render no es seguro con renders
+  // concurrentes y deja la UI mostrando un «sin cambios» viejo.
+  const [baseline, setBaseline] = useState(() => ({
     items: mapItems(pedido),
     notas: pedido.notasAdmin ?? "",
-  });
+  }));
 
-  const itemsDirty = !mismoItemsLocal(items, baselineRef.current.items);
-  const notasDirty = notas !== baselineRef.current.notas;
+  const itemsDirty = !mismoItemsLocal(items, baseline.items);
+  const notasDirty = notas !== baseline.notas;
   const dirty = itemsDirty || notasDirty;
 
   useEffect(() => {
@@ -85,7 +99,7 @@ export function PedidoDetalle({
     if (!aplicar) return;
     const nextItems = mapItems(pedido);
     const nextNotas = pedido.notasAdmin ?? "";
-    baselineRef.current = { items: nextItems, notas: nextNotas };
+    setBaseline({ items: nextItems, notas: nextNotas });
     userEditedRef.current = false;
     setItems(nextItems);
     setNotas(nextNotas);
@@ -147,7 +161,7 @@ export function PedidoDetalle({
       }
     },
     onSuccess: () => {
-      baselineRef.current = { items: [...items], notas };
+      setBaseline({ items: [...items], notas });
       userEditedRef.current = false;
       void qc.invalidateQueries({ queryKey: ["pedidos"] });
       setError(null);
@@ -196,6 +210,7 @@ export function PedidoDetalle({
         productoId: fila.productoId,
         cantidad: 1,
         nombreMostrado: fila.alias?.trim() || fila.nombreCanonico,
+        nombreCanonico: fila.nombreCanonico,
         unidadMedida: fila.unidadMedida,
         precioUnitarioCentavos: precio,
         puntoCarga: fila.puntoCarga,
@@ -207,7 +222,7 @@ export function PedidoDetalle({
 
   return (
     <div className="grid gap-4">
-      <Card>
+      <Card className="p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <ClienteAvatar
             nombre={pedido.clienteNombre}
@@ -225,9 +240,13 @@ export function PedidoDetalle({
                 </Link>
               </h2>
               <EstadoBadge estado={pedido.estado} />
-              <Badge tone={pedido.origen === "PORTAL" ? "green" : "neutral"}>
+              <Chip
+                color={pedido.origen === "PORTAL" ? "success" : "default"}
+                size="sm"
+                variant="soft"
+              >
                 {origenLabel}
-              </Badge>
+              </Chip>
             </div>
             <p className="mt-1 text-xs text-tinta-500">
               Pedido{" "}
@@ -238,12 +257,24 @@ export function PedidoDetalle({
                 ? ` por ${pedido.capturadoPorNombre}`
                 : ""}
             </p>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs text-tinta-500">
+            {/*
+              La hora de captura no dice a qué operación pertenece el pedido:
+              lo capturado a las 02:00 es de la ventana del día anterior. Las
+              dos fechas del dominio van escritas y separadas, porque la de
+              entrega está congelada y es la que se le dice al cliente.
+            */}
+            <p className="mt-0.5 text-xs tabular-nums text-tinta-500">
+              Operación {etiquetaDiaSemanaCorto(pedido.fechaOperacion)} · entrega{" "}
+              <span className="font-semibold text-tinta-800">
+                {etiquetaDiaSemanaCorto(pedido.fechaEntrega)}
+              </span>
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-tinta-500">
               {pedido.horarioEntregaFijo && (
-                <Tag>
+                <Chip color="success" size="sm" variant="soft">
                   <Clock size={13} aria-hidden />
                   Entrega fija {pedido.horarioEntregaFijo}
-                </Tag>
+                </Chip>
               )}
               {pedido.clienteContacto && <span>{pedido.clienteContacto}</span>}
               {pedido.clienteTelefonoWa && (
@@ -259,36 +290,43 @@ export function PedidoDetalle({
             </div>
             {pedido.notasPermanentes && (
               <div className="mt-2">
-                <Tag>
+                <Chip color="success" size="sm" variant="soft">
                   <Pin size={13} aria-hidden />
                   {pedido.notasPermanentes}
-                </Tag>
+                </Chip>
               </div>
             )}
             {pedido.estado === "ANULADO" && pedido.motivoAnulacion && (
-              <p className="mt-2 text-sm text-peligro" role="alert">
-                Motivo: {pedido.motivoAnulacion}
-              </p>
+              <Alert className="mt-3" status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>Pedido anulado</Alert.Title>
+                  <Alert.Description>{pedido.motivoAnulacion}</Alert.Description>
+                </Alert.Content>
+              </Alert>
             )}
           </div>
           {editable && (
-            <Button size="sm" variant="secondary" onClick={() => setAnular(true)}>
+            <Button size="sm" variant="danger-soft" onPress={() => setAnular(true)}>
               Anular
             </Button>
           )}
         </div>
       </Card>
 
-      <Card
-        flush
-        title="Ítems"
-        subtitle="Precio y nombre quedan en snapshot al capturar"
-      >
-        <div className="border-t border-[var(--border-subtle)]">
+      <Card className="gap-0 overflow-hidden p-0">
+        <Card.Header className="p-5 pb-3">
+          <Card.Title className="text-base text-tinta-900">Ítems</Card.Title>
+          <Card.Description>
+            Precio y nombre quedan en snapshot al capturar
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="border-t border-[var(--border-subtle)] p-0">
           {items.map((item) => (
             <PedidoItemRow
               key={item.productoId}
-              nombreMostrado={item.nombreMostrado}
+              nombreMostrado={item.nombreCanonico}
+              alias={item.nombreMostrado}
               unidadMedida={item.unidadMedida}
               cantidad={item.cantidad}
               precioUnitarioCentavos={item.precioUnitarioCentavos}
@@ -310,129 +348,190 @@ export function PedidoDetalle({
           ))}
           {editable && agregables.length > 0 ? (
             <div className="flex flex-wrap items-end gap-2 border-b border-[var(--border-subtle)] px-4 py-3">
-              <div className="min-w-[12rem] flex-1">
-                <Droplist
-                  id={`agregar-${pedido.id}`}
-                  label="Agregar producto"
-                  value={agregarId}
-                  onChange={setAgregarId}
-                  searchable
-                  searchPlaceholder="Alias o nombre"
-                  placeholder="Elegir del catálogo"
-                  options={agregables.map((f) => ({
-                    value: f.productoId,
-                    label: f.alias?.trim() || f.nombreCanonico,
-                  }))}
-                />
-              </div>
+              <ComboBox
+                className="min-w-[12rem] flex-1"
+                selectedKey={agregarId || null}
+                onSelectionChange={(key) =>
+                  setAgregarId(typeof key === "string" ? key : "")
+                }
+              >
+                <Label>Agregar producto</Label>
+                <ComboBox.InputGroup>
+                  <Input placeholder="Alias o nombre" />
+                  <ComboBox.Trigger />
+                </ComboBox.InputGroup>
+                <ComboBox.Popover>
+                  <ListBox>
+                    {agregables.map((f) => (
+                      <ListBox.Item
+                        key={f.productoId}
+                        id={f.productoId}
+                        textValue={f.nombreCanonico}
+                      >
+                        {f.nombreCanonico}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </ComboBox.Popover>
+              </ComboBox>
               <Button
+                isDisabled={!agregarId}
                 size="sm"
                 variant="secondary"
-                disabled={!agregarId}
-                onClick={() => agregarProducto(agregarId)}
+                onPress={() => agregarProducto(agregarId)}
               >
                 <Plus size={14} aria-hidden />
                 Agregar
               </Button>
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-tinta-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--ink-50)] px-4 py-3">
             {editable && dirty ? (
               <Button
+                isPending={guardar.isPending}
                 size="sm"
-                variant="secondary"
-                onClick={() => guardar.mutate()}
-                loading={guardar.isPending}
+                variant="primary"
+                onPress={() => guardar.mutate()}
               >
-                Guardar cambios
+                {({ isPending }) => (
+                  <>
+                    {isPending && <Spinner color="current" size="sm" />}
+                    Guardar cambios
+                  </>
+                )}
               </Button>
             ) : (
               <span />
             )}
             <span className="ml-auto flex items-baseline gap-3">
               <span className="mst-label">Total del pedido</span>
-              <Money centavos={total} className="text-lg tabular-nums" />
+              <Money centavos={total} className="text-lg" />
             </span>
           </div>
-        </div>
+        </Card.Content>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card
-          title="Notas del administrador"
-          subtitle="Libres, del día. El grosor y el horario salen del catálogo."
-        >
-          <Textarea
-            id={`notas-${pedido.id}`}
-            rows={3}
-            value={notas}
-            disabled={!editable}
-            onChange={(e) => {
-              userEditedRef.current = true;
-              setNotas(e.target.value);
-            }}
-            placeholder="Ej. llevar junto con las tortillas de la mañana"
-          />
+        <Card className="p-5">
+          <Card.Header className="p-0 pb-3">
+            <Card.Title className="text-base text-tinta-900">
+              Notas del administrador
+            </Card.Title>
+            <Card.Description>
+              Libres, del día. El grosor y el horario salen del catálogo.
+            </Card.Description>
+          </Card.Header>
+          <Card.Content className="p-0">
+            <TextField
+              aria-label="Notas del administrador"
+              isDisabled={!editable}
+              value={notas}
+              onChange={(v) => {
+                userEditedRef.current = true;
+                setNotas(v);
+              }}
+            >
+              <TextArea
+                rows={3}
+                placeholder="Ej. llevar junto con las tortillas de la mañana"
+              />
+            </TextField>
+          </Card.Content>
         </Card>
-        <Card title="Historial" subtitle="Quién hizo qué">
-          <ol className="grid gap-2 text-xs text-tinta-800">
-            {pedido.historial.length === 0 ? (
-              <li className="text-tinta-500">Sin movimientos todavía.</li>
-            ) : (
-              pedido.historial.map((h, i) => (
-                <li key={`${h.accion}-${h.createdAt}-${i}`} className="flex gap-3">
-                  <span className="font-mono tabular-nums text-tinta-500">
-                    {horaEnZona(new Date(h.createdAt))}
-                  </span>
-                  <span>
-                    {h.actorNombre ?? h.actorTipo}{" "}
-                    {ACCION_TEXTO[h.accion] ?? h.accion}
-                  </span>
-                </li>
-              ))
-            )}
-          </ol>
+
+        <Card className="p-5">
+          <Card.Header className="p-0 pb-3">
+            <Card.Title className="text-base text-tinta-900">Historial</Card.Title>
+            <Card.Description>Quién hizo qué</Card.Description>
+          </Card.Header>
+          <Card.Content className="p-0">
+            <ol className="grid gap-2 text-xs text-tinta-800">
+              {pedido.historial.length === 0 ? (
+                <li className="text-tinta-500">Sin movimientos todavía.</li>
+              ) : (
+                pedido.historial.map((h, i) => (
+                  <li key={`${h.accion}-${h.createdAt}-${i}`} className="flex gap-3">
+                    <span className="font-mono tabular-nums text-tinta-500">
+                      {horaEnZona(new Date(h.createdAt))}
+                    </span>
+                    <span>
+                      {h.actorNombre ?? h.actorTipo}{" "}
+                      {ACCION_TEXTO[h.accion] ?? h.accion}
+                    </span>
+                  </li>
+                ))
+              )}
+            </ol>
+          </Card.Content>
         </Card>
       </div>
 
       {error && (
-        <p className="text-sm text-peligro" role="alert">
-          {error}
-        </p>
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>No se guardó</Alert.Title>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
 
-      <Dialog
-        open={anular}
-        tone="danger"
-        title={`Anular el pedido #${pedido.correlativo}`}
-        description="El pedido no se borra: queda anulado con motivo y sigue visible en el historial."
-        onClose={() => setAnular(false)}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setAnular(false)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => anularPedido.mutate()}
-              loading={anularPedido.isPending}
-              disabled={!motivo.trim()}
-            >
-              Anular pedido
-            </Button>
-          </>
-        }
+      <Modal.Backdrop
+        isOpen={anular}
+        onOpenChange={(abierto) => !abierto && setAnular(false)}
       >
-        <Textarea
-          id="motivo-anulacion"
-          label="Motivo"
-          required
-          rows={2}
-          value={motivo}
-          onChange={(e) => setMotivo(e.target.value)}
-          hint="Obligatorio. Queda registrado con tu usuario."
-        />
-      </Dialog>
+        <Modal.Container size="md">
+          <Modal.Dialog>
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>
+                Anular el pedido #{pedido.correlativo}
+              </Modal.Heading>
+              <p className="text-sm text-tinta-500">
+                El pedido no se borra: queda anulado con motivo y sigue visible en
+                el historial.
+              </p>
+            </Modal.Header>
+            <Modal.Body>
+              <form
+                id={`anular-${pedido.id}`}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (motivo.trim()) anularPedido.mutate();
+                }}
+              >
+                <TextField isRequired value={motivo} onChange={setMotivo}>
+                  <Label>Motivo</Label>
+                  <TextArea rows={2} />
+                  <Description>
+                    Obligatorio. Queda registrado con tu usuario.
+                  </Description>
+                </TextField>
+              </form>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="tertiary" onPress={() => setAnular(false)}>
+                Cancelar
+              </Button>
+              <Button
+                form={`anular-${pedido.id}`}
+                isDisabled={!motivo.trim() || anularPedido.isPending}
+                isPending={anularPedido.isPending}
+                type="submit"
+                variant="danger"
+              >
+                {({ isPending }) => (
+                  <>
+                    {isPending && <Spinner color="current" size="sm" />}
+                    Anular pedido
+                  </>
+                )}
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </div>
   );
 }
@@ -442,6 +541,7 @@ function mapItems(pedido: PedidoDetalleDto): ItemLocal[] {
     productoId: item.productoId,
     cantidad: item.cantidad,
     nombreMostrado: item.nombreMostrado,
+    nombreCanonico: item.nombreCanonico,
     unidadMedida: item.unidadMedida,
     precioUnitarioCentavos: item.precioUnitarioCentavos,
     puntoCarga: item.puntoCarga,

@@ -1,7 +1,8 @@
 "use client";
 
+import { Button } from "@heroui/react";
 import { Camera, ImagePlus, X } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { AssetImage } from "@/components/ui/asset-image";
 import { cn } from "@/lib/utils";
 
@@ -29,20 +30,20 @@ export function FotoPicker({
 }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  // El preview se deriva del File, no se copia a estado: con `value` nulo no
+  // hay URL y no hace falta limpiar nada dentro de un efecto. El efecto solo
+  // existe para revocar la URL cuando cambia el archivo o se desmonta.
+  const previewUrl = useMemo(
+    () => (value ? URL.createObjectURL(value) : null),
+    [value],
+  );
 
   useEffect(() => {
-    if (!value) {
-      setPreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(value);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [value]);
-
+    if (!previewUrl) return;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
   const showingExisting = !value && Boolean(existingAssetId);
-  const hasImage = Boolean(preview || showingExisting);
+  const hasImage = Boolean(previewUrl || showingExisting);
 
   return (
     <div className={cn("grid gap-2", className)}>
@@ -70,10 +71,10 @@ export function FotoPicker({
           )}
           aria-label={hasImage ? "Cambiar foto" : "Agregar foto"}
         >
-          {preview ? (
+          {previewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={preview}
+              src={previewUrl}
               alt=""
               className="absolute inset-0 size-full object-cover outline outline-1 outline-black/10 -outline-offset-1"
             />
@@ -90,31 +91,31 @@ export function FotoPicker({
         </button>
 
         <div className="flex min-w-0 flex-1 flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => inputRef.current?.click()}
-            className="inline-flex min-h-11 items-center gap-2 rounded-campo border border-[var(--border-default)] bg-blanco px-3 text-sm font-semibold text-tinta-800 hover:bg-tinta-50 disabled:opacity-50"
+          <Button
+            isDisabled={disabled}
+            size="sm"
+            variant="secondary"
+            onPress={() => inputRef.current?.click()}
           >
             <Camera size={16} aria-hidden strokeWidth={1.5} />
             {hasImage ? "Cambiar" : "Elegir foto"}
-          </button>
+          </Button>
           {hasImage && (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => {
+            <Button
+              isDisabled={disabled}
+              size="sm"
+              variant="ghost"
+              onPress={() => {
                 onChange(null);
                 // Si hay asset en servidor, "Quitar" siempre implica quitarlo
                 // (también tras elegir un archivo nuevo y cancelar).
                 if (existingAssetId) onClearExisting?.();
                 if (inputRef.current) inputRef.current.value = "";
               }}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-campo px-3 text-sm font-semibold text-tinta-500 hover:bg-tinta-50 hover:text-peligro disabled:opacity-50"
             >
               <X size={15} aria-hidden />
               Quitar
-            </button>
+            </Button>
           )}
         </div>
       </div>

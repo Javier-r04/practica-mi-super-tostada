@@ -1,7 +1,21 @@
 "use client";
 
+import {
+  Alert,
+  Button,
+  ComboBox,
+  Description,
+  Input,
+  Label,
+  ListBox,
+  Modal,
+  SearchField,
+  Spinner,
+  TextArea,
+  TextField,
+} from "@heroui/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   FAMILIA_ETIQUETA,
   UNIDAD_CORTA,
@@ -18,55 +32,31 @@ import { toastFromError, toastSuccess } from "@/lib/toast";
 import { ContadorFacturas } from "@/components/domain/contador-facturas";
 import { Money } from "@/components/domain/money";
 import { ProductoThumb } from "@/components/catalog/producto-thumb";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { Droplist } from "@/components/ui/droplist";
-import { Textarea } from "@/components/ui/field";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
-import { SearchField } from "@/components/ui/search-field";
+import { cn } from "@/lib/utils";
 
-function estadoInicial() {
-  return {
-    clienteId: "",
-    cantidades: {} as Record<string, number>,
-    notasAdmin: "",
-    q: "",
-    error: null as string | null,
-  };
-}
-
-export function CapturaManual({
-  open,
-  onClose,
-  onCaptured,
-}: {
+type PropsCaptura = {
   open: boolean;
   onClose: () => void;
   onCaptured: (pedido: PedidoDetalle) => void;
-}) {
+};
+
+/**
+ * El formulario solo se monta con el diálogo abierto: al cerrar se desmonta y
+ * el estado se va con él. Antes se limpiaba con un efecto sobre `open`, que
+ * además dejaba el formulario viejo visible un frame al reabrir.
+ */
+export function CapturaManual(props: PropsCaptura) {
+  if (!props.open) return null;
+  return <FormularioCaptura {...props} />;
+}
+
+function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
   const [clienteId, setClienteId] = useState("");
   const [cantidades, setCantidades] = useState<Record<string, number>>({});
   const [notasAdmin, setNotasAdmin] = useState("");
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  function reset() {
-    const init = estadoInicial();
-    setClienteId(init.clienteId);
-    setCantidades(init.cantidades);
-    setNotasAdmin(init.notasAdmin);
-    setQ(init.q);
-    setError(init.error);
-  }
-
-  function handleClose() {
-    onClose();
-  }
-
-  // Al cerrar (explícito o externo) limpiar el formulario.
-  useEffect(() => {
-    if (!open) reset();
-  }, [open]);
 
   const clientes = useQuery({
     queryKey: ["clientes"],
@@ -125,6 +115,7 @@ export function CapturaManual({
       };
     }),
   );
+  const lineas = items.length;
 
   const clienteSeleccionado = activos.find((c) => c.id === clienteId);
   const limiteExcedido =
@@ -153,134 +144,179 @@ export function CapturaManual({
   });
 
   return (
-    <Dialog
-      open={open}
-      size="lg"
-      onClose={handleClose}
-      title="Capturar pedido"
-      description="Pedido por llamada. Salta la ventana. Queda en CONFIRMADO con su correlativo."
-      footer={
-        <>
-          <Button variant="secondary" onClick={handleClose}>
-            Cancelar
-          </Button>
-          <Button
-            variant="accent"
-            disabled={!clienteId || items.length === 0}
-            loading={capturar.isPending}
-            onClick={() => capturar.mutate()}
-          >
-            Capturar pedido
-          </Button>
-        </>
-      }
-    >
-      <div className="grid gap-4">
-        <Droplist
-          id="captura-cliente"
-          label="Cliente"
-          required
-          value={clienteId}
-          searchable
-          searchPlaceholder="Buscar restaurante"
-          placeholder="Elegir restaurante"
-          onChange={(next) => {
-            setClienteId(next);
-            setCantidades({});
-            setNotasAdmin("");
-            setQ("");
-            setError(null);
-          }}
-          options={activos.map((c) => ({
-            value: c.id,
-            label: c.nombre,
-          }))}
-        />
+    <Modal.Backdrop isOpen={open} onOpenChange={(abierto) => !abierto && onClose()}>
+      <Modal.Container size="lg">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>Capturar pedido</Modal.Heading>
+            <p className="text-sm text-tinta-500">
+              Pedido por llamada. Salta la ventana. Queda en CONFIRMADO con su
+              correlativo.
+            </p>
+          </Modal.Header>
 
-        {clienteId && cuenta.data ? (
-          <ContadorFacturas
-            pendientes={cuenta.data.facturasPendientes}
-            limite={cuenta.data.limiteFacturasPendientes}
-            montoCentavos={cuenta.data.saldoCentavos}
-            etiqueta={
-              clienteSeleccionado
-                ? `Facturas · ${clienteSeleccionado.nombre}`
-                : "Facturas pendientes"
-            }
-          />
-        ) : null}
+          <Modal.Body>
+            <div className="grid gap-4">
+              <ComboBox
+                isRequired
+                selectedKey={clienteId || null}
+                onSelectionChange={(key) => {
+                  setClienteId(typeof key === "string" ? key : "");
+                  setCantidades({});
+                  setNotasAdmin("");
+                  setQ("");
+                  setError(null);
+                }}
+              >
+                <Label>Cliente</Label>
+                <ComboBox.InputGroup>
+                  <Input placeholder="Buscar restaurante" />
+                  <ComboBox.Trigger />
+                </ComboBox.InputGroup>
+                <ComboBox.Popover>
+                  <ListBox>
+                    {activos.map((c) => (
+                      <ListBox.Item key={c.id} id={c.id} textValue={c.nombre}>
+                        {c.nombre}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </ComboBox.Popover>
+              </ComboBox>
 
-        {limiteExcedido ? (
-          <p className="text-sm font-semibold text-peligro" role="alert">
-            Límite de crédito excedido. Puede capturar igual; avise a cartera.
-          </p>
-        ) : null}
+              {clienteId && cuenta.data ? (
+                <ContadorFacturas
+                  pendientes={cuenta.data.facturasPendientes}
+                  limite={cuenta.data.limiteFacturasPendientes}
+                  montoCentavos={cuenta.data.saldoCentavos}
+                  etiqueta={
+                    clienteSeleccionado
+                      ? `Facturas · ${clienteSeleccionado.nombre}`
+                      : "Facturas pendientes"
+                  }
+                />
+              ) : null}
 
-        {clienteId && (
-          <>
-            <SearchField
-              value={q}
-              onChange={setQ}
-              label="Buscar producto"
-              placeholder="Alias o nombre"
-            />
-            <div className="max-h-[40vh] overflow-auto rounded-campo border border-[var(--border-subtle)]">
-              {grupos.map((grupo) => (
-                <section key={grupo.key}>
-                  <h3 className="sticky top-0 z-[1] border-b border-[var(--border-subtle)] bg-tinta-50 px-3 py-2 mst-label">
-                    {grupo.label}
-                    <span className="ml-2 tabular-nums text-tinta-500">
-                      {grupo.filas.length}
+              {limiteExcedido ? (
+                <Alert status="warning">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>Límite de crédito excedido</Alert.Title>
+                    <Alert.Description>
+                      Puede capturar igual; avise a cartera.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              ) : null}
+
+              {clienteId && (
+                <>
+                  <SearchField
+                    aria-label="Buscar producto"
+                    value={q}
+                    onChange={setQ}
+                  >
+                    <SearchField.Group>
+                      <SearchField.SearchIcon />
+                      <SearchField.Input placeholder="Alias o nombre" />
+                      <SearchField.ClearButton />
+                    </SearchField.Group>
+                  </SearchField>
+
+                  <div className="max-h-[40vh] overflow-auto rounded-campo border border-[var(--border-subtle)]">
+                    {grupos.map((grupo) => (
+                      <section key={grupo.key}>
+                        <h3 className="sticky top-0 z-[1] flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] bg-[var(--ink-50)] px-3 py-2 mst-label">
+                          <span>{grupo.label}</span>
+                          <span className="tabular-nums text-tinta-400">
+                            {grupo.filas.length}
+                          </span>
+                        </h3>
+                        {grupo.filas.map((fila) => (
+                          <CapturaFila
+                            key={fila.productoId}
+                            fila={fila}
+                            fotoAssetId={fotoPorProducto.get(fila.productoId)}
+                            cantidad={cantidades[fila.productoId] ?? 0}
+                            onChange={(cantidad) =>
+                              setCantidades((prev) => {
+                                const next = { ...prev };
+                                if (cantidad <= 0) delete next[fila.productoId];
+                                else next[fila.productoId] = cantidad;
+                                return next;
+                              })
+                            }
+                          />
+                        ))}
+                      </section>
+                    ))}
+                    {grupos.length === 0 && (
+                      <p className="px-4 py-6 text-sm text-tinta-500">
+                        {productos.isLoading
+                          ? "Cargando catálogo…"
+                          : "Ningún producto coincide."}
+                      </p>
+                    )}
+                  </div>
+
+                  <TextField value={notasAdmin} onChange={setNotasAdmin}>
+                    <Label>Nota extraordinaria</Label>
+                    <TextArea rows={2} />
+                    <Description>
+                      Horario, grosor y punto de carga salen del catálogo. Aquí solo
+                      lo de hoy.
+                    </Description>
+                  </TextField>
+
+                  {/* El total va pegado al pie: es la cifra que se le dice al
+                      cliente por teléfono antes de colgar. */}
+                  <div className="flex items-baseline justify-between gap-3 rounded-campo bg-[var(--ink-50)] px-4 py-3">
+                    <span className="mst-label">
+                      Total
+                      <span className="ml-2 font-normal tabular-nums text-tinta-500">
+                        {lineas} línea{lineas === 1 ? "" : "s"}
+                      </span>
                     </span>
-                  </h3>
-                  {grupo.filas.map((fila) => (
-                    <CapturaFila
-                      key={fila.productoId}
-                      fila={fila}
-                      fotoAssetId={fotoPorProducto.get(fila.productoId)}
-                      cantidad={cantidades[fila.productoId] ?? 0}
-                      onChange={(cantidad) =>
-                        setCantidades((prev) => {
-                          if (cantidad <= 0) {
-                            const { [fila.productoId]: _omit, ...rest } = prev;
-                            return rest;
-                          }
-                          return { ...prev, [fila.productoId]: cantidad };
-                        })
-                      }
-                    />
-                  ))}
-                </section>
-              ))}
-              {grupos.length === 0 && (
-                <p className="px-4 py-6 text-sm text-tinta-500">
-                  {productos.isLoading
-                    ? "Cargando catálogo…"
-                    : "Ningún producto coincide."}
-                </p>
+                    <Money centavos={total} className="text-lg" />
+                  </div>
+                </>
+              )}
+
+              {error && (
+                <Alert status="danger">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>No se capturó</Alert.Title>
+                    <Alert.Description>{error}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
               )}
             </div>
-            <Textarea
-              id="captura-notas"
-              label="Nota extraordinaria"
-              rows={2}
-              value={notasAdmin}
-              onChange={(e) => setNotasAdmin(e.target.value)}
-              hint="Horario, grosor y punto de carga salen del catálogo. Aquí solo lo de hoy."
-            />
-            <p className="flex items-baseline justify-between text-sm">
-              <span className="mst-label">Total</span>
-              <Money centavos={total} className="text-lg tabular-nums" />
-            </p>
-          </>
-        )}
-        {error && (
-          <p className="text-sm text-peligro" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-    </Dialog>
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button variant="tertiary" onPress={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              isDisabled={!clienteId || items.length === 0 || capturar.isPending}
+              isPending={capturar.isPending}
+              variant="primary"
+              onPress={() => capturar.mutate()}
+            >
+              {({ isPending }) => (
+                <>
+                  {isPending && <Spinner color="current" size="sm" />}
+                  Capturar pedido
+                </>
+              )}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }
 
@@ -299,18 +335,24 @@ function CapturaFila({
   const unidad = UNIDAD_CORTA[fila.unidadMedida];
   const pedible = fila.precioCentavos != null;
   return (
-    <div className="flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-3 py-2.5 last:border-b-0">
+    <div
+      className={cn(
+        "flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-3 py-2.5 last:border-b-0",
+        "transition-colors duration-control ease-out",
+        cantidad > 0 && "bg-[var(--green-50)]",
+      )}
+    >
       <ProductoThumb
-        nombre={alias}
+        nombre={fila.nombreCanonico}
         fotoAssetId={fotoAssetId}
         size="sm"
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-pretty text-tinta-900">
-          {alias}
+          {fila.nombreCanonico}
         </p>
         <p className="text-[12px] text-tinta-500">
-          {alias !== fila.nombreCanonico ? `${fila.nombreCanonico} · ` : null}
+          {alias !== fila.nombreCanonico ? `«${alias}» · ` : null}
           {FAMILIA_ETIQUETA[fila.familia]}
           {" · "}
           {pedible ? (

@@ -4,7 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -12,6 +12,9 @@ import { useQuery } from "@tanstack/react-query";
 import type { PortalProducto, PortalSesion } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import { cantidadesDesdePedido } from "@/lib/portal-vista";
+import { usePortalSse } from "@/hooks/use-portal-sse";
+import { Card } from "@heroui/react";
+import { Unlink } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -45,29 +48,36 @@ export function PortalSessionProvider({
   token: string;
   children: ReactNode;
 }) {
-  const [cantidades, setCantidades] = useState<Record<string, number>>({});
-
   const sesion = useQuery({
     queryKey: ["portal", token],
     queryFn: () => api<PortalSesion>(`/p/${encodeURIComponent(token)}`),
   });
 
-  useEffect(() => {
-    if (!sesion.data) return;
-    setCantidades((prev) => {
-      if (Object.keys(prev).length > 0) return prev;
-      return cantidadesDesdePedido(sesion.data.pedidoAbierto);
-    });
-  }, [sesion.data]);
+  usePortalSse(token);
 
-  const setCantidad = useCallback((productoId: string, cantidad: number) => {
-    setCantidades((prev) => ({ ...prev, [productoId]: cantidad }));
-  }, []);
+  // Sin ediciones, las cantidades son las del pedido abierto en el servidor;
+  // en cuanto el cliente toca un stepper, mandan las suyas. Derivarlo evita
+  // sembrar el estado desde un efecto y que el carrito quede desincronizado
+  // del pedido tras un refetch.
+  const pedidoAbierto = sesion.data?.pedidoAbierto ?? null;
+  const delServidor = useMemo(
+    () => cantidadesDesdePedido(pedidoAbierto),
+    [pedidoAbierto],
+  );
+  const [editadas, setEditadas] = useState<Record<string, number> | null>(null);
+  const cantidades = editadas ?? delServidor;
+
+  const setCantidad = useCallback(
+    (productoId: string, cantidad: number) => {
+      setEditadas((prev) => ({ ...(prev ?? delServidor), [productoId]: cantidad }));
+    },
+    [delServidor],
+  );
 
   const resetDesdePedido = useCallback(() => {
-    if (!sesion.data?.pedidoAbierto) return;
-    setCantidades(cantidadesDesdePedido(sesion.data.pedidoAbierto));
-  }, [sesion.data?.pedidoAbierto]);
+    if (!pedidoAbierto) return;
+    setEditadas(cantidadesDesdePedido(pedidoAbierto));
+  }, [pedidoAbierto]);
 
   const assetPath = useCallback(
     (assetId: string) =>
@@ -82,10 +92,13 @@ export function PortalSessionProvider({
   if (sesion.error instanceof ApiError) {
     return (
       <div className="grid min-h-[100dvh] place-items-center bg-[var(--surface-page)] p-6">
-        <EmptyState
-          title="No encontramos esa página"
-          description="El enlace no es válido o ya no está activo. Pida uno nuevo a la fábrica."
-        />
+        <Card className="w-full max-w-sm p-0">
+          <EmptyState
+            icon={<Unlink size={22} aria-hidden />}
+            title="No encontramos esa página"
+            description="El enlace no es válido o ya no está activo. Pida uno nuevo a la fábrica."
+          />
+        </Card>
       </div>
     );
   }

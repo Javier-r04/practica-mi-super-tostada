@@ -110,16 +110,24 @@ export function PortalNav({ variant }: { variant: "bottom" | "top" }) {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex min-h-tap min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-[11px] font-semibold leading-tight no-underline hover:no-underline",
+              "relative flex min-h-tap min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 pt-1 text-center text-[11px] font-semibold leading-tight no-underline hover:no-underline",
+              "focus-visible:outline-none focus-visible:shadow-foco",
               active
                 ? "text-[var(--green-800)] hover:text-[var(--green-800)]"
                 : "text-tinta-500 hover:text-tinta-500",
             )}
           >
-            <span className="relative">
+            {/* La pastilla dice cuál está abierta sin depender solo del color:
+                el portal se ve a plena luz y con el teléfono en la mano. */}
+            <span
+              className={cn(
+                "relative flex h-7 w-14 items-center justify-center rounded-pill transition-colors duration-control ease-out",
+                active ? "bg-[var(--green-100)]" : "bg-transparent",
+              )}
+            >
               <Icon size={22} aria-hidden />
               {item.id === "pedir" && lineas > 0 ? (
-                <span className="absolute -right-2 -top-1 flex size-4 items-center justify-center rounded-full bg-[var(--yellow-400)] text-[9px] font-bold tabular-nums text-[var(--green-900)]">
+                <span className="absolute right-2 top-0 flex size-4 items-center justify-center rounded-full bg-[var(--yellow-400)] text-[9px] font-bold tabular-nums text-[var(--green-900)]">
                   {lineas > 9 ? "9+" : lineas}
                 </span>
               ) : null}

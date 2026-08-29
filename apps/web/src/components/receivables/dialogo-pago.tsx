@@ -1,6 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import {
+  Alert,
+  Button,
+  Description,
+  Input,
+  Label,
+  Modal,
+  Spinner,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@heroui/react";
 import {
   formatearCentavos,
   quetzalesTextoACentavos,
@@ -9,26 +21,11 @@ import {
   type PagoMetodo,
 } from "@misupertostada/shared";
 import { Camera } from "lucide-react";
-import { Dialog } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Money } from "@/components/domain/money";
 import { subirComprobantePago } from "@/lib/upload-asset";
 import { avisoSinSenal } from "@/hooks/use-online";
 
-export function DialogoPago({
-  open,
-  titulo,
-  descripcion,
-  saldoCentavos,
-  online,
-  loading,
-  error,
-  permitirOffline = false,
-  onClose,
-  onConfirm,
-}: {
+type PropsPago = {
   open: boolean;
   titulo: string;
   descripcion?: string;
@@ -47,22 +44,45 @@ export function DialogoPago({
     archivo?: File;
     blobLocal?: boolean;
   }) => void;
-}) {
-  const [monto, setMonto] = useState(() => formatearCentavos(saldoCentavos, { simbolo: false }));
+};
+
+const METODOS = [
+  { id: "EFECTIVO", label: "Efectivo" },
+  { id: "TRANSFERENCIA", label: "Transferencia" },
+] as const;
+
+/**
+ * El formulario vive en un componente aparte que solo se monta con el diálogo
+ * abierto. Así cada apertura arranca con estado limpio por construcción, en vez
+ * de resetear seis `useState` desde un efecto. La `key` cubre el caso de que el
+ * saldo cambie con el diálogo ya abierto.
+ */
+export function DialogoPago(props: PropsPago) {
+  if (!props.open) return null;
+  return <FormularioPago key={props.saldoCentavos} {...props} />;
+}
+
+function FormularioPago({
+  titulo,
+  descripcion,
+  saldoCentavos,
+  online,
+  loading,
+  error,
+  permitirOffline = false,
+  onClose,
+  onConfirm,
+}: PropsPago) {
+  const [monto, setMonto] = useState(() =>
+    formatearCentavos(saldoCentavos, { simbolo: false, miles: false }),
+  );
   const [metodo, setMetodo] = useState<PagoMetodo>("EFECTIVO");
   const [archivo, setArchivo] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string>();
+  const [subiendo, setSubiendo] = useState(false);
   const pagoIdRef = useRef(crypto.randomUUID());
   const sinSenal = permitirOffline ? undefined : avisoSinSenal(online);
-
-  useEffect(() => {
-    if (!open) return;
-    pagoIdRef.current = crypto.randomUUID();
-    setMonto(formatearCentavos(saldoCentavos, { simbolo: false }));
-    setMetodo("EFECTIVO");
-    setArchivo(null);
-    setLocalError(undefined);
-  }, [open, saldoCentavos]);
+  const mensajeError = localError ?? error ?? sinSenal;
 
   async function guardar() {
     setLocalError(undefined);
@@ -98,85 +118,150 @@ export function DialogoPago({
     }
     let comprobanteAssetId: string | undefined;
     try {
+      setSubiendo(true);
       if (archivo) comprobanteAssetId = await subirComprobantePago(archivo, id);
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "No se pudo subir el comprobante");
+      setLocalError(
+        err instanceof Error ? err.message : "No se pudo subir el comprobante",
+      );
       return;
+    } finally {
+      setSubiendo(false);
     }
     onConfirm({ id, montoCentavos, metodo, comprobanteAssetId });
   }
 
   return (
-    <Dialog
-      open={open}
-      title={titulo}
-      description={descripcion}
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button
-            variant="accent"
-            loading={loading}
-            disabled={!online && !permitirOffline}
-            title={sinSenal}
-            onClick={() => void guardar()}
-          >
-            {permitirOffline && !online ? MENSAJE_GUARDAR_TELEFONO : "Guardar cobro"}
-          </Button>
-        </>
-      }
+    <Modal.Backdrop
+      isOpen
+      onOpenChange={(abierto) => {
+        if (!abierto) onClose();
+      }}
     >
-      <div className="grid gap-3">
-        <div className="flex items-center justify-between rounded-campo bg-tinta-50 px-3 py-3 text-sm">
-          <span>Saldo pendiente</span>
-          <Money centavos={saldoCentavos} tone="pendiente" />
-        </div>
-        <Input
-          id="monto-pago"
-          label="Monto recibido"
-          inputMode="decimal"
-          value={monto}
-          onChange={(e) => setMonto(e.target.value)}
-          hint="Puede ser un abono parcial. Se aplica a la factura más antigua si cobra al cliente."
-        />
-        <Field label="Método">
-          <SegmentedControl
-            label="Método de pago"
-            value={metodo}
-            onChange={setMetodo}
-            fullWidth
-            options={
-              [
-                { id: "EFECTIVO", label: "Efectivo" },
-                { id: "TRANSFERENCIA", label: "Transferencia" },
-              ] as const
-            }
-          />
-        </Field>
-        <Field
-          label="Comprobante"
-          hint={metodo === "TRANSFERENCIA" ? "Obligatorio en transferencia." : "Opcional en efectivo."}
-        >
-          <label className="flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-campo border border-dashed border-[var(--border-default)] px-3 text-xs text-tinta-500">
-            <Camera size={16} aria-hidden />
-            {archivo ? archivo.name : "Tomar foto del recibo"}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="sr-only"
-              onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-            />
-          </label>
-        </Field>
-        {(localError || error || sinSenal) && (
-          <p className="text-sm text-peligro" role="alert">
-            {localError ?? error ?? sinSenal}
-          </p>
-        )}
-      </div>
-    </Dialog>
+      <Modal.Container size="md">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>{titulo}</Modal.Heading>
+            {descripcion && (
+              <p className="text-sm text-tinta-500">{descripcion}</p>
+            )}
+          </Modal.Header>
+
+          <Modal.Body>
+            <form
+              className="grid gap-4"
+              id="registrar-pago"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void guardar();
+              }}
+            >
+              {/* El saldo abre el diálogo porque es la cifra contra la que
+                  Carla compara el billete antes de escribir nada. */}
+              <div className="flex items-center justify-between rounded-campo bg-tinta-50 px-3 py-3 text-sm">
+                <span className="mst-label">Saldo pendiente</span>
+                <Money
+                  centavos={saldoCentavos}
+                  className="text-lg"
+                  tone="pendiente"
+                />
+              </div>
+
+              <TextField value={monto} onChange={setMonto}>
+                <Label>Monto recibido</Label>
+                <Input
+                  autoFocus
+                  className="tabular-nums"
+                  id="monto-pago"
+                  inputMode="decimal"
+                />
+                <Description>
+                  Puede ser un abono parcial. Se aplica a la factura más antigua
+                  si cobra al cliente.
+                </Description>
+              </TextField>
+
+              <div className="grid gap-1.5">
+                <span className="text-sm font-medium text-tinta-900" id="metodo-pago-label">
+                  Método
+                </span>
+                <ToggleButtonGroup
+                  aria-labelledby="metodo-pago-label"
+                  disallowEmptySelection
+                  fullWidth
+                  selectedKeys={new Set([metodo])}
+                  selectionMode="single"
+                  onSelectionChange={(keys) => {
+                    const next = [...keys][0];
+                    if (typeof next === "string") setMetodo(next as PagoMetodo);
+                  }}
+                >
+                  {METODOS.map((m, i) => (
+                    <ToggleButton key={m.id} id={m.id}>
+                      {i > 0 && <ToggleButtonGroup.Separator />}
+                      {m.label}
+                    </ToggleButton>
+                  ))}
+                </ToggleButtonGroup>
+              </div>
+
+              <div className="grid gap-1.5">
+                <span className="text-sm font-medium text-tinta-900">
+                  Comprobante
+                </span>
+                <label className="flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-campo border border-dashed border-[var(--border-default)] px-3 text-xs text-tinta-500 transition-colors duration-control hover:border-[var(--border-accent)]">
+                  <Camera size={16} aria-hidden />
+                  {archivo ? archivo.name : "Tomar foto del recibo"}
+                  <input
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    type="file"
+                    onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <p className="text-xs text-tinta-500">
+                  {metodo === "TRANSFERENCIA"
+                    ? "Obligatorio en transferencia."
+                    : "Opcional en efectivo."}
+                </p>
+              </div>
+
+              {mensajeError && (
+                <Alert status="danger">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>No se registró el pago</Alert.Title>
+                    <Alert.Description>{mensajeError}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+            </form>
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button variant="tertiary" onPress={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              form="registrar-pago"
+              isDisabled={!online && !permitirOffline}
+              isPending={loading || subiendo}
+              type="submit"
+              variant="primary"
+            >
+              {({ isPending }) => (
+                <>
+                  {isPending ? <Spinner color="current" size="sm" /> : null}
+                  {permitirOffline && !online
+                    ? MENSAJE_GUARDAR_TELEFONO
+                    : "Guardar cobro"}
+                </>
+              )}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }

@@ -15,10 +15,23 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import {
+  Alert,
+  Button,
+  Card,
+  Chip,
+  Input,
+  Label,
+  Modal,
+  SearchField,
+  Spinner,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GripVertical, Package, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
 import {
   FAMILIAS,
   FAMILIA_ETIQUETA,
@@ -33,20 +46,23 @@ import { toastFromError, toastSuccess } from "@/lib/toast";
 import { subirFotoProducto } from "@/lib/upload-asset";
 import { cn } from "@/lib/utils";
 import { PanelShell } from "@/components/layout/panel-shell";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/field";
-import { SearchField } from "@/components/ui/search-field";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { FotoPicker } from "@/components/catalog/foto-picker";
 import { ProductoThumb } from "@/components/catalog/producto-thumb";
+import {
+  ProductosResumen,
+  resumenProductos,
+} from "@/components/catalog/productos-resumen";
 
-type FiltroActivo = "activos" | "todos";
+type FiltroActivo = "activos" | "todos" | "sin_foto";
+
+const FILTROS = [
+  { id: "activos", label: "Activos" },
+  { id: "sin_foto", label: "Sin foto" },
+  { id: "todos", label: "Todos" },
+] as const;
 
 export default function CatalogoPage() {
   const qc = useQueryClient();
@@ -65,11 +81,17 @@ export default function CatalogoPage() {
     queryFn: () => api<ProductoPublico[]>("/productos"),
   });
 
+  const resumen = useMemo(
+    () => (productos.data ? resumenProductos(productos.data) : null),
+    [productos.data],
+  );
+
   const filtrados = useMemo(() => {
     const list = productos.data ?? [];
     const needle = q.trim().toLowerCase();
     return list.filter((p) => {
-      if (filtro === "activos" && !p.activo) return false;
+      if (filtro !== "todos" && !p.activo) return false;
+      if (filtro === "sin_foto" && p.fotoAssetId) return false;
       if (!needle) return true;
       return (
         p.nombreCanonico.toLowerCase().includes(needle) ||
@@ -77,21 +99,6 @@ export default function CatalogoPage() {
       );
     });
   }, [productos.data, q, filtro]);
-
-  const meta = useMemo(() => {
-    const list = productos.data ?? [];
-    if (list.length === 0) return undefined;
-    const activos = list.filter((p) => p.activo).length;
-    const inactivos = list.length - activos;
-    if (filtro === "activos") {
-      return `${activos} activo${activos === 1 ? "" : "s"}${
-        inactivos > 0 ? ` · ${inactivos} inactivo${inactivos === 1 ? "" : "s"} ocultos` : ""
-      }`;
-    }
-    return `${list.length} producto${list.length === 1 ? "" : "s"} · ${activos} activo${
-      activos === 1 ? "" : "s"
-    }`;
-  }, [productos.data, filtro]);
 
   const reorder = useMutation({
     mutationFn: (payload: { familia: Familia; ids: string[] }) =>
@@ -103,42 +110,72 @@ export default function CatalogoPage() {
     onError: (err) => toastFromError(err, "No se pudo guardar el orden"),
   });
 
+  /* Arrastrar solo tiene sentido cuando la lista está completa dentro de la
+     familia: con búsqueda o con el filtro "sin foto" faltan filas y el orden
+     que se guardaría no sería el que el usuario ve. */
+  const listaCompleta = q.trim() === "" && filtro !== "sin_foto";
+  const total = productos.data?.length ?? 0;
+
   return (
     <PanelShell title="Catálogo">
-      <div className="grid gap-4">
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto sm:contents">
-            {canWrite ? (
-              <Button size="sm" className="shrink-0" onClick={() => setEditing("new")}>
-                <Plus size={15} aria-hidden />
-                Nuevo producto
-              </Button>
-            ) : null}
+      <div className="grid gap-5">
+        <ProductosResumen resumen={resumen} cargando={productos.isLoading} />
+
+        <section className="grid gap-3" aria-label="Buscar y filtrar">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <SearchField
+              aria-label="Buscar producto"
+              className="min-w-0 flex-1"
               value={q}
               onChange={setQ}
-              label="Buscar producto"
-              placeholder="Nombre o SKU"
-              className="min-w-[10rem] flex-1"
-            />
-            <SegmentedControl
-              label="Filtrar productos"
-              value={filtro}
-              onChange={setFiltro}
-              className="shrink-0"
-              options={
-                [
-                  { id: "activos", label: "Activos" },
-                  { id: "todos", label: "Todos" },
-                ] as const
-              }
-            />
+            >
+              <SearchField.Group>
+                <SearchField.SearchIcon />
+                <SearchField.Input placeholder="Nombre o SKU" />
+                <SearchField.ClearButton />
+              </SearchField.Group>
+            </SearchField>
+            {canWrite && (
+              <Button
+                className="shrink-0"
+                variant="primary"
+                onPress={() => setEditing("new")}
+              >
+                <Plus size={16} aria-hidden />
+                Nuevo producto
+              </Button>
+            )}
           </div>
-        </div>
 
-        {meta ? <p className="mst-label -mt-1 tabular-nums">{meta}</p> : null}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ToggleButtonGroup
+              aria-label="Filtrar productos"
+              disallowEmptySelection
+              selectedKeys={new Set([filtro])}
+              selectionMode="single"
+              size="sm"
+              onSelectionChange={(keys) => {
+                const next = [...keys][0];
+                if (typeof next === "string") setFiltro(next as FiltroActivo);
+              }}
+            >
+              {FILTROS.map((f, i) => (
+                <ToggleButton key={f.id} id={f.id}>
+                  {i > 0 && <ToggleButtonGroup.Separator />}
+                  {f.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
 
-        <Card flush>
+            {!productos.isLoading && (
+              <p className="mst-label tabular-nums" aria-live="polite">
+                {filtrados.length} de {total}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <Card className="gap-0 overflow-hidden p-0">
           {productos.isLoading ? (
             <CatalogoSkeleton />
           ) : filtrados.length === 0 ? (
@@ -148,13 +185,15 @@ export default function CatalogoPage() {
               description={
                 q
                   ? "Pruebe con el SKU o el nombre."
-                  : filtro === "activos"
-                    ? "No hay productos activos. Cambie a Todos o cree uno nuevo."
-                    : "Cargue el catálogo a mano. Es el listado que Alex y Carla van a reconocer."
+                  : filtro === "sin_foto"
+                    ? "Todos los productos activos ya tienen foto."
+                    : filtro === "activos"
+                      ? "No hay productos activos. Cambie a Todos o cree uno nuevo."
+                      : "Cargue el catálogo a mano. Es el listado que Alex y Carla van a reconocer."
               }
               action={
-                canWrite && !q ? (
-                  <Button size="sm" onClick={() => setEditing("new")}>
+                canWrite && !q && filtro !== "sin_foto" ? (
+                  <Button size="sm" variant="primary" onPress={() => setEditing("new")}>
                     Nuevo producto
                   </Button>
                 ) : null
@@ -170,19 +209,15 @@ export default function CatalogoPage() {
                   familia={familia}
                   items={items}
                   canWrite={canWrite}
-                  canDrag={canWrite && q.trim() === ""}
+                  canDrag={canWrite && listaCompleta}
                   onEdit={setEditing}
                   onReorder={(ids) => {
                     const allInFamilia = (productos.data ?? [])
                       .filter((p) => p.familia === familia)
                       .map((p) => p.id);
-                    if (filtro === "activos") {
-                      const visibles = new Set(ids);
-                      const ocultos = allInFamilia.filter((id) => !visibles.has(id));
-                      reorder.mutate({ familia, ids: [...ids, ...ocultos] });
-                      return;
-                    }
-                    reorder.mutate({ familia, ids });
+                    const visibles = new Set(ids);
+                    const ocultos = allInFamilia.filter((id) => !visibles.has(id));
+                    reorder.mutate({ familia, ids: [...ids, ...ocultos] });
                   }}
                 />
               );
@@ -192,7 +227,7 @@ export default function CatalogoPage() {
       </div>
 
       {editing && (
-        <ProductoDialog
+        <ProductoModal
           producto={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -211,7 +246,7 @@ function CatalogoSkeleton() {
       {Array.from({ length: 6 }, (_, i) => (
         <li
           key={i}
-          className="flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-4 sm:px-5"
+          className="flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-4 last:border-b-0 sm:px-5"
         >
           <Skeleton className="size-11 shrink-0 rounded-campo" />
           <div className="min-w-0 flex-1 space-y-2">
@@ -240,7 +275,9 @@ function FamiliaGrupo({
   onEdit: (p: ProductoPublico) => void;
   onReorder: (ids: string[]) => void;
 }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
   const ids = items.map((p) => p.id);
 
   function onDragEnd(event: DragEndEvent) {
@@ -253,11 +290,15 @@ function FamiliaGrupo({
 
   return (
     <section>
-      <h3 className="sticky top-0 z-[1] flex items-center justify-between gap-2 border-t border-[var(--border-subtle)] bg-tinta-50 px-4 py-2 mst-label sm:px-5">
+      <h3 className="sticky top-0 z-[1] flex items-center justify-between gap-2 border-y border-[var(--border-subtle)] bg-[var(--ink-50)] px-4 py-2 mst-label first:border-t-0 sm:px-5">
         <span>{FAMILIA_ETIQUETA[familia]}</span>
         <span className="tabular-nums text-tinta-400">{items.length}</span>
       </h3>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+      >
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           <ul>
             {items.map((p) => (
@@ -287,25 +328,24 @@ function ProductoRow({
   canDrag: boolean;
   onEdit: (p: ProductoPublico) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: producto.id,
-    disabled: !canDrag,
-  });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: producto.id, disabled: !canDrag });
 
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "flex min-h-fila items-center gap-2 border-b border-[var(--border-subtle)] px-2 py-2 sm:gap-3 sm:px-3",
-        isDragging && "relative z-[2] bg-blanco shadow-tarjeta",
+        "group flex min-h-fila items-center gap-2 border-b border-[var(--border-subtle)] px-2 py-2 last:border-b-0 sm:gap-3 sm:px-3",
+        "transition-colors duration-control ease-out hover:bg-[var(--ink-50)]",
+        isDragging && "relative z-[2] bg-blanco shadow-[var(--shadow-md)]",
         !producto.activo && "opacity-70",
       )}
     >
       {canDrag ? (
         <button
           type="button"
-          className="inline-flex size-11 shrink-0 cursor-grab items-center justify-center text-tinta-400 active:cursor-grabbing"
+          className="inline-flex size-11 shrink-0 cursor-grab items-center justify-center rounded-campo text-tinta-400 opacity-0 transition-opacity duration-control ease-out focus-visible:opacity-100 focus-visible:outline-none focus-visible:shadow-foco group-hover:opacity-100 active:cursor-grabbing max-sm:opacity-100"
           aria-label={`Reordenar ${producto.nombreCanonico}`}
           {...attributes}
           {...listeners}
@@ -322,7 +362,6 @@ function ProductoRow({
           onClick={() => onEdit(producto)}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-3 rounded-campo px-1 py-1 text-left",
-            "transition-colors duration-150 ease-out hover:bg-tinta-50",
             "focus-visible:outline-none focus-visible:shadow-foco",
           )}
         >
@@ -335,14 +374,23 @@ function ProductoRow({
       )}
 
       <div className="flex shrink-0 items-center gap-1.5 pr-1 sm:gap-2 sm:pr-2">
+        {!producto.fotoAssetId && producto.activo && (
+          <Chip className="hidden md:inline-flex" color="warning" size="sm" variant="soft">
+            Sin foto
+          </Chip>
+        )}
         <EstadoBadge estado={producto.puntoCarga} size="sm" />
-        {!producto.activo && <Badge tone="amber">Inactivo</Badge>}
+        {!producto.activo && (
+          <Chip color="warning" size="sm" variant="soft">
+            Inactivo
+          </Chip>
+        )}
         {canWrite && (
           <Button
-            variant="ghost"
-            size="sm"
             className="hidden sm:inline-flex"
-            onClick={() => onEdit(producto)}
+            size="sm"
+            variant="ghost"
+            onPress={() => onEdit(producto)}
           >
             Editar
           </Button>
@@ -376,7 +424,18 @@ function ProductoRowBody({ producto }: { producto: ProductoPublico }) {
   );
 }
 
-function ProductoDialog({
+const UNIDADES = [
+  { id: "LIBRA", label: "Libra" },
+  { id: "BOLSA", label: "Bolsa" },
+  { id: "UNIDAD", label: "Unidad" },
+] as const;
+
+const PUNTOS = [
+  { id: "DEMOCRACIA", label: "Democracia" },
+  { id: "PLANTA", label: "Planta" },
+] as const;
+
+function ProductoModal({
   producto,
   onClose,
   onSaved,
@@ -388,16 +447,77 @@ function ProductoDialog({
   const [error, setError] = useState<string | null>(null);
   const [foto, setFoto] = useState<File | null>(null);
   const [clearFoto, setClearFoto] = useState(false);
-  const form = useForm({
-    defaultValues: {
-      sku: producto?.sku ?? "",
-      nombreCanonico: producto?.nombreCanonico ?? "",
-      familia: producto?.familia ?? "TORTILLA",
-      unidadMedida: producto?.unidadMedida ?? "LIBRA",
-      puntoCarga: producto?.puntoCarga ?? "DEMOCRACIA",
+  const [campos, setCampos] = useState({
+    sku: producto?.sku ?? "",
+    nombreCanonico: producto?.nombreCanonico ?? "",
+    familia: (producto?.familia ?? "TORTILLA") as Familia,
+    unidadMedida: (producto?.unidadMedida ??
+      "LIBRA") as ProductoPublico["unidadMedida"],
+    puntoCarga: (producto?.puntoCarga ??
+      "DEMOCRACIA") as ProductoPublico["puntoCarga"],
+  });
+
+  const set =
+    <K extends keyof typeof campos>(k: K) =>
+    (value: (typeof campos)[K]) =>
+      setCampos((prev) => ({ ...prev, [k]: value }));
+
+  const guardar = useMutation({
+    mutationFn: async () => {
+      const parsed = crearProductoRequestSchema.safeParse({
+        ...campos,
+        esProducido: true,
+      });
+      if (!parsed.success) throw new Error("Revise los campos del producto");
+
+      let productoId = producto?.id;
+      if (producto) {
+        await api(`/productos/${producto.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(parsed.data),
+        });
+      } else {
+        const creado = await api<ProductoPublico>("/productos", {
+          method: "POST",
+          body: JSON.stringify(parsed.data),
+        });
+        productoId = creado.id;
+      }
+
+      /* La foto va en un segundo viaje: si falla, el producto ya existe y la
+         foto se agrega al editar. No se pierde la captura. */
+      if (productoId && foto) {
+        try {
+          const assetId = await subirFotoProducto(foto, productoId);
+          await api(`/productos/${productoId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ fotoAssetId: assetId }),
+          });
+        } catch (err) {
+          toastFromError(
+            err,
+            "Producto guardado; la foto no se subió. Puede agregarla al editar.",
+          );
+          return;
+        }
+      } else if (productoId && clearFoto && producto?.fotoAssetId) {
+        await api(`/productos/${productoId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ fotoAssetId: null }),
+        });
+      }
+
+      toastSuccess(producto ? "Producto actualizado" : "Producto guardado");
+    },
+    onSuccess: () => {
+      setError(null);
+      onSaved();
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "No se pudo guardar");
+      if (err instanceof ApiError) toastFromError(err, "No se pudo guardar");
     },
   });
-  const qc = useQueryClient();
 
   const desactivar = useMutation({
     mutationFn: () => api(`/productos/${producto!.id}/desactivar`, { method: "PATCH" }),
@@ -419,187 +539,192 @@ function ProductoDialog({
   const fotoMostrada = clearFoto ? null : producto?.fotoAssetId;
 
   return (
-    <Dialog
-      open
-      size="lg"
-      onClose={onClose}
-      title={producto ? "Editar producto" : "Nuevo producto"}
-      description="SKU planos por familia. La foto ayuda a reconocerlo en el portal y en captura."
-      footer={
-        <>
-          {producto && producto.activo && (
-            <Button
-              variant="danger"
-              className="mr-auto"
-              loading={desactivar.isPending}
-              onClick={() => desactivar.mutate()}
-            >
-              Desactivar
-            </Button>
-          )}
-          {producto && !producto.activo && (
-            <Button
-              variant="secondary"
-              className="mr-auto"
-              loading={activar.isPending}
-              onClick={() => activar.mutate()}
-            >
-              Reactivar
-            </Button>
-          )}
-          <Button variant="secondary" onClick={onClose}>
-            Cerrar
-          </Button>
-          <Button type="submit" form="producto-form" loading={form.formState.isSubmitting}>
-            Guardar producto
-          </Button>
-        </>
-      }
-    >
-      <form
-        id="producto-form"
-        className="grid gap-5"
-        onSubmit={form.handleSubmit(async (values) => {
-          const parsed = crearProductoRequestSchema.safeParse({
-            ...values,
-            esProducido: true,
-          });
-          if (!parsed.success) {
-            setError("Revise los campos del producto");
-            return;
-          }
-          setError(null);
-          try {
-            let productoId = producto?.id;
-            if (producto) {
-              await api(`/productos/${producto.id}`, {
-                method: "PATCH",
-                body: JSON.stringify(parsed.data),
-              });
-            } else {
-              const creado = await api<ProductoPublico>("/productos", {
-                method: "POST",
-                body: JSON.stringify(parsed.data),
-              });
-              productoId = creado.id;
-            }
+    <Modal.Backdrop isOpen onOpenChange={(open) => !open && onClose()}>
+      <Modal.Container size="lg">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>
+              {producto ? "Editar producto" : "Nuevo producto"}
+            </Modal.Heading>
+            <p className="text-sm text-tinta-500">
+              SKU planos por familia. La foto ayuda a reconocerlo en el portal y en
+              captura.
+            </p>
+          </Modal.Header>
 
-            if (productoId && foto) {
-              try {
-                const assetId = await subirFotoProducto(foto, productoId);
-                await api(`/productos/${productoId}`, {
-                  method: "PATCH",
-                  body: JSON.stringify({ fotoAssetId: assetId }),
-                });
-              } catch (err) {
-                toastFromError(
-                  err,
-                  "Producto guardado; la foto no se subió. Puede agregarla al editar.",
-                );
-                await qc.invalidateQueries({ queryKey: ["productos"] });
-                onSaved();
-                return;
-              }
-            } else if (productoId && clearFoto && producto?.fotoAssetId) {
-              await api(`/productos/${productoId}`, {
-                method: "PATCH",
-                body: JSON.stringify({ fotoAssetId: null }),
-              });
-            }
+          <Modal.Body>
+            <form
+              id="producto-form"
+              className="grid gap-6"
+              onSubmit={(e) => {
+                e.preventDefault();
+                guardar.mutate();
+              }}
+            >
+              <FotoPicker
+                label="Foto del producto"
+                hint="JPEG, PNG o WebP. Opcional."
+                shape="rounded"
+                value={foto}
+                existingAssetId={fotoMostrada}
+                onChange={(file) => {
+                  setFoto(file);
+                  if (file) setClearFoto(false);
+                }}
+                onClearExisting={() => {
+                  setClearFoto(true);
+                  setFoto(null);
+                }}
+              />
 
-            toastSuccess(producto ? "Producto actualizado" : "Producto guardado");
-            await qc.invalidateQueries({ queryKey: ["productos"] });
-            onSaved();
-          } catch (err) {
-            const msg = err instanceof ApiError ? err.message : "No se pudo guardar";
-            setError(msg);
-            toastFromError(err, "No se pudo guardar");
-          }
-        })}
+              <fieldset className="grid gap-3">
+                <legend className="mb-1 text-sm font-semibold text-tinta-900">
+                  Identidad
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+                  <TextField isRequired value={campos.sku} onChange={set("sku")}>
+                    <Label>SKU</Label>
+                    <Input autoCapitalize="characters" className="font-mono" />
+                  </TextField>
+                  <TextField
+                    isRequired
+                    value={campos.nombreCanonico}
+                    onChange={set("nombreCanonico")}
+                  >
+                    <Label>Nombre</Label>
+                    <Input placeholder="Ej. Tostada de maíz" />
+                  </TextField>
+                </div>
+              </fieldset>
+
+              <fieldset className="grid gap-4">
+                <legend className="mb-1 text-sm font-semibold text-tinta-900">
+                  Operación
+                </legend>
+
+                <OpcionUnica
+                  label="Familia"
+                  descripcion="Agrupa el listado y define el orden de producción."
+                  value={campos.familia}
+                  options={FAMILIAS.map((f) => ({ id: f, label: FAMILIA_ETIQUETA[f] }))}
+                  onChange={(v) => set("familia")(v as Familia)}
+                />
+                <OpcionUnica
+                  label="Unidad"
+                  value={campos.unidadMedida}
+                  options={UNIDADES}
+                  onChange={(v) =>
+                    set("unidadMedida")(v as ProductoPublico["unidadMedida"])
+                  }
+                />
+                <OpcionUnica
+                  label="Punto de carga"
+                  descripcion="Dónde sube el producto a la ruta."
+                  value={campos.puntoCarga}
+                  options={PUNTOS}
+                  onChange={(v) => set("puntoCarga")(v as ProductoPublico["puntoCarga"])}
+                />
+              </fieldset>
+
+              {error && (
+                <Alert status="danger">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>No se guardó</Alert.Title>
+                    <Alert.Description>{error}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+            </form>
+          </Modal.Body>
+
+          <Modal.Footer>
+            {producto && producto.activo && (
+              <Button
+                className="mr-auto"
+                isPending={desactivar.isPending}
+                variant="danger-soft"
+                onPress={() => desactivar.mutate()}
+              >
+                {({ isPending }) => (
+                  <>
+                    {isPending && <Spinner color="current" size="sm" />}
+                    Desactivar
+                  </>
+                )}
+              </Button>
+            )}
+            {producto && !producto.activo && (
+              <Button
+                className="mr-auto"
+                isPending={activar.isPending}
+                variant="secondary"
+                onPress={() => activar.mutate()}
+              >
+                {({ isPending }) => (
+                  <>
+                    {isPending && <Spinner color="current" size="sm" />}
+                    Reactivar
+                  </>
+                )}
+              </Button>
+            )}
+            <Button variant="tertiary" onPress={onClose}>
+              Cerrar
+            </Button>
+            <Button
+              form="producto-form"
+              isDisabled={guardar.isPending}
+              type="submit"
+              variant="primary"
+            >
+              {guardar.isPending ? "Un momento…" : "Guardar producto"}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
+/* Un solo grupo de segmentos por decisión: son enums cortos y cerrados, y en
+   tablet se eligen de un toque —mejor que un select que abre una capa más. */
+function OpcionUnica({
+  label,
+  descripcion,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  descripcion?: string;
+  value: string;
+  options: ReadonlyArray<{ id: string; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <span className="mst-label">{label}</span>
+      <ToggleButtonGroup
+        aria-label={label}
+        disallowEmptySelection
+        fullWidth
+        selectedKeys={new Set([value])}
+        selectionMode="single"
+        onSelectionChange={(keys) => {
+          const next = [...keys][0];
+          if (typeof next === "string") onChange(next);
+        }}
       >
-        <FotoPicker
-          label="Foto del producto"
-          hint="JPEG, PNG o WebP. Opcional."
-          shape="rounded"
-          value={foto}
-          existingAssetId={fotoMostrada}
-          onChange={(file) => {
-            setFoto(file);
-            if (file) setClearFoto(false);
-          }}
-          onClearExisting={() => {
-            setClearFoto(true);
-            setFoto(null);
-          }}
-        />
-
-        <section className="grid gap-3">
-          <h3 className="text-sm font-semibold text-tinta-900">Identidad</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input id="sku" label="SKU" required {...form.register("sku")} />
-            <div className="sm:col-span-2">
-              <Input
-                id="nombreCanonico"
-                label="Nombre"
-                required
-                {...form.register("nombreCanonico")}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4">
-          <h3 className="text-sm font-semibold text-tinta-900">Operación</h3>
-          <div className="grid gap-4">
-            <div className="grid gap-1.5">
-              <span className="mst-label">Familia</span>
-              <SegmentedControl
-                label="Familia"
-                fullWidth
-                value={form.watch("familia")}
-                onChange={(v) => form.setValue("familia", v)}
-                options={FAMILIAS.map((f) => ({
-                  id: f,
-                  label: FAMILIA_ETIQUETA[f],
-                }))}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <span className="mst-label">Unidad</span>
-              <SegmentedControl
-                label="Unidad"
-                fullWidth
-                value={form.watch("unidadMedida")}
-                onChange={(v) => form.setValue("unidadMedida", v)}
-                options={
-                  [
-                    { id: "LIBRA", label: "Libra" },
-                    { id: "BOLSA", label: "Bolsa" },
-                    { id: "UNIDAD", label: "Unidad" },
-                  ] as const
-                }
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <span className="mst-label">Punto de carga</span>
-              <SegmentedControl
-                label="Punto de carga"
-                fullWidth
-                value={form.watch("puntoCarga")}
-                onChange={(v) => form.setValue("puntoCarga", v)}
-                options={
-                  [
-                    { id: "DEMOCRACIA", label: "Democracia" },
-                    { id: "PLANTA", label: "Planta" },
-                  ] as const
-                }
-              />
-            </div>
-          </div>
-        </section>
-
-        {error && <p className="text-sm text-peligro">{error}</p>}
-      </form>
-    </Dialog>
+        {options.map((o, i) => (
+          <ToggleButton key={o.id} id={o.id}>
+            {i > 0 && <ToggleButtonGroup.Separator />}
+            {o.label}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+      {descripcion && <p className="text-xs text-tinta-500">{descripcion}</p>}
+    </div>
   );
 }

@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export type MedidorParte = {
@@ -15,10 +19,27 @@ export type MedidorParte = {
 export function MedidorApilado({
   partes,
   vacio = "Sin datos",
+  cargando = false,
 }: {
   partes: MedidorParte[];
   vacio?: string;
+  cargando?: boolean;
 }) {
+  const [listo, setListo] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setListo(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  if (cargando) {
+    return (
+      <div className="grid gap-3" aria-hidden>
+        <Skeleton className="h-3.5 w-full rounded-pill" />
+        <Skeleton className="h-4 w-2/3" />
+      </div>
+    );
+  }
+
   const total = partes.reduce((acc, p) => acc + p.valor, 0);
   if (total <= 0) {
     return <p className="text-sm text-tinta-500">{vacio}</p>;
@@ -32,7 +53,7 @@ export function MedidorApilado({
   return (
     <div className="grid gap-3">
       <div
-        className="flex h-3.5 overflow-hidden rounded-pill bg-[var(--ink-100)]"
+        className="flex h-3.5 gap-0.5 overflow-hidden rounded-pill bg-[var(--ink-100)]"
         role="img"
         aria-label={conPct.map((p) => `${p.label} ${p.pct} %`).join(" · ")}
       >
@@ -40,9 +61,9 @@ export function MedidorApilado({
           p.pct <= 0 ? null : (
             <div
               key={p.id}
-              className="h-full"
+              className="h-full rounded-pill transition-[width] duration-slow ease-out"
               style={{
-                width: `${p.pct}%`,
+                width: listo ? `${p.pct}%` : "0%",
                 background: p.color,
               }}
               title={`${p.label}: ${p.valor} (${p.pct} %)`}

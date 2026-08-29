@@ -1,6 +1,10 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SERIE_COLOR } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
 export type BarraHItem = {
@@ -15,15 +19,50 @@ export type BarraHItem = {
   meta?: string;
 };
 
+/** Una sola serie: todas las barras del mismo tono; «Otros» en neutro. */
+function colorDeBarra(item: BarraHItem): string {
+  if (item.color) return item.color;
+  return item.id === "otros" ? SERIE_COLOR.neutral : SERIE_COLOR.digital;
+}
+
 export function ChartBarrasH({
   items,
   vacioTitulo,
   vacioHint,
+  cargando = false,
+  filasCargando = 5,
 }: {
   items: BarraHItem[];
   vacioTitulo: string;
   vacioHint?: string;
+  cargando?: boolean;
+  filasCargando?: number;
 }) {
+  const [listo, setListo] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setListo(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  if (cargando) {
+    // Misma silueta que la fila real: avatar, nombre, cifra y barra.
+    return (
+      <ul className="grid gap-3" aria-hidden>
+        {Array.from({ length: filasCargando }, (_, i) => (
+          <li key={i} className="grid gap-1.5">
+            <div className="flex min-h-11 items-center gap-3">
+              <Skeleton className="size-8 rounded-full" />
+              <div className="grid flex-1 gap-1.5">
+                <Skeleton className="h-3 w-2/5" />
+                <Skeleton className="h-3.5 w-full rounded-pill" />
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   const max = Math.max(1, ...items.map((i) => i.valor));
   if (items.length === 0 || items.every((i) => i.valor === 0)) {
     return <EmptyState title={vacioTitulo} description={vacioHint} />;
@@ -36,6 +75,7 @@ export function ChartBarrasH({
             {item.label}
           </span>
         );
+        const pct = Math.round((item.valor / max) * 100);
         return (
           <li key={item.id} className="grid gap-1.5">
             <div className="flex min-h-11 items-center gap-3">
@@ -72,10 +112,12 @@ export function ChartBarrasH({
                   className="mt-1.5 h-3.5 overflow-hidden rounded-pill bg-[var(--ink-100)]"
                 >
                   <div
-                    className={cn("h-full rounded-pill")}
+                    className={cn(
+                      "h-full rounded-pill transition-[width] duration-slow ease-out",
+                    )}
                     style={{
-                      width: `${Math.round((item.valor / max) * 100)}%`,
-                      background: item.color ?? "var(--green-800)",
+                      width: listo ? `${pct}%` : "0%",
+                      background: colorDeBarra(item),
                     }}
                   />
                 </div>

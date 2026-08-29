@@ -1,8 +1,16 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2 } from "lucide-react";
+import {
+  Alert,
+  Button,
+  Card,
+  Modal,
+  SearchField,
+  Spinner,
+} from "@heroui/react";
+import { CheckCircle2, PackageSearch } from "lucide-react";
 import {
   formatearFechaLarga,
   totalPedidoCentavos,
@@ -12,6 +20,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import {
   avisoLimiteCredito,
+  copyEdicionHasta,
   copyProximaApertura,
   entregaCopy,
   gruposCatalogo,
@@ -31,11 +40,7 @@ import { ContadorFacturas } from "@/components/domain/contador-facturas";
 import { VentanaBadge } from "@/components/domain/ventana-badge";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { SearchField } from "@/components/ui/search-field";
-
-type Vista = "catalogo" | "resumen" | "confirmado";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function PortalPedirPage() {
   const qc = useQueryClient();
@@ -47,9 +52,10 @@ export default function PortalPedirPage() {
     resetDesdePedido,
     assetPath,
   } = usePortalSession();
-  const [vista, setVista] = useState<Vista>(
-    sesion.pedidoAbierto ? "confirmado" : "catalogo",
+  const [confirmado, setConfirmado] = useState(
+    () => sesion.pedidoAbierto != null,
   );
+  const [revisando, setRevisando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
@@ -78,6 +84,9 @@ export default function PortalPedirPage() {
     [sesion.catalogo, busqueda],
   );
 
+  const visibles =
+    favoritos.length + grupos.reduce((n, g) => n + g.productos.length, 0);
+
   const confirmar = useMutation({
     mutationFn: () =>
       api<PortalPedido>(`/p/${encodeURIComponent(token)}/pedido`, {
@@ -89,21 +98,23 @@ export default function PortalPedirPage() {
           })),
         }),
       }),
-    onSuccess: (confirmado) => {
+    onSuccess: (recibido) => {
       setErrorAccion(null);
       qc.setQueryData<PortalSesion>(["portal", token], (actual) =>
         actual
-          ? { ...actual, pedidoAbierto: confirmado, ultimoPedido: {
-              id: confirmado.id,
-              correlativo: confirmado.correlativo,
-              fechaOperacion: confirmado.fechaOperacion,
-              estado: confirmado.estado,
-              totalCentavos: confirmado.totalCentavos,
-              origen: confirmado.origen,
+          ? { ...actual, pedidoAbierto: recibido, ultimoPedido: {
+              id: recibido.id,
+              correlativo: recibido.correlativo,
+              fechaOperacion: recibido.fechaOperacion,
+              fechaEntrega: recibido.fechaEntrega,
+              estado: recibido.estado,
+              totalCentavos: recibido.totalCentavos,
+              origen: recibido.origen,
             } }
           : actual,
       );
-      setVista("confirmado");
+      setRevisando(false);
+      setConfirmado(true);
     },
     onError: (err) => {
       setErrorAccion(
@@ -114,70 +125,66 @@ export default function PortalPedirPage() {
     },
   });
 
-  const pieResumen = (accion: ReactNode) => (
-    <>
-      {errorAccion ? (
-        <p className="mb-2 text-xs text-peligro">{errorAccion}</p>
-      ) : null}
-      <div className="mb-2 flex items-baseline justify-between">
-        <span className="text-xs text-tinta-500">
-          {itemsElegidos.length}{" "}
-          {itemsElegidos.length === 1 ? "producto" : "productos"}
-        </span>
-        <Money centavos={totalCentavos} />
-      </div>
-      {accion}
-    </>
-  );
-
-  if (vista === "confirmado" && pedido) {
+  if (confirmado && pedido) {
     return (
       <PortalShell clienteNombre={sesion.cliente.nombre}>
         <div className="grid gap-4 py-4" role="status">
-          <Card tone="brand">
-            <div className="grid justify-items-start gap-2">
-              <CheckCircle2 size={30} className="text-acento" aria-hidden />
-              <h1 className="font-display text-2xl leading-none text-acento">
-                Pedido
-                <br />
-                confirmado
-              </h1>
-              <p className="text-sm text-[var(--green-100)]">
-                Pedido{" "}
-                <span className="font-mono">#{pedido.correlativo}</span>
-                {" · "}
-                {formatearFechaLarga(pedido.fechaOperacion)}
-                {sesion.ventana.horarioEntregaFijo
-                  ? ` · entrega ${sesion.ventana.horarioEntregaFijo}`
-                  : null}
-              </p>
+          <Card className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-5 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
+            <CheckCircle2 size={32} className="text-acento" aria-hidden />
+            <h1 className="font-display text-2xl leading-none text-acento">
+              Pedido
+              <br />
+              confirmado
+            </h1>
+            <p className="text-sm text-[var(--green-100)]">
+              Pedido <span className="font-mono">#{pedido.correlativo}</span>
+              {" · "}
+              {formatearFechaLarga(pedido.fechaEntrega)}
+              {sesion.ventana.horarioEntregaFijo
+                ? ` · entrega ${sesion.ventana.horarioEntregaFijo}`
+                : null}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
               <EstadoBadge estado="CONFIRMADO" />
             </div>
           </Card>
-          <Card
-            title="Le confirmamos por WhatsApp"
-            subtitle="Así llega el mensaje"
-          >
-            <p className="rounded-campo bg-[var(--cream-100)] p-3 text-sm leading-relaxed text-pretty text-tinta-800">
-              {pedido.textoConfirmacion}
-            </p>
+
+          {abierta ? (
+            <VentanaCountdown
+              cierraAt={sesion.ventana.cierraAt}
+              variant="barra"
+            />
+          ) : null}
+
+          <Card className="gap-3 p-5">
+            <Card.Header className="gap-1">
+              <Card.Title>Le confirmamos por WhatsApp</Card.Title>
+              <Card.Description>Así llega el mensaje</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <p className="rounded-campo bg-[var(--cream-100)] p-3 text-sm leading-relaxed text-pretty text-tinta-800">
+                {pedido.textoConfirmacion}
+              </p>
+            </Card.Content>
           </Card>
+
           {abierta ? (
             <Button
-              variant="secondary"
+              fullWidth
               size="lg"
-              className="w-full"
-              onClick={() => {
+              variant="secondary"
+              onPress={() => {
                 resetDesdePedido();
-                setVista("catalogo");
+                setConfirmado(false);
               }}
             >
               Editar mi pedido
             </Button>
           ) : null}
+
           <p className="text-center text-xs text-tinta-500">
             {abierta
-              ? "Puede editarlo hasta la medianoche. Después entra a producción."
+              ? copyEdicionHasta(sesion.ventana.cierraAt)
               : "La ventana ya cerró. Para anular, llame a la fábrica."}
           </p>
         </div>
@@ -185,110 +192,17 @@ export default function PortalPedirPage() {
     );
   }
 
-  if (vista === "resumen") {
-    return (
-      <PortalShell
-        clienteNombre={sesion.cliente.nombre}
-        footer={pieResumen(
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="lg"
-              onClick={() => setVista("catalogo")}
-            >
-              Cambiar
-            </Button>
-            <Button
-              variant="accent"
-              size="lg"
-              className="flex-1"
-              disabled={!abierta || itemsElegidos.length === 0}
-              loading={confirmar.isPending}
-              onClick={() => confirmar.mutate()}
-            >
-              Confirmar pedido
-            </Button>
-          </div>,
-        )}
-      >
-        <div className="grid gap-4 py-4">
-          <Card
-            flush
-            title="Su pedido"
-            subtitle={`${formatearFechaLarga(sesion.ventana.fechaOperacion)}${
-              sesion.ventana.horarioEntregaFijo
-                ? ` · entrega ${sesion.ventana.horarioEntregaFijo}`
-                : ""
-            }`}
-          >
-            {itemsElegidos.map(({ producto, cantidad }) => (
-              <PedidoItemRow
-                key={producto.productoId}
-                nombreMostrado={producto.alias}
-                unidadMedida={producto.unidadMedida}
-                cantidad={cantidad}
-                precioUnitarioCentavos={producto.precioCentavos ?? 0}
-                fotoAssetId={producto.fotoAssetId}
-                fotoSrcPath={
-                  producto.fotoAssetId
-                    ? assetPath(producto.fotoAssetId)
-                    : undefined
-                }
-              />
-            ))}
-            <div className="flex items-baseline justify-between bg-[var(--ink-50)] px-4 py-3">
-              <span className="mst-label">Total</span>
-              <Money centavos={totalCentavos} />
-            </div>
-          </Card>
-          <Card tone="paper" title="Estado de cuenta">
-            {sesion.cuenta.facturasPendientes === 0 ? (
-              <p className="text-sm leading-relaxed text-tinta-500">
-                Cuando haya facturas pendientes, las verá aquí.
-              </p>
-            ) : (
-              <>
-                <ContadorFacturas
-                  pendientes={sesion.cuenta.facturasPendientes}
-                  limite={sesion.cuenta.limiteFacturasPendientes}
-                  montoCentavos={sesion.cuenta.saldoCentavos}
-                />
-                <ul className="mt-3 grid gap-2">
-                  {sesion.cuenta.facturas.map((fac) => (
-                    <li
-                      key={fac.id}
-                      className="flex items-baseline justify-between text-sm"
-                    >
-                      <span className="text-tinta-500">
-                        {fac.numeroDte ?? "Sin DTE"} · {fac.antiguedadDias}{" "}
-                        {fac.antiguedadDias === 1 ? "día" : "días"}
-                      </span>
-                      <Money centavos={fac.saldoCentavos} />
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </Card>
-          {aviso ? (
-            <p className="text-sm text-peligro">{aviso}</p>
-          ) : null}
-          <p className="text-center text-xs text-tinta-500">
-            Para anular, llame a la fábrica.
-          </p>
-        </div>
-      </PortalShell>
-    );
-  }
-
-  const resumenSticky = (
+  const resumenElegido = (
     <div className="grid gap-3">
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs text-tinta-500">
+      {abierta ? (
+        <VentanaCountdown cierraAt={sesion.ventana.cierraAt} variant="barra" />
+      ) : null}
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm text-tinta-600 tabular-nums">
           {itemsElegidos.length}{" "}
           {itemsElegidos.length === 1 ? "producto" : "productos"}
         </span>
-        <Money centavos={totalCentavos} />
+        <Money centavos={totalCentavos} className="text-[17px]" />
       </div>
       {sesion.cuenta.facturasPendientes > 0 ? (
         <ContadorFacturas
@@ -298,13 +212,13 @@ export default function PortalPedirPage() {
         />
       ) : null}
       <Button
-        variant="accent"
+        fullWidth
         size="lg"
-        className="w-full"
-        disabled={!abierta || itemsElegidos.length === 0}
-        onClick={() => {
+        variant="primary"
+        isDisabled={!abierta || itemsElegidos.length === 0}
+        onPress={() => {
           setErrorAccion(null);
-          setVista("resumen");
+          setRevisando(true);
         }}
       >
         Revisar pedido
@@ -312,32 +226,33 @@ export default function PortalPedirPage() {
     </div>
   );
 
+  const secciones = [
+    ...(favoritos.length > 0
+      ? [{ key: "favoritos", titulo: "Lo que pide siempre", productos: favoritos }]
+      : []),
+    ...grupos,
+  ];
+
   return (
     <PortalShell
       clienteNombre={sesion.cliente.nombre}
-      footer={
-        <div className="lg:hidden">
-          {errorAccion ? (
-            <p className="mb-2 text-xs text-peligro">{errorAccion}</p>
-          ) : null}
-          {resumenSticky}
-        </div>
-      }
+      footer={<div className="lg:hidden">{resumenElegido}</div>}
       mainClassName="pb-4"
     >
       <div className="grid flex-1 gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <div className="grid gap-4">
-          <div className="rounded-tarjeta bg-[var(--surface-brand)] px-4 py-4 text-blanco">
-            <div className="flex flex-wrap items-center gap-2">
-              <VentanaBadge abierta={abierta} />
-              {abierta ? (
-                <VentanaCountdown cierraAt={sesion.ventana.cierraAt} />
-              ) : null}
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--green-100)]">
+          {/* Lo primero de la pantalla: cuánto falta. Si el cliente no lo ve,
+              pierde el pedido del día. */}
+          <Card className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-4 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
+            <VentanaBadge abierta={abierta} />
+            {abierta ? (
+              <VentanaCountdown cierraAt={sesion.ventana.cierraAt} />
+            ) : null}
+            <p className="text-sm leading-relaxed text-[var(--green-100)]">
               {abierta ? (
                 <>
-                  {entregaCopy(sesion)} Puede cambiarlo hasta la medianoche.
+                  {entregaCopy(sesion)}{" "}
+                  {copyEdicionHasta(sesion.ventana.cierraAt)}
                 </>
               ) : (
                 <>
@@ -346,25 +261,46 @@ export default function PortalPedirPage() {
                 </>
               )}
             </p>
-          </div>
+          </Card>
 
           {aviso ? (
-            <p className="rounded-campo bg-[var(--red-100)] px-4 py-3 text-sm text-peligro">
-              {aviso}
-            </p>
+            <Alert status="warning">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>Facturas pendientes</Alert.Title>
+                <Alert.Description>{aviso}</Alert.Description>
+              </Alert.Content>
+            </Alert>
           ) : null}
 
-          <SearchField
-            label="Buscar producto"
-            value={busqueda}
-            onChange={setBusqueda}
-            placeholder="Alias o nombre"
-          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SearchField
+              aria-label="Buscar producto"
+              className="min-w-0 flex-1"
+              value={busqueda}
+              onChange={setBusqueda}
+            >
+              <SearchField.Group>
+                <SearchField.SearchIcon />
+                <SearchField.Input placeholder="Alias o nombre" />
+                <SearchField.ClearButton />
+              </SearchField.Group>
+            </SearchField>
+            {busqueda ? (
+              <p className="mst-label tabular-nums" aria-live="polite">
+                {visibles} de {sesion.catalogo.length}
+              </p>
+            ) : null}
+          </div>
 
-          {favoritos.length > 0 ? (
-            <PortalSeccion titulo="Lo que pide siempre">
+          {secciones.map((s) => (
+            <PortalSeccion
+              key={s.key}
+              titulo={s.titulo}
+              cuenta={s.productos.length}
+            >
               <div className="lg:hidden">
-                {favoritos.map((p) => (
+                {s.productos.map((p) => (
                   <PortalProductoFila
                     key={p.productoId}
                     producto={p}
@@ -376,37 +312,7 @@ export default function PortalPedirPage() {
                 ))}
               </div>
               <div className="hidden grid-cols-2 gap-3 p-3 lg:grid xl:grid-cols-3">
-                {favoritos.map((p) => (
-                  <PortalProductoFila
-                    key={p.productoId}
-                    producto={p}
-                    cantidad={cantidades[p.productoId] ?? 0}
-                    onChange={(n) => setCantidad(p.productoId, n)}
-                    bloqueado={!abierta}
-                    assetPath={assetPath}
-                    layout="card"
-                  />
-                ))}
-              </div>
-            </PortalSeccion>
-          ) : null}
-
-          {grupos.map((g) => (
-            <PortalSeccion key={g.key} titulo={g.titulo}>
-              <div className="lg:hidden">
-                {g.productos.map((p) => (
-                  <PortalProductoFila
-                    key={p.productoId}
-                    producto={p}
-                    cantidad={cantidades[p.productoId] ?? 0}
-                    onChange={(n) => setCantidad(p.productoId, n)}
-                    bloqueado={!abierta}
-                    assetPath={assetPath}
-                  />
-                ))}
-              </div>
-              <div className="hidden grid-cols-2 gap-3 p-3 lg:grid xl:grid-cols-3">
-                {g.productos.map((p) => (
+                {s.productos.map((p) => (
                   <PortalProductoFila
                     key={p.productoId}
                     producto={p}
@@ -421,10 +327,19 @@ export default function PortalPedirPage() {
             </PortalSeccion>
           ))}
 
-          {favoritos.length === 0 && grupos.length === 0 ? (
-            <p className="px-1 text-sm text-tinta-500">
-              No hay productos que coincidan con la búsqueda.
-            </p>
+          {secciones.length === 0 ? (
+            <Card className="p-0">
+              <EmptyState
+                icon={<PackageSearch size={22} aria-hidden />}
+                title="Nada con ese nombre"
+                description="Pruebe con el nombre que usa usted, o borre la búsqueda para ver todo el catálogo."
+                action={
+                  <Button size="sm" variant="secondary" onPress={() => setBusqueda("")}>
+                    Ver todo
+                  </Button>
+                }
+              />
+            </Card>
           ) : null}
 
           <p className="text-xs text-tinta-500">
@@ -433,12 +348,128 @@ export default function PortalPedirPage() {
           </p>
         </div>
 
-        <aside className="hidden lg:sticky lg:top-4 lg:block">
-          <Card title="Su pedido" className="shadow-[var(--shadow-sm)]">
-            {resumenSticky}
+        <aside className="hidden lg:sticky lg:top-20 lg:block">
+          <Card className="gap-3 p-4">
+            <Card.Header className="gap-1">
+              <Card.Title>Su pedido</Card.Title>
+            </Card.Header>
+            <Card.Content>{resumenElegido}</Card.Content>
           </Card>
         </aside>
       </div>
+
+      <Modal.Backdrop
+        isOpen={revisando}
+        onOpenChange={(open) => {
+          if (!open) setRevisando(false);
+        }}
+      >
+        <Modal.Container size="lg">
+          <Modal.Dialog>
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>Revise su pedido</Modal.Heading>
+              <p className="text-sm text-tinta-500">
+                {formatearFechaLarga(sesion.ventana.fechaEntrega)}
+                {sesion.ventana.horarioEntregaFijo
+                  ? ` · entrega ${sesion.ventana.horarioEntregaFijo}`
+                  : ""}
+              </p>
+            </Modal.Header>
+
+            <Modal.Body className="grid gap-4">
+              <Card className="gap-0 overflow-hidden p-0">
+                {itemsElegidos.map(({ producto, cantidad }) => (
+                  <PedidoItemRow
+                    key={producto.productoId}
+                    nombreMostrado={producto.alias}
+                    unidadMedida={producto.unidadMedida}
+                    cantidad={cantidad}
+                    precioUnitarioCentavos={producto.precioCentavos ?? 0}
+                    fotoAssetId={producto.fotoAssetId}
+                    fotoSrcPath={
+                      producto.fotoAssetId
+                        ? assetPath(producto.fotoAssetId)
+                        : undefined
+                    }
+                  />
+                ))}
+                <div className="flex items-baseline justify-between bg-[var(--ink-50)] px-4 py-3">
+                  <span className="mst-label">Total</span>
+                  <Money centavos={totalCentavos} className="text-[17px]" />
+                </div>
+              </Card>
+
+              {sesion.cuenta.facturasPendientes > 0 ? (
+                <div className="grid gap-2">
+                  <ContadorFacturas
+                    pendientes={sesion.cuenta.facturasPendientes}
+                    limite={sesion.cuenta.limiteFacturasPendientes}
+                    montoCentavos={sesion.cuenta.saldoCentavos}
+                  />
+                  <ul className="grid gap-1.5">
+                    {sesion.cuenta.facturas.map((fac) => (
+                      <li
+                        key={fac.id}
+                        className="flex items-baseline justify-between gap-2 text-sm"
+                      >
+                        <span className="text-tinta-500">
+                          {fac.numeroDte ?? "Sin DTE"} · {fac.antiguedadDias}{" "}
+                          {fac.antiguedadDias === 1 ? "día" : "días"}
+                        </span>
+                        <Money centavos={fac.saldoCentavos} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {aviso ? (
+                <Alert status="warning">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Description>{aviso}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              ) : null}
+
+              {errorAccion ? (
+                <Alert status="danger">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>No se confirmó</Alert.Title>
+                    <Alert.Description>{errorAccion}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              ) : null}
+
+              <p className="text-xs text-tinta-500">
+                Para anular, llame a la fábrica.
+              </p>
+            </Modal.Body>
+
+            <Modal.Footer>
+              <Button variant="tertiary" onPress={() => setRevisando(false)}>
+                Cambiar
+              </Button>
+              <Button
+                isDisabled={!abierta || itemsElegidos.length === 0}
+                isPending={confirmar.isPending}
+                size="lg"
+                variant="primary"
+                onPress={() => confirmar.mutate()}
+              >
+                {({ isPending }) => (
+                  <>
+                    {isPending && <Spinner color="current" size="sm" />}
+                    Confirmar pedido
+                  </>
+                )}
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </PortalShell>
   );
 }

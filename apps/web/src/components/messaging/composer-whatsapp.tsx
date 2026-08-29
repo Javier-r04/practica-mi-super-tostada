@@ -1,6 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  Alert,
+  Button,
+  Description,
+  Input,
+  Label,
+  ListBox,
+  Select,
+  Spinner,
+  TextArea,
+  TextField,
+} from "@heroui/react";
+import { useState } from "react";
 import {
   extraerCuerpoPlantilla,
   renderCuerpoPlantilla,
@@ -10,9 +22,13 @@ import {
 } from "@misupertostada/shared";
 import { Send, Sparkles } from "lucide-react";
 import { MensajePreview } from "@/components/domain/mensaje-preview";
-import { Button } from "@/components/ui/button";
-import { Droplist } from "@/components/ui/droplist";
-import { Textarea, Input } from "@/components/ui/field";
+
+/** Recorta o rellena los parámetros al número de variables de la plantilla. */
+function ajustarParams(params: string[], nVars: number): string[] {
+  const next = params.slice(0, nVars);
+  while (next.length < nVars) next.push("");
+  return next;
+}
 
 export function ComposerWhatsapp({
   conversacion,
@@ -43,12 +59,11 @@ export function ComposerWhatsapp({
   const plantillaCuerpo = seleccionada
     ? extraerCuerpoPlantilla(seleccionada.componentes)
     : "";
-  const nVars = useMemo(() => contarVariables(plantillaCuerpo), [plantillaCuerpo]);
-  const paramsAjustados = useMemo(() => {
-    const next = params.slice(0, nVars);
-    while (next.length < nVars) next.push("");
-    return next;
-  }, [params, nVars]);
+  // Sin useMemo: son un conteo sobre una cadena corta y un slice de pocos
+  // elementos, y las dependencias venían de `aprobadas`, que se recrea en cada
+  // render — la memoización no se sostenía y el compilador la descartaba.
+  const nVars = contarVariables(plantillaCuerpo);
+  const paramsAjustados = ajustarParams(params, nVars);
   const renderizado = renderCuerpoPlantilla(plantillaCuerpo, paramsAjustados);
   const validacion = validarParametrosPlantilla(paramsAjustados);
 
@@ -62,37 +77,42 @@ export function ComposerWhatsapp({
 
   if (conversacion.ventanaAbierta) {
     return (
-      <div className="grid gap-2">
-        <Textarea
-          id="composer-libre"
-          rows={3}
-          value={cuerpo}
-          onChange={(e) => setCuerpo(e.target.value)}
-          placeholder="Escribe el mensaje…"
-          hint="Ventana abierta: puede redactar con desglose completo."
-        />
+      <div className="grid gap-3">
+        <TextField value={cuerpo} onChange={setCuerpo}>
+          <Label>Mensaje</Label>
+          <TextArea rows={3} placeholder="Escriba el mensaje…" />
+          <Description>
+            Ventana abierta: puede redactar con desglose completo.
+          </Description>
+        </TextField>
+
         {cuerpo.trim() ? (
           <MensajePreview tipo="libre" cuerpo={cuerpo} hora="ahora" />
         ) : null}
-        <div className="flex items-center justify-between gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled
-            title="Próximamente"
-          >
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* Sigue apagado; el rótulo dice por qué en vez de dejarlo mudo. */}
+          <Button isDisabled size="sm" variant="ghost">
             <Sparkles size={15} aria-hidden />
-            Redactar con IA
+            Redactar con IA · pronto
           </Button>
           <Button
+            isDisabled={!cuerpo.trim()}
+            isPending={enviando}
             size="sm"
             variant="primary"
-            loading={enviando}
-            disabled={!cuerpo.trim()}
-            onClick={() => onEnviarTexto(cuerpo)}
+            onPress={() => onEnviarTexto(cuerpo)}
           >
-            <Send size={15} aria-hidden />
-            Enviar
+            {({ isPending }) => (
+              <>
+                {isPending ? (
+                  <Spinner color="current" size="sm" />
+                ) : (
+                  <Send size={15} aria-hidden />
+                )}
+                Enviar
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -101,18 +121,19 @@ export function ComposerWhatsapp({
 
   return (
     <div className="grid gap-3">
-      <div
-        className="rounded-campo border border-[var(--amber-200)] bg-[var(--amber-50)] px-3 py-2"
-        role="status"
-      >
-        <p className="text-sm font-semibold text-[var(--amber-800)]">
-          Ventana de 24 h cerrada
-        </p>
-        <p className="text-xs text-[var(--amber-700)]">
-          Solo plantillas aprobadas. Meta responde 131047 a cualquier texto
-          libre.
-        </p>
-      </div>
+      {/* La ventana cerrada es la causa número uno de envíos fallidos: va como
+          Alert del sistema, con el código que devuelve Meta. */}
+      <Alert status="warning">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Ventana de 24 h cerrada</Alert.Title>
+          <Alert.Description>
+            Solo plantillas aprobadas. Meta responde 131047 a cualquier texto
+            libre.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
+
       {aprobadas.length === 0 ? (
         <p className="text-sm text-tinta-500">
           No hay plantillas aprobadas. Sincronice el registro o use el modo
@@ -121,29 +142,42 @@ export function ComposerWhatsapp({
       ) : (
         <>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="min-w-0 flex-1">
-              <Droplist
-                id="plantilla-aprobada"
-                label="Plantilla aprobada"
-                value={seleccionada?.id ?? ""}
-                searchable={aprobadas.length > 6}
-                searchPlaceholder="Buscar plantilla"
-                onChange={(next) => {
-                  setPlantillaId(next);
-                  setParams([]);
-                }}
-                options={aprobadas.map((p) => ({
-                  value: p.id,
-                  label: `${p.name} · ${p.category.toLowerCase()}`,
-                }))}
-              />
-            </div>
+            <Select
+              className="min-w-0 flex-1"
+              placeholder="Elija una plantilla"
+              selectedKey={seleccionada?.id ?? null}
+              onSelectionChange={(key) => {
+                if (typeof key !== "string") return;
+                setPlantillaId(key);
+                setParams([]);
+              }}
+            >
+              <Label>Plantilla aprobada</Label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox aria-label="Plantillas aprobadas">
+                  {aprobadas.map((p) => (
+                    <ListBox.Item key={p.id} id={p.id} textValue={p.name}>
+                      <div className="flex min-w-0 flex-col">
+                        <Label>{p.name}</Label>
+                        <Description>{p.category.toLowerCase()}</Description>
+                      </div>
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
+
             <Button
+              isDisabled={!seleccionada || !validacion.ok}
+              isPending={enviando}
               size="md"
               variant="primary"
-              loading={enviando}
-              disabled={!seleccionada || !validacion.ok}
-              onClick={() => {
+              onPress={() => {
                 if (!seleccionada || !validacion.ok) return;
                 onEnviarPlantilla({
                   plantillaId: seleccionada.id,
@@ -152,32 +186,48 @@ export function ComposerWhatsapp({
                 });
               }}
             >
-              <Send size={15} aria-hidden />
-              Enviar plantilla
+              {({ isPending }) => (
+                <>
+                  {isPending ? (
+                    <Spinner color="current" size="sm" />
+                  ) : (
+                    <Send size={15} aria-hidden />
+                  )}
+                  Enviar plantilla
+                </>
+              )}
             </Button>
           </div>
+
           {nVars > 0 ? (
             <div className="grid gap-2 sm:grid-cols-2">
               {paramsAjustados.map((valor, i) => (
-                <Input
+                <TextField
                   key={i}
-                  id={`plantilla-var-${i + 1}`}
-                  label={`Variable {{${i + 1}}}`}
                   value={valor}
-                  onChange={(e) => {
-                    const next = [...paramsAjustados];
-                    next[i] = e.target.value;
-                    setParams(next);
+                  onChange={(next) => {
+                    const copia = [...paramsAjustados];
+                    copia[i] = next;
+                    setParams(copia);
                   }}
-                />
+                >
+                  <Label>{`Variable {{${i + 1}}}`}</Label>
+                  <Input />
+                </TextField>
               ))}
             </div>
           ) : null}
+
           {!validacion.ok && paramsAjustados.some((p) => p.length > 0) ? (
-            <p className="text-xs text-peligro" role="alert">
-              {validacion.mensaje}
-            </p>
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>Revise las variables</Alert.Title>
+                <Alert.Description>{validacion.mensaje}</Alert.Description>
+              </Alert.Content>
+            </Alert>
           ) : null}
+
           <MensajePreview
             tipo="plantilla"
             plantilla={seleccionada?.name}

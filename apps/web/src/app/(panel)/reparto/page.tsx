@@ -1,7 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  Alert,
+  Button,
+  Card,
+  Spinner,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@heroui/react";
 import { ChevronLeft, Phone, Truck } from "lucide-react";
 import {
   MENSAJE_GUARDAR_TELEFONO,
@@ -9,6 +17,7 @@ import {
   MENSAJE_SIN_SENAL,
   tienePermiso,
   type ActorPublico,
+  type CalendarioAhora,
   type FilaCola,
   type RutaParada,
   type RutaReparto,
@@ -16,9 +25,8 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { PanelShell } from "@/components/layout/panel-shell";
 import { useColaOffline } from "@/hooks/use-cola-offline";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { EntregaForm } from "@/components/fulfillment/entrega-form";
@@ -28,9 +36,13 @@ import {
 } from "@/components/fulfillment/parada-card";
 import { DialogoPago } from "@/components/receivables/dialogo-pago";
 import { ChipInstalar } from "@/components/feedback/chip-instalar";
+import { CintaEje } from "@/components/domain/cinta-eje";
+import { copyEjeReparto } from "@/lib/ejes-vista";
+import { avisoReabierto } from "@/lib/reabierto-vista";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { toastFromError, toastSuccess } from "@/lib/toast";
+import { etiquetaDiaSemanaCorto } from "@/lib/fecha-ui";
+import { cn } from "@/lib/utils";
 import {
   saldoParadaCentavos,
   siguienteTrasCobro,
@@ -42,6 +54,12 @@ import {
 } from "@/lib/reparto-vista";
 
 type FiltroRuta = "todas" | "pendientes" | "entregados";
+
+/* Barra inferior fija: el CTA de cada parada vive siempre en el mismo sitio,
+   a la altura del pulgar, y ocupa todo el ancho. En ruta no se busca botón. */
+const BARRA_FIJA =
+  "fixed inset-x-0 bottom-[var(--bottombar-height)] z-20 border-t border-[var(--border-subtle)] bg-blanco/95 px-4 py-3 backdrop-blur-sm lg:static lg:inset-auto lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none";
+const CTA = "w-full min-h-14 text-base";
 
 export default function RepartoPage() {
   const cola = useColaOffline();
@@ -56,6 +74,15 @@ export default function RepartoPage() {
   const me = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => api<{ usuario: ActorPublico }>("/auth/me"),
+  });
+  // La cinta de eje no puede depender de la ruta: offline la ruta viene del
+  // snapshot de IndexedDB y puede ser de ayer. El calendario dice qué día es
+  // de verdad; si no hay señal, no se rotula nada en vez de mentir.
+  const calendario = useQuery({
+    queryKey: ["calendario", "ahora"],
+    queryFn: () => api<CalendarioAhora>("/calendario/ahora"),
+    enabled: Boolean(me.data),
+    refetchInterval: 60_000,
   });
   const ruta = useQuery({
     queryKey: ["ruta"],
@@ -73,6 +100,15 @@ export default function RepartoPage() {
     enabled: Boolean(me.data) && cola.listo,
   });
 
+  // Snapshot offline de otro día: la ruta se ve, pero no se presenta como
+  // la de hoy. «UI honesta» también aplica a la fecha.
+  const rutaDesfasada =
+    ruta.data?.fechaEntrega &&
+    calendario.data &&
+    ruta.data.fechaEntrega !== calendario.data.hoyCivil
+      ? ruta.data.fechaEntrega
+      : null;
+
   const puedeEntregar = tienePermiso(
     me.data?.usuario.permisos ?? [],
     "pedidos.entregar",
@@ -81,12 +117,29 @@ export default function RepartoPage() {
     me.data?.usuario.permisos ?? [],
     "cobranza.registrar_pago",
   );
+  const aviso = avisoReabierto(calendario.data);
   const parada = ruta.data?.paradas.find((p) => p.pedidoId === sel) ?? null;
 
   const entregados =
     ruta.data?.paradas.filter((p) => p.estado === "ENTREGADO").length ?? 0;
   const total = ruta.data?.paradas.length ?? 0;
   const pendientes = total - entregados;
+
+  // Lo que queda por cobrar en la ruta: la otra mitad del trabajo de Tony,
+  // antes solo visible parada por parada.
+  const porCobrarCentavos = useMemo(
+    () =>
+      (ruta.data?.paradas ?? []).reduce(
+        (acc, p) =>
+          acc +
+          saldoParadaCentavos({
+            saldoAnteriorCentavos: p.saldoAnteriorCentavos,
+            facturaSaldoCentavos: p.factura?.saldoCentavos,
+          }),
+        0,
+      ),
+    [ruta.data?.paradas],
+  );
 
   const paradasFiltradas = useMemo(() => {
     const list = ruta.data?.paradas ?? [];
@@ -127,9 +180,7 @@ export default function RepartoPage() {
   function volverDesde(vistaActual: VistaParada, p: RutaParada) {
     const yaEntregado =
       p.estado === "ENTREGADO" || cola.pedidoPendiente(p.pedidoId);
-    aplicarDestino(
-      siguienteTrasVolver({ vista: vistaActual, yaEntregado }),
-    );
+    aplicarDestino(siguienteTrasVolver({ vista: vistaActual, yaEntregado }));
   }
 
   async function guardarEntrega(paradaActual: RutaParada) {
@@ -150,12 +201,12 @@ export default function RepartoPage() {
         facturaSaldoCentavos: paradaActual.factura?.saldoCentavos,
       });
       aplicarDestino(siguienteTrasEntrega(saldo));
-      toastSuccess(
-        cola.online ? "Entrega guardada" : MENSAJE_GUARDAR_TELEFONO,
-      );
+      toastSuccess(cola.online ? "Entrega guardada" : MENSAJE_GUARDAR_TELEFONO);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "No se pudo guardar en este teléfono";
+        err instanceof Error
+          ? err.message
+          : "No se pudo guardar en este teléfono";
       setError(msg);
       toastFromError(err, msg);
     } finally {
@@ -166,35 +217,68 @@ export default function RepartoPage() {
   return (
     <PanelShell title="Reparto">
       {!sel && (
-        <div className="grid gap-3">
+        <div className="grid gap-5">
           <ChipInstalar />
-          <div className="grid grid-cols-2 gap-3">
-            <Card>
-              <div className="mst-label">Entregas</div>
-              <div className="font-display text-3xl tabular-nums text-marca">
-                {entregados}/{total}
-              </div>
-            </Card>
-            <Card>
-              <div className="mst-label">Cobrado hoy</div>
-              <div className="font-display text-2xl tabular-nums text-marca">
-                <Money centavos={ruta.data?.cobradoHoyCentavos ?? 0} />
-              </div>
-            </Card>
-          </div>
+          {calendario.data ? (
+            <CintaEje copy={copyEjeReparto(calendario.data)} />
+          ) : null}
+          {rutaDesfasada ? (
+            <Alert status="warning">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>Ruta guardada sin señal</Alert.Title>
+                <Alert.Description>
+                  Esta ruta es del {etiquetaDiaSemanaCorto(rutaDesfasada)},
+                  guardada sin señal. Vuelva a cargar al recuperar conexión.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+
+          <ResumenRuta
+            cargando={ruta.isLoading}
+            entregados={entregados}
+            total={total}
+            pendientes={pendientes}
+            cobradoHoyCentavos={ruta.data?.cobradoHoyCentavos ?? 0}
+            porCobrarCentavos={porCobrarCentavos}
+          />
 
           {total > 4 && (
-            <SegmentedControl
-              label="Filtrar paradas"
-              value={filtro}
-              onChange={setFiltro}
-              fullWidth
-              options={[
-                { id: "todas", label: "Todas", count: total },
-                { id: "pendientes", label: "Pendientes", count: pendientes },
-                { id: "entregados", label: "Entregados", count: entregados },
-              ]}
-            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <ToggleButtonGroup
+                aria-label="Filtrar paradas"
+                className="w-full sm:w-auto"
+                disallowEmptySelection
+                fullWidth
+                selectedKeys={new Set([filtro])}
+                selectionMode="single"
+                size="lg"
+                onSelectionChange={(keys) => {
+                  const next = [...keys][0];
+                  if (typeof next === "string") setFiltro(next as FiltroRuta);
+                }}
+              >
+                {(
+                  [
+                    { id: "todas", label: "Todas", count: total },
+                    { id: "pendientes", label: "Pendientes", count: pendientes },
+                    { id: "entregados", label: "Entregados", count: entregados },
+                  ] as const
+                ).map((f, i) => (
+                  <ToggleButton key={f.id} id={f.id} className="min-h-12">
+                    {i > 0 && <ToggleButtonGroup.Separator />}
+                    {f.label}
+                    <span className="tabular-nums text-tinta-500">
+                      {f.count}
+                    </span>
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+              <p className="mst-label tabular-nums" aria-live="polite">
+                {paradasFiltradas.length} de {total}
+              </p>
+            </div>
           )}
 
           {ruta.isLoading && (
@@ -213,8 +297,19 @@ export default function RepartoPage() {
           )}
           {ruta.data && ruta.data.paradas.length === 0 && (
             <EmptyState
-              title="No hay ruta hasta que se cierre la ventana"
-              description="Al cerrar se pasan los pedidos a producción y aparecen aquí, ordenados por horario de entrega."
+              title={
+                aviso?.bloqueaOperacion
+                  ? "La operación de esta ruta está reabierta"
+                  : "No hay ruta hasta que se cierre la ventana"
+              }
+              description={
+                // Con el día reabierto los pedidos existen y están confirmados,
+                // pero siguen fuera de la ruta. Decir solo «cierre la ventana»
+                // apunta a la de esta noche, que no es la que hay que cerrar.
+                aviso?.bloqueaOperacion
+                  ? aviso.detalle
+                  : "Al cerrar se pasan los pedidos a producción y aparecen aquí, ordenados por horario de entrega."
+              }
               icon={<Truck size={22} aria-hidden />}
             />
           )}
@@ -229,16 +324,29 @@ export default function RepartoPage() {
                 }
                 description="Cambia el filtro para ver el resto de la ruta."
                 icon={<Truck size={22} aria-hidden />}
+                action={
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    onPress={() => setFiltro("todas")}
+                  >
+                    Ver toda la ruta
+                  </Button>
+                }
               />
             )}
-          {paradasFiltradas.map((p) => (
-            <ParadaCard
-              key={p.pedidoId}
-              parada={p}
-              sinSincronizar={cola.pedidoPendiente(p.pedidoId)}
-              onAbrir={() => abrir(p)}
-            />
-          ))}
+          {paradasFiltradas.length > 0 && (
+            <div className="grid gap-3">
+              {paradasFiltradas.map((p) => (
+                <ParadaCard
+                  key={p.pedidoId}
+                  parada={p}
+                  sinSincronizar={cola.pedidoPendiente(p.pedidoId)}
+                  onAbrir={() => abrir(p)}
+                />
+              ))}
+            </div>
+          )}
           <ListaColaErrores filas={cola.cola} />
         </div>
       )}
@@ -248,6 +356,7 @@ export default function RepartoPage() {
           parada={parada}
           online={cola.online}
           puedeEntregar={puedeEntregar}
+          puedeCobrar={puedeCobrar}
           error={error}
           loading={guardando}
           sinSincronizar={cola.pedidoPendiente(parada.pedidoId)}
@@ -324,6 +433,95 @@ export default function RepartoPage() {
   );
 }
 
+/* Cuatro cifras: cuánto llevo, cuánto falta, cuánto entró y cuánto queda por
+   cobrar. Es el mismo formato de KPIs de clientes y catálogo. */
+function ResumenRuta({
+  cargando,
+  entregados,
+  total,
+  pendientes,
+  cobradoHoyCentavos,
+  porCobrarCentavos,
+}: {
+  cargando: boolean;
+  entregados: number;
+  total: number;
+  pendientes: number;
+  cobradoHoyCentavos: number;
+  porCobrarCentavos: number;
+}) {
+  if (cargando) {
+    return (
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Cifra
+        etiqueta="Entregas"
+        valor={
+          <>
+            {entregados}
+            <span className="text-sm font-medium text-tinta-500">/{total}</span>
+          </>
+        }
+        tono="ok"
+      />
+      <Cifra
+        etiqueta="Paradas pendientes"
+        valor={pendientes}
+        tono={pendientes > 0 ? "aviso" : "ok"}
+      />
+      <Cifra
+        etiqueta="Cobrado hoy"
+        valor={<Money centavos={cobradoHoyCentavos} tone="pagado" />}
+      />
+      <Cifra
+        etiqueta="Por cobrar en ruta"
+        valor={
+          <Money
+            centavos={porCobrarCentavos}
+            tone={porCobrarCentavos > 0 ? "pendiente" : "muted"}
+          />
+        }
+      />
+    </dl>
+  );
+}
+
+function Cifra({
+  etiqueta,
+  valor,
+  tono = "neutro",
+}: {
+  etiqueta: string;
+  valor: ReactNode;
+  tono?: "neutro" | "ok" | "aviso";
+}) {
+  return (
+    <Card className="gap-1 p-4">
+      <dt className="mst-label text-[11px]">{etiqueta}</dt>
+      <dd
+        className={cn(
+          "text-[22px] font-semibold leading-none tabular-nums",
+          tono === "aviso"
+            ? "text-aviso-700"
+            : tono === "ok"
+              ? "text-marca"
+              : "text-tinta-900",
+        )}
+      >
+        {valor}
+      </dd>
+    </Card>
+  );
+}
+
 /** Solo reintentos fallidos / sesión; OfflineBanner cubre la cola pendiente. */
 function ListaColaErrores({ filas }: { filas: FilaCola[] }) {
   const problemas = filas.filter(
@@ -331,24 +529,29 @@ function ListaColaErrores({ filas }: { filas: FilaCola[] }) {
   );
   if (problemas.length === 0) return null;
   return (
-    <Card
-      title="Reintentos en este teléfono"
-      subtitle="Falló el envío. El cuadre solo con señal."
-    >
-      <ul className="grid gap-2 text-sm">
-        {problemas.map((f) => (
-          <li key={f.idempotencyKey} className="flex items-center gap-2">
-            <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />
-            <span className="min-w-0 flex-1 truncate">
-              {f.tipo === "ENTREGA" ? "Entrega" : "Cobro"}
-              {f.estado === "error" && f.errorMensaje
-                ? ` · ${f.errorMensaje}`
-                : ""}
-              {f.estado === "sesion" ? " · inicia sesión" : ""}
-            </span>
-          </li>
-        ))}
-      </ul>
+    <Card className="gap-3 p-4">
+      <Card.Header>
+        <Card.Title>Reintentos en este teléfono</Card.Title>
+        <Card.Description>
+          Falló el envío. El cuadre solo con señal.
+        </Card.Description>
+      </Card.Header>
+      <Card.Content>
+        <ul className="grid gap-2 text-sm">
+          {problemas.map((f) => (
+            <li key={f.idempotencyKey} className="flex items-center gap-2">
+              <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />
+              <span className="min-w-0 flex-1 truncate text-tinta-800">
+                {f.tipo === "ENTREGA" ? "Entrega" : "Cobro"}
+                {f.estado === "error" && f.errorMensaje
+                  ? ` · ${f.errorMensaje}`
+                  : ""}
+                {f.estado === "sesion" ? " · inicia sesión" : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
     </Card>
   );
 }
@@ -364,16 +567,17 @@ function CabeceraParada({
 }) {
   return (
     <div className="grid gap-3">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-marca focus-visible:outline-none focus-visible:shadow-foco"
+      <Button
+        className="self-start"
+        size="lg"
+        variant="tertiary"
+        onPress={onBack}
       >
-        <ChevronLeft size={16} aria-hidden />
+        <ChevronLeft size={18} aria-hidden />
         Ruta
-      </button>
-      <Card>
-        <div className="flex items-start gap-3">
+      </Button>
+      <Card className="gap-3 p-4">
+        <Card.Header className="flex-row items-start gap-3">
           <ClienteAvatar
             nombre={parada.clienteNombre}
             fotoAssetId={parada.fotoAssetId}
@@ -381,9 +585,9 @@ function CabeceraParada({
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold text-pretty text-tinta-900">
+              <Card.Title className="text-[17px] leading-snug text-pretty text-tinta-900">
                 {parada.clienteNombre}
-              </p>
+              </Card.Title>
               {sinSincronizar && (
                 <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />
               )}
@@ -392,23 +596,28 @@ function CabeceraParada({
               Entrega {parada.horarioEntregaFijo ?? "sin horario fijo"}
               <span className="font-mono"> · #{parada.correlativo}</span>
             </p>
-            {parada.notasPermanentes ? (
-              <p className="mt-2 text-sm text-pretty text-tinta-800">
-                {parada.notasPermanentes}
-              </p>
-            ) : null}
           </div>
+          {/* Enlace nativo: `tel:` es navegación, no una acción de botón. Se
+              le da el mismo tamaño que un Button lg para el dedo con guante. */}
           {parada.telefonoWa && (
             <a
               href={`tel:${parada.telefonoWa}`}
               aria-label={`Llamar a ${parada.clienteNombre}`}
-              className="inline-flex h-[52px] shrink-0 items-center justify-center gap-2 rounded-pill border border-[var(--border-default)] bg-blanco px-4 text-base font-semibold text-tinta-900 shadow-[var(--shadow-xs)] no-underline transition-[border-color,box-shadow] duration-control ease-out hover:border-[var(--border-strong)] hover:bg-tinta-50 hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+              className="inline-flex h-13 shrink-0 items-center justify-center gap-2 rounded-pill border border-[var(--border-default)] bg-blanco px-5 text-base font-semibold text-tinta-900 shadow-[var(--shadow-xs)] no-underline transition-[border-color,box-shadow] duration-control ease-out hover:border-[var(--border-strong)] hover:bg-tinta-50 hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
             >
-              <Phone size={18} aria-hidden />
+              <Phone size={20} aria-hidden />
               Llamar
             </a>
           )}
-        </div>
+        </Card.Header>
+        {parada.notasPermanentes ? (
+          <Card.Content className="rounded-[calc(var(--radius-card)-6px)] bg-[var(--ink-50)] px-3 py-2.5">
+            <p className="mst-label text-[11px]">Nota del cliente</p>
+            <p className="mt-0.5 text-sm text-pretty text-tinta-800">
+              {parada.notasPermanentes}
+            </p>
+          </Card.Content>
+        ) : null}
       </Card>
     </div>
   );
@@ -418,6 +627,7 @@ function DetalleEntrega({
   parada,
   online,
   puedeEntregar,
+  puedeCobrar,
   error,
   loading,
   sinSincronizar,
@@ -429,6 +639,7 @@ function DetalleEntrega({
   parada: RutaParada;
   online: boolean;
   puedeEntregar: boolean;
+  puedeCobrar: boolean;
   error?: string;
   loading?: boolean;
   sinSincronizar: boolean;
@@ -438,82 +649,106 @@ function DetalleEntrega({
   onCobrar: () => void;
 }) {
   const entregadoServidor = parada.estado === "ENTREGADO";
-  const puedeAbrirCobro = entregadoServidor || sinSincronizar;
-  const hint = !puedeEntregar
-    ? "Producción ve la ruta; no marca entregas."
-    : undefined;
+  // Sin permiso de cobro el botón llevaba a una pantalla cuyo CTA está
+  // deshabilitado: mejor no ofrecer el viaje.
+  const puedeAbrirCobro = puedeCobrar && (entregadoServidor || sinSincronizar);
 
   return (
-    <div className="grid gap-3 pb-[calc(var(--bottombar-height)+4.5rem)]">
+    <div className="grid gap-4 pb-[calc(var(--bottombar-height)+5rem)]">
       <CabeceraParada
         parada={parada}
         sinSincronizar={sinSincronizar}
         onBack={onBack}
       />
-      <Card
-        flush
-        title="Lo entregado"
-        subtitle="La factura se calcula sobre esto, no sobre lo pedido"
-      >
-        <EntregaForm
-          key={parada.pedidoId}
-          items={parada.items}
-          disabled={entregadoServidor}
-          onChange={onCantidades}
-        />
+      <Card className="gap-0 overflow-hidden p-0">
+        <Card.Header className="p-4 pb-3">
+          <Card.Title>Lo entregado</Card.Title>
+          <Card.Description>
+            La factura se calcula sobre esto, no sobre lo pedido
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          {/*
+            Sin `pedidoEntregar` los steppers eran editables aunque el botón de
+            guardar estuviera bloqueado: se podía «ajustar» una entrega que nunca
+            se iba a enviar.
+          */}
+          <EntregaForm
+            key={parada.pedidoId}
+            items={parada.items}
+            disabled={entregadoServidor || !puedeEntregar}
+            onChange={onCantidades}
+          />
+        </Card.Content>
       </Card>
       {parada.saldoAnteriorCentavos > 0 && (
-        <Card
-          tone="accent"
-          title="Saldo anterior"
-          subtitle={`${parada.facturasPendientes} facturas pendientes`}
-        >
-          <div className="flex items-center justify-between gap-3">
+        <Card className="gap-3 border-l-[4px] border-l-[var(--amber-600)] p-4">
+          <Card.Header>
+            <Card.Title>Saldo anterior</Card.Title>
+            <Card.Description>
+              {parada.facturasPendientes} facturas pendientes
+            </Card.Description>
+          </Card.Header>
+          <Card.Content className="flex-row flex-wrap items-center justify-between gap-3">
             <Money
               centavos={parada.saldoAnteriorCentavos}
               tone="pendiente"
-              className="text-lg"
+              className="text-2xl"
             />
             <Button
+              className="min-h-12"
+              isDisabled={!puedeAbrirCobro}
+              size="lg"
               variant="secondary"
-              size="md"
-              onClick={onCobrar}
-              disabled={!puedeAbrirCobro}
+              onPress={onCobrar}
             >
               Registrar cobro
             </Button>
-          </div>
+          </Card.Content>
         </Card>
       )}
       {error && (
-        <p role="alert" className="text-sm text-peligro">
-          {error}
-        </p>
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>No se guardó</Alert.Title>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
       {!online && (
-        <p className="text-center text-xs text-aviso">{MENSAJE_SIN_SENAL}</p>
+        <Alert status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>{MENSAJE_SIN_SENAL}</Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
       {!puedeEntregar && (
-        <p className="text-center text-xs text-tinta-500">
+        <p className="text-center text-sm text-tinta-500">
           Producción ve la misma ruta. No marca entregas.
         </p>
       )}
-      <div className="fixed inset-x-0 bottom-[var(--bottombar-height)] z-20 border-t border-[var(--border-subtle)] bg-blanco/95 px-4 py-3 backdrop-blur-sm lg:static lg:inset-auto lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+      <div className={BARRA_FIJA}>
         <div className="mx-auto w-full max-w-[var(--page-max)]">
           <Button
-            variant="accent"
+            className={CTA}
+            isDisabled={entregadoServidor || !puedeEntregar}
+            isPending={loading}
             size="lg"
-            className="w-full"
-            disabled={entregadoServidor || !puedeEntregar}
-            title={hint}
-            loading={loading}
-            onClick={onEntregar}
+            variant="primary"
+            onPress={onEntregar}
           >
-            {entregadoServidor
-              ? "Entrega registrada"
-              : online
-                ? "Marcar como entregado"
-                : MENSAJE_GUARDAR_TELEFONO}
+            {({ isPending }) => (
+              <>
+                {isPending && <Spinner color="current" size="sm" />}
+                {entregadoServidor
+                  ? "Entrega registrada"
+                  : online
+                    ? "Marcar como entregado"
+                    : MENSAJE_GUARDAR_TELEFONO}
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -542,41 +777,56 @@ function DetalleCobro({
     saldoAnteriorCentavos: parada.saldoAnteriorCentavos,
     facturaSaldoCentavos: parada.factura?.saldoCentavos,
   });
-  const hint = !puedeCobrar ? "No tiene permiso para cobrar" : undefined;
 
   return (
-    <div className="grid gap-3 pb-[calc(var(--bottombar-height)+4.5rem)]">
+    <div className="grid gap-4 pb-[calc(var(--bottombar-height)+5rem)]">
       <CabeceraParada
         parada={parada}
         sinSincronizar={sinSincronizar}
         onBack={onBack}
       />
-      <Card
-        title="Por cobrar"
-        subtitle={`${parada.facturasPendientes} facturas pendientes`}
-      >
-        <div className="flex items-center gap-2">
+      <Card className="gap-3 border-l-[4px] border-l-[var(--amber-600)] p-4">
+        <Card.Header>
+          <Card.Title>Por cobrar</Card.Title>
+          <Card.Description>
+            {parada.facturasPendientes} facturas pendientes
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="flex-row flex-wrap items-center gap-2">
           <Money centavos={saldo} tone="pendiente" className="text-3xl" />
           {sinSincronizar && <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />}
-        </div>
+        </Card.Content>
       </Card>
       {error && (
-        <p role="alert" className="text-sm text-peligro">
-          {error}
-        </p>
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>No se guardó</Alert.Title>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
       {!online && (
-        <p className="text-center text-xs text-aviso">{MENSAJE_SIN_SENAL}</p>
+        <Alert status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>{MENSAJE_SIN_SENAL}</Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
-      <div className="fixed inset-x-0 bottom-[var(--bottombar-height)] z-20 border-t border-[var(--border-subtle)] bg-blanco/95 px-4 py-3 backdrop-blur-sm lg:static lg:inset-auto lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+      {!puedeCobrar && (
+        <p className="text-center text-sm text-tinta-500">
+          No tiene permiso para cobrar.
+        </p>
+      )}
+      <div className={BARRA_FIJA}>
         <div className="mx-auto w-full max-w-[var(--page-max)]">
           <Button
-            variant="accent"
+            className={CTA}
+            isDisabled={!puedeCobrar || saldo <= 0}
             size="lg"
-            className="w-full"
-            disabled={!puedeCobrar || saldo <= 0}
-            title={hint}
-            onClick={onCobrar}
+            variant="primary"
+            onPress={onCobrar}
           >
             {online ? "Registrar cobro" : MENSAJE_GUARDAR_TELEFONO}
           </Button>

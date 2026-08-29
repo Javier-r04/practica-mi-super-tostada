@@ -1,9 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/field";
+import {
+  Alert,
+  Button,
+  Description,
+  Label,
+  Modal,
+  Spinner,
+  TextArea,
+  TextField,
+} from "@heroui/react";
+
+const MOTIVO_MINIMO = 8;
 
 export function DialogoReabrir({
   open,
@@ -19,38 +28,84 @@ export function DialogoReabrir({
   onConfirm: (motivo: string) => void;
 }) {
   const [motivo, setMotivo] = useState("");
+  const corto = motivo.trim().length < MOTIVO_MINIMO;
+
+  function cerrar() {
+    setMotivo("");
+    onClose();
+  }
+
   return (
-    <Dialog
-      open={open}
-      tone="danger"
-      title="Reabrir el día cerrado"
-      description="No se reenvían los mensajes ya encolados. Al cerrar de nuevo sale la hoja versión 2 con los cambios resaltados."
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button
-            variant="danger"
-            onClick={() => onConfirm(motivo)}
-            loading={loading}
-            disabled={motivo.trim().length < 8}
-          >
-            Reabrir día
-          </Button>
-        </>
-      }
+    <Modal.Backdrop
+      isOpen={open}
+      onOpenChange={(abierto) => {
+        if (!abierto) cerrar();
+      }}
     >
-      <Textarea
-        id="motivo-reabrir"
-        label="Motivo"
-        required
-        value={motivo}
-        onChange={(e) => setMotivo(e.target.value)}
-        hint="Mínimo 8 caracteres. Queda en la auditoría."
-        error={error}
-      />
-    </Dialog>
+      <Modal.Container size="lg">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>Reabrir el día cerrado</Modal.Heading>
+            <p className="text-sm leading-relaxed text-pretty text-tinta-500">
+              No se reenvían los mensajes ya encolados. Al cerrar de nuevo sale
+              la hoja corregida, con los cambios resaltados.
+            </p>
+          </Modal.Header>
+
+          <Modal.Body>
+            <form
+              id="reabrir-dia"
+              className="grid gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!corto && !loading) onConfirm(motivo);
+              }}
+            >
+              <TextField isRequired value={motivo} onChange={setMotivo}>
+                <Label>Motivo</Label>
+                <TextArea
+                  placeholder="Ej. Kraken cambió el pedido después del cierre"
+                  rows={3}
+                />
+                <Description>
+                  Mínimo {MOTIVO_MINIMO} caracteres. Queda en la auditoría.
+                </Description>
+              </TextField>
+
+              {error && (
+                <Alert status="danger">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>No se reabrió</Alert.Title>
+                    <Alert.Description>{error}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+            </form>
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button isDisabled={loading} variant="tertiary" onPress={cerrar}>
+              Cancelar
+            </Button>
+            <Button
+              form="reabrir-dia"
+              isDisabled={corto}
+              isPending={loading}
+              type="submit"
+              variant="danger"
+            >
+              {({ isPending }) => (
+                <>
+                  {isPending && <Spinner color="current" size="sm" />}
+                  Reabrir día
+                </>
+              )}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }

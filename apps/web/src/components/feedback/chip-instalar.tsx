@@ -1,22 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Smartphone } from "lucide-react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
 };
 
+const MQ_STANDALONE = "(display-mode: standalone)";
+
+function suscribirDisplayMode(onChange: () => void): () => void {
+  const mq = window.matchMedia(MQ_STANDALONE);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+function leerStandalone(): boolean {
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia(MQ_STANDALONE).matches || nav.standalone === true;
+}
+
+/** El user-agent no cambia en vida de la pestaña: no hay a qué suscribirse. */
+function sinSuscripcion(): () => void {
+  return () => {};
+}
+
+function leerIos(): boolean {
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+
 export function ChipInstalar() {
   const [evento, setEvento] = useState<BeforeInstallPromptEvent | null>(null);
-  const [standalone, setStandalone] = useState(true);
-  const [ios, setIos] = useState(false);
+  // Se leen con useSyncExternalStore en vez de copiarlos a estado en un
+  // efecto: son datos que viven en el navegador, y el snapshot de servidor
+  // (`standalone = true`) hace que el chip no se pinte hasta hidratar.
+  const standalone = useSyncExternalStore(
+    suscribirDisplayMode,
+    leerStandalone,
+    () => true,
+  );
+  const ios = useSyncExternalStore(sinSuscripcion, leerIos, () => false);
 
   useEffect(() => {
-    const mq = window.matchMedia("(display-mode: standalone)");
-    const nav = window.navigator as Navigator & { standalone?: boolean };
-    setStandalone(mq.matches || nav.standalone === true);
-    setIos(/iphone|ipad|ipod/i.test(window.navigator.userAgent));
     function onPrompt(e: Event) {
       e.preventDefault();
       setEvento(e as BeforeInstallPromptEvent);

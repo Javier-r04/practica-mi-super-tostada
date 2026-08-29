@@ -1,9 +1,21 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Alert,
+  Button,
+  Description,
+  Input,
+  Label,
+  Modal,
+  SearchField,
+  TextArea,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@heroui/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
 import {
   crearClienteRequestSchema,
   tienePermiso,
@@ -16,20 +28,25 @@ import { toastFromError, toastSuccess } from "@/lib/toast";
 import { subirFotoCliente } from "@/lib/upload-asset";
 import {
   cobranzaDeCliente,
+  compararClientesPorAlerta,
+  nivelAlertaCliente,
+  resumenClientes,
   resumenCobranzaPorCliente,
 } from "@/lib/cliente-cobranza";
 import { PanelShell } from "@/components/layout/panel-shell";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { Input, Textarea } from "@/components/ui/field";
-import { SearchField } from "@/components/ui/search-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FotoPicker } from "@/components/catalog/foto-picker";
 import { ClienteMiniCard } from "@/components/catalog/cliente-mini-card";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { ClientesResumen } from "@/components/catalog/clientes-resumen";
 
 type FiltroActivo = "activos" | "todos" | "con_saldo";
+
+const FILTROS = [
+  { id: "activos", label: "Activos" },
+  { id: "con_saldo", label: "Con saldo" },
+  { id: "todos", label: "Todos" },
+] as const;
 
 export default function ClientesPage() {
   const qc = useQueryClient();
@@ -48,8 +65,7 @@ export default function ClientesPage() {
   });
   const cartera = useQuery({
     queryKey: ["cartera", { estado: "pendientes", limit: 200 }],
-    queryFn: () =>
-      api<CarteraLista>("/cartera?estado=pendientes&limit=200"),
+    queryFn: () => api<CarteraLista>("/cartera?estado=pendientes&limit=200"),
     enabled: Boolean(me.data),
   });
 
@@ -58,61 +74,108 @@ export default function ClientesPage() {
     [cartera.data],
   );
 
+  const resumen = useMemo(
+    () => (clientes.data ? resumenClientes(clientes.data, cobranzaMap) : null),
+    [clientes.data, cobranzaMap],
+  );
+
+  /* El listado se ordena por gravedad de la cuenta y luego por nombre: quien
+     está al límite se lee primero, sin barrer toda la cuadrícula. */
   const filtrados = useMemo(() => {
-    const list = clientes.data ?? [];
     const needle = q.trim().toLowerCase();
-    return list.filter((c) => {
-      if (filtro === "activos" && !c.activo) return false;
-      if (filtro === "con_saldo") {
-        const cob = cobranzaDeCliente(c, cobranzaMap);
-        if (cob.facturasPendientes === 0) return false;
-      }
-      if (!needle) return true;
-      const haystack = [c.nombre, c.contacto ?? "", c.telefonoWa ?? ""]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
-    });
+    return (clientes.data ?? [])
+      .filter((c) => {
+        if (filtro === "activos" && !c.activo) return false;
+        if (
+          filtro === "con_saldo" &&
+          cobranzaDeCliente(c, cobranzaMap).facturasPendientes === 0
+        ) {
+          return false;
+        }
+        if (!needle) return true;
+        return [c.nombre, c.contacto ?? "", c.telefonoWa ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(needle);
+      })
+      .map((cliente) => {
+        const cobranza = cobranzaDeCliente(cliente, cobranzaMap);
+        return {
+          cliente,
+          cobranza,
+          nivel: nivelAlertaCliente(cliente, cobranza),
+          nombre: cliente.nombre,
+        };
+      })
+      .sort(compararClientesPorAlerta);
   }, [clientes.data, q, filtro, cobranzaMap]);
 
   const loading = clientes.isLoading || cartera.isLoading;
+  const total = clientes.data?.length ?? 0;
 
   return (
     <PanelShell title="Clientes">
-      <div className="grid gap-4">
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto sm:gap-3">
-          {canWrite ? (
-            <Button size="sm" className="shrink-0" onClick={() => setCrear(true)}>
-              <Plus size={15} aria-hidden />
-              Agregar cliente
-            </Button>
-          ) : null}
-          <SearchField
-            value={q}
-            onChange={setQ}
-            label="Buscar cliente"
-            placeholder="Nombre, contacto o WhatsApp"
-            className="min-w-[10rem] flex-1"
-          />
-          <SegmentedControl
-            label="Filtrar clientes"
-            value={filtro}
-            onChange={setFiltro}
-            className="shrink-0"
-            options={
-              [
-                { id: "activos", label: "Activos" },
-                { id: "con_saldo", label: "Con saldo" },
-                { id: "todos", label: "Todos" },
-              ] as const
-            }
-          />
-        </div>
+      <div className="grid gap-5">
+        <ClientesResumen resumen={resumen} cargando={loading} />
+
+        <section className="grid gap-3" aria-label="Buscar y filtrar">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <SearchField
+              aria-label="Buscar cliente"
+              className="min-w-0 flex-1"
+              value={q}
+              onChange={setQ}
+            >
+              <SearchField.Group>
+                <SearchField.SearchIcon />
+                <SearchField.Input placeholder="Nombre, contacto o WhatsApp" />
+                <SearchField.ClearButton />
+              </SearchField.Group>
+            </SearchField>
+            {canWrite && (
+              <Button
+                className="shrink-0"
+                variant="primary"
+                onPress={() => setCrear(true)}
+              >
+                <Plus size={16} aria-hidden />
+                Agregar cliente
+              </Button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ToggleButtonGroup
+              aria-label="Filtrar clientes"
+              disallowEmptySelection
+              selectedKeys={new Set([filtro])}
+              selectionMode="single"
+              size="sm"
+              onSelectionChange={(keys) => {
+                const next = [...keys][0];
+                if (typeof next === "string") setFiltro(next as FiltroActivo);
+              }}
+            >
+              {FILTROS.map((f, i) => (
+                <ToggleButton key={f.id} id={f.id}>
+                  {i > 0 && <ToggleButtonGroup.Separator />}
+                  {f.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+
+            {!loading && (
+              <p className="mst-label tabular-nums" aria-live="polite">
+                {filtrados.length} de {total}
+              </p>
+            )}
+          </div>
+        </section>
 
         {loading ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} className="h-44 w-full rounded-tarjeta" />
+              <Skeleton key={i} className="h-52 w-full rounded-tarjeta" />
             ))}
           </div>
         ) : filtrados.length === 0 ? (
@@ -130,7 +193,7 @@ export default function ClientesPage() {
             }
             action={
               canWrite && !q && filtro !== "con_saldo" ? (
-                <Button size="sm" onClick={() => setCrear(true)}>
+                <Button size="sm" variant="primary" onPress={() => setCrear(true)}>
                   Agregar cliente
                 </Button>
               ) : null
@@ -138,175 +201,208 @@ export default function ClientesPage() {
           />
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {filtrados.map((c) => (
-              <li key={c.id}>
-                <ClienteMiniCard
-                  cliente={c}
-                  cobranza={cobranzaDeCliente(c, cobranzaMap)}
-                />
+            {filtrados.map(({ cliente, cobranza }) => (
+              <li key={cliente.id}>
+                <ClienteMiniCard cliente={cliente} cobranza={cobranza} />
               </li>
             ))}
           </ul>
         )}
       </div>
 
-      {crear && (
-        <ClienteNuevoDialog
-          onClose={() => setCrear(false)}
-          onSaved={() => {
-            qc.invalidateQueries({ queryKey: ["clientes"] });
-            qc.invalidateQueries({ queryKey: ["cartera"] });
-            setCrear(false);
-          }}
-        />
-      )}
+      <ClienteNuevoModal
+        abierto={crear}
+        onOpenChange={setCrear}
+        onSaved={() => {
+          qc.invalidateQueries({ queryKey: ["clientes"] });
+          qc.invalidateQueries({ queryKey: ["cartera"] });
+          setCrear(false);
+        }}
+      />
     </PanelShell>
   );
 }
 
-function ClienteNuevoDialog({
-  onClose,
+const VACIO = {
+  nombre: "",
+  contacto: "",
+  telefonoWa: "",
+  horarioEntregaFijo: "",
+  notasPermanentes: "",
+  limiteFacturasPendientes: "",
+};
+
+function ClienteNuevoModal({
+  abierto,
+  onOpenChange,
   onSaved,
 }: {
-  onClose: () => void;
+  abierto: boolean;
+  onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [foto, setFoto] = useState<File | null>(null);
-  const form = useForm({
-    defaultValues: {
-      nombre: "",
-      contacto: "",
-      telefonoWa: "",
-      horarioEntregaFijo: "",
-      notasPermanentes: "",
-      limiteFacturasPendientes: "",
+  const [campos, setCampos] = useState(VACIO);
+
+  const set = (k: keyof typeof VACIO) => (value: string) =>
+    setCampos((prev) => ({ ...prev, [k]: value }));
+
+  const guardar = useMutation({
+    mutationFn: async () => {
+      const limite = campos.limiteFacturasPendientes.trim();
+      const parsed = crearClienteRequestSchema.safeParse({
+        nombre: campos.nombre,
+        contacto: campos.contacto.trim() || null,
+        telefonoWa: campos.telefonoWa.trim() || null,
+        horarioEntregaFijo: campos.horarioEntregaFijo.trim() || null,
+        notasPermanentes: campos.notasPermanentes.trim() || null,
+        limiteFacturasPendientes: limite ? Number(limite) : null,
+      });
+      if (!parsed.success) throw new Error("Revise los datos del cliente");
+
+      const creado = await api<ClientePublico>("/clientes", {
+        method: "POST",
+        body: JSON.stringify(parsed.data),
+      });
+
+      /* La foto va en un segundo viaje: si falla, el cliente ya existe y la
+         foto se agrega desde la ficha. No se pierde la captura. */
+      if (foto) {
+        try {
+          const assetId = await subirFotoCliente(foto, creado.id);
+          await api(`/clientes/${creado.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ fotoAssetId: assetId }),
+          });
+        } catch (err) {
+          toastFromError(
+            err,
+            "Cliente guardado; la foto no se subió. Puede agregarla en la ficha.",
+          );
+          return creado;
+        }
+      }
+      toastSuccess("Cliente guardado");
+      return creado;
+    },
+    onSuccess: () => {
+      setCampos(VACIO);
+      setFoto(null);
+      setError(null);
+      onSaved();
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "No se pudo guardar");
+      if (err instanceof ApiError) toastFromError(err, "No se pudo guardar");
     },
   });
 
   return (
-    <Dialog
-      open
-      size="lg"
-      onClose={onClose}
-      title="Nuevo cliente"
-      description="La foto ayuda a reconocer el restaurante en reparto y en el listado."
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cerrar
-          </Button>
-          <Button type="submit" form="cliente-nuevo" loading={form.formState.isSubmitting}>
-            Guardar cliente
-          </Button>
-        </>
-      }
-    >
-      <form
-        id="cliente-nuevo"
-        className="grid gap-5"
-        onSubmit={form.handleSubmit(async (values) => {
-          const limite = values.limiteFacturasPendientes.trim();
-          const parsed = crearClienteRequestSchema.safeParse({
-            nombre: values.nombre,
-            contacto: values.contacto.trim() || null,
-            telefonoWa: values.telefonoWa.trim() || null,
-            horarioEntregaFijo: values.horarioEntregaFijo.trim() || null,
-            notasPermanentes: values.notasPermanentes.trim() || null,
-            limiteFacturasPendientes: limite ? Number(limite) : null,
-          });
-          if (!parsed.success) {
-            setError("Revise los datos del cliente");
-            return;
-          }
-          let clienteId: string;
-          try {
-            const creado = await api<ClientePublico>("/clientes", {
-              method: "POST",
-              body: JSON.stringify(parsed.data),
-            });
-            clienteId = creado.id;
-          } catch (err) {
-            const msg = err instanceof ApiError ? err.message : "No se pudo guardar";
-            setError(msg);
-            toastFromError(err, "No se pudo guardar");
-            return;
-          }
-          if (foto) {
-            try {
-              const assetId = await subirFotoCliente(foto, clienteId);
-              await api(`/clientes/${clienteId}`, {
-                method: "PATCH",
-                body: JSON.stringify({ fotoAssetId: assetId }),
-              });
-            } catch (err) {
-              toastFromError(
-                err,
-                "Cliente guardado; la foto no se subió. Puede agregarla en la ficha.",
-              );
-              onSaved();
-              return;
-            }
-          }
-          toastSuccess("Cliente guardado");
-          onSaved();
-        })}
-      >
-        <FotoPicker value={foto} onChange={setFoto} />
+    <Modal.Backdrop isOpen={abierto} onOpenChange={onOpenChange}>
+      <Modal.Container size="lg">
+        <Modal.Dialog>
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>Nuevo cliente</Modal.Heading>
+            <p className="text-sm text-tinta-500">
+              La foto ayuda a reconocer el restaurante en reparto y en el listado.
+            </p>
+          </Modal.Header>
 
-        <section className="grid gap-3">
-          <h3 className="text-sm font-semibold text-tinta-900">Identidad</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Input
-                id="nombre"
-                label="Nombre del restaurante"
-                required
-                {...form.register("nombre")}
-              />
-            </div>
-            <Input id="contacto" label="Contacto" {...form.register("contacto")} />
-            <Input
-              id="wa"
-              label="Teléfono WhatsApp"
-              placeholder="+502 …"
-              {...form.register("telefonoWa")}
-            />
-          </div>
-        </section>
+          <Modal.Body>
+            <form
+              id="cliente-nuevo"
+              className="grid gap-6"
+              onSubmit={(e) => {
+                e.preventDefault();
+                guardar.mutate();
+              }}
+            >
+              <FotoPicker value={foto} onChange={setFoto} />
 
-        <section className="grid gap-3">
-          <h3 className="text-sm font-semibold text-tinta-900">Entrega y cobranza</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              id="horario"
-              label="Horario de entrega fijo"
-              placeholder="09:00"
-              hint="Formato 24 h, HH:MM"
-              {...form.register("horarioEntregaFijo")}
-            />
-            <Input
-              id="limite"
-              label="Límite de facturas pendientes"
-              inputMode="numeric"
-              hint="Como en el cuaderno de cobros"
-              {...form.register("limiteFacturasPendientes")}
-            />
-          </div>
-        </section>
+              <fieldset className="grid gap-3">
+                <legend className="mb-1 text-sm font-semibold text-tinta-900">
+                  Identidad
+                </legend>
+                <TextField isRequired value={campos.nombre} onChange={set("nombre")}>
+                  <Label>Nombre del restaurante</Label>
+                  <Input placeholder="Ej. Kraken" />
+                </TextField>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <TextField value={campos.contacto} onChange={set("contacto")}>
+                    <Label>Contacto</Label>
+                    <Input />
+                  </TextField>
+                  <TextField
+                    type="tel"
+                    value={campos.telefonoWa}
+                    onChange={set("telefonoWa")}
+                  >
+                    <Label>Teléfono WhatsApp</Label>
+                    <Input placeholder="+502 …" />
+                  </TextField>
+                </div>
+              </fieldset>
 
-        <section className="grid gap-3">
-          <h3 className="text-sm font-semibold text-tinta-900">Notas</h3>
-          <Textarea
-            id="notas"
-            label="Notas permanentes"
-            hint="Instrucciones que no cambian día a día"
-            {...form.register("notasPermanentes")}
-          />
-        </section>
+              <fieldset className="grid gap-3 sm:grid-cols-2">
+                <legend className="mb-1 text-sm font-semibold text-tinta-900 sm:col-span-2">
+                  Entrega y cobranza
+                </legend>
+                <TextField
+                  value={campos.horarioEntregaFijo}
+                  onChange={set("horarioEntregaFijo")}
+                >
+                  <Label>Horario de entrega fijo</Label>
+                  <Input placeholder="09:00" />
+                  <Description>Formato 24 h, HH:MM</Description>
+                </TextField>
+                <TextField
+                  value={campos.limiteFacturasPendientes}
+                  onChange={set("limiteFacturasPendientes")}
+                >
+                  <Label>Límite de facturas pendientes</Label>
+                  <Input inputMode="numeric" />
+                  <Description>Como en el cuaderno de cobros</Description>
+                </TextField>
+              </fieldset>
 
-        {error && <p className="text-sm text-peligro">{error}</p>}
-      </form>
-    </Dialog>
+              <TextField
+                value={campos.notasPermanentes}
+                onChange={set("notasPermanentes")}
+              >
+                <Label>Notas permanentes</Label>
+                <TextArea rows={3} />
+                <Description>Instrucciones que no cambian día a día</Description>
+              </TextField>
+
+              {error && (
+                <Alert status="danger">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>No se guardó</Alert.Title>
+                    <Alert.Description>{error}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+            </form>
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button variant="tertiary" onPress={() => onOpenChange(false)}>
+              Cerrar
+            </Button>
+            <Button
+              form="cliente-nuevo"
+              isDisabled={guardar.isPending}
+              type="submit"
+              variant="primary"
+            >
+              {guardar.isPending ? "Un momento…" : "Guardar cliente"}
+            </Button>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
   );
 }

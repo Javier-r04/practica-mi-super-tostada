@@ -1,22 +1,23 @@
 "use client";
 
-import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card } from "@/components/ui/card";
-import { Money } from "@/components/domain/money";
-import { EstadoBadge } from "@/components/domain/estado-badge";
-import { PedidoItemRow } from "@/components/domain/pedido-item-row";
-import { PortalShell } from "@/components/portal/portal-shell";
-import { usePortalSession } from "@/components/portal/portal-session";
-import { origenPedidoLabel } from "@/lib/portal-vista";
-import { api, ApiError } from "@/lib/api";
+import Link from "next/link";
+import { use } from "react";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { Alert, Button, Card } from "@heroui/react";
+import { ChevronLeft } from "lucide-react";
 import {
   formatearFechaLarga,
   type PortalPedidoDetalleCliente,
 } from "@misupertostada/shared";
-import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
-import { use } from "react";
+import { api, ApiError } from "@/lib/api";
+import { origenPedidoLabel } from "@/lib/portal-vista";
+import { usePortalSession } from "@/components/portal/portal-session";
+import { PortalShell } from "@/components/portal/portal-shell";
+import { EstadoBadge } from "@/components/domain/estado-badge";
+import { Money } from "@/components/domain/money";
+import { PedidoItemRow } from "@/components/domain/pedido-item-row";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PortalPedidoDetallePage({
   params,
@@ -38,25 +39,29 @@ export default function PortalPedidoDetallePage({
   return (
     <PortalShell clienteNombre={sesion.cliente.nombre}>
       <div className="grid gap-4 py-4">
-        <div>
-          <Link
-            href={`${base}/pedidos`}
-            className="text-sm font-semibold text-marca no-underline hover:underline"
-          >
-            ← Pedidos
-          </Link>
-        </div>
+        <Link
+          href={`${base}/pedidos`}
+          className="inline-flex min-h-11 w-fit items-center gap-1 text-sm font-semibold text-marca no-underline hover:underline focus-visible:outline-none focus-visible:shadow-foco"
+        >
+          <ChevronLeft size={18} aria-hidden />
+          Sus pedidos
+        </Link>
 
         {detalle.isPending ? (
           <div className="grid gap-3">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-28 w-full rounded-tarjeta" />
+            <Skeleton className="h-44 w-full rounded-tarjeta" />
           </div>
         ) : detalle.error instanceof ApiError ? (
-          <EmptyState
-            title="No encontramos ese pedido."
-            description="Puede que el enlace no sea válido. Vuelva al historial."
-          />
+          <Alert status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>No encontramos ese pedido</Alert.Title>
+              <Alert.Description>
+                Puede que el enlace ya no sea válido. Vuelva a sus pedidos.
+              </Alert.Description>
+            </Alert.Content>
+          </Alert>
         ) : detalle.data ? (
           <DetalleBody
             data={detalle.data}
@@ -78,44 +83,53 @@ function DetalleBody({
   assetPath: (id: string) => string;
   cuentaHref: string;
 }) {
+  const router = useRouter();
   return (
     <>
-      <Card>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-mono text-lg font-semibold text-tinta-900">
-            #{data.correlativo}
-          </h1>
-          <EstadoBadge estado={data.estado} />
-        </div>
-        <p className="mt-2 text-sm text-tinta-500">
-          {formatearFechaLarga(data.fechaOperacion)} ·{" "}
-          {origenPedidoLabel(data.origen)}
-        </p>
-        <div className="mt-3 flex items-baseline justify-between border-t border-[var(--border-subtle)] pt-3">
+      <Card className="gap-3 p-5">
+        <Card.Header className="gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Card.Title className="font-mono text-lg text-tinta-900">
+              #{data.correlativo}
+            </Card.Title>
+            <EstadoBadge estado={data.estado} />
+          </div>
+          <Card.Description>
+            {formatearFechaLarga(data.fechaEntrega)} ·{" "}
+            {origenPedidoLabel(data.origen)}
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="flex items-baseline justify-between border-t border-[var(--border-subtle)] pt-3">
           <span className="mst-label">Total</span>
-          <Money centavos={data.totalCentavos} />
-        </div>
+          <Money centavos={data.totalCentavos} className="text-[17px]" />
+        </Card.Content>
       </Card>
 
-      <Card flush title="Ítems">
-        {data.items.map((item) => (
-          <PedidoItemRow
-            key={`${item.productoId}-${item.nombreMostrado}`}
-            nombreMostrado={item.nombreMostrado}
-            unidadMedida={item.unidadMedida}
-            cantidad={item.cantidad}
-            precioUnitarioCentavos={item.precioUnitarioCentavos}
-            fotoAssetId={item.fotoAssetId}
-            fotoSrcPath={
-              item.fotoAssetId ? assetPath(item.fotoAssetId) : undefined
-            }
-          />
-        ))}
-      </Card>
+      <section className="grid gap-2">
+        <h2 className="px-1 mst-label">Lo que pidió</h2>
+        <Card className="gap-0 overflow-hidden p-0">
+          {data.items.map((item) => (
+            <PedidoItemRow
+              key={`${item.productoId}-${item.nombreMostrado}`}
+              nombreMostrado={item.nombreMostrado}
+              unidadMedida={item.unidadMedida}
+              cantidad={item.cantidad}
+              precioUnitarioCentavos={item.precioUnitarioCentavos}
+              fotoAssetId={item.fotoAssetId}
+              fotoSrcPath={
+                item.fotoAssetId ? assetPath(item.fotoAssetId) : undefined
+              }
+            />
+          ))}
+        </Card>
+      </section>
 
       {data.factura ? (
-        <Card title="Factura">
-          <div className="flex flex-wrap items-center gap-2">
+        <Card className="gap-3 p-5">
+          <Card.Header className="gap-1">
+            <Card.Title>Factura</Card.Title>
+          </Card.Header>
+          <Card.Content className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm text-tinta-500">
               {data.factura.numeroDte ?? "Sin DTE"}
             </span>
@@ -130,13 +144,16 @@ function DetalleBody({
                     : "default"
               }
             />
-          </div>
-          <Link
-            href={cuentaHref}
-            className="mt-3 inline-flex h-campo items-center justify-center rounded-pill border border-[var(--border-default)] bg-blanco px-4 text-[15px] font-semibold text-tinta-900 no-underline shadow-[var(--shadow-xs)] hover:bg-tinta-50 hover:text-tinta-900 hover:no-underline"
-          >
-            Ver cuenta
-          </Link>
+          </Card.Content>
+          <Card.Footer>
+            <Button
+              size="md"
+              variant="secondary"
+              onPress={() => router.push(cuentaHref)}
+            >
+              Ver mi cuenta
+            </Button>
+          </Card.Footer>
         </Card>
       ) : null}
     </>

@@ -1,35 +1,57 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId } from "react";
+import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from "recharts";
 import { formatearCentavos, formatearFechaLarga } from "@misupertostada/shared";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  SERIE_COLOR,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { useAnimarGraficas } from "@/hooks/use-animar-graficas";
+import {
+  etiquetasEjeX,
   formatearFechaCorta,
   serieTodoCero,
-  ticksEjeCentavos,
 } from "@/lib/tablero-vista";
 
 type Punto = { fecha: string; montoCentavos: number };
 
+/* Una sola serie: no lleva leyenda (el título de la tarjeta ya la nombra) y
+   usa el color «digital» de la paleta del tablero. */
+const chartConfig = {
+  montoCentavos: {
+    label: "Ventas",
+    color: SERIE_COLOR.digital,
+  },
+} satisfies ChartConfig;
+
+const ALTO = 240;
+
+/** Con muchos días los puntos se amontonan: la línea sola se lee mejor. */
+const MAX_PUNTOS_CON_DOT = 14;
+
 export function ChartLinea({
   serie,
   anteriorPromedioCentavos,
+  cargando = false,
 }: {
   serie: Punto[];
   anteriorPromedioCentavos?: number;
+  cargando?: boolean;
 }) {
-  const tipId = useId();
-  const [hover, setHover] = useState<number | null>(null);
-  const w = 560;
-  const h = 240;
-  const pad = { l: 88, r: 12, t: 16, b: 36 };
-  const innerW = w - pad.l - pad.r;
-  const innerH = h - pad.t - pad.b;
-  const max = Math.max(
-    1,
-    ...serie.map((p) => p.montoCentavos),
-    anteriorPromedioCentavos ?? 0,
-  );
+  const animar = useAnimarGraficas();
+  const reactId = useId().replace(/:/g, "");
+  const fillId = `fillVentas-${reactId}`;
+
+  if (cargando) {
+    // Misma altura que la gráfica real: al llegar los datos nada salta.
+    return <Skeleton className="h-[240px] w-full rounded-tarjeta" />;
+  }
 
   if (serieTodoCero(serie.map((p) => p.montoCentavos))) {
     return (
@@ -40,118 +62,130 @@ export function ChartLinea({
     );
   }
 
-  const x = (i: number) =>
-    pad.l + (serie.length <= 1 ? innerW / 2 : (i / (serie.length - 1)) * innerW);
-  const y = (v: number) => pad.t + innerH - (v / max) * innerH;
-  const puntos = serie.map((p, i) => `${x(i)},${y(p.montoCentavos)}`).join(" ");
-  const area = `${x(0)},${y(0)} ${puntos} ${x(serie.length - 1)},${y(0)}`;
-  const ticks = ticksEjeCentavos(max, 4);
-  const tip = hover != null ? serie[hover] : null;
+  const marks = etiquetasEjeX(
+    serie.map((p) => p.fecha),
+    serie.length > 10 ? 6 : 8,
+  );
+  const fechasEtiqueta = new Set(
+    serie.filter((_, i) => marks[i]).map((p) => p.fecha),
+  );
+  const data = serie.map((p) => ({
+    fecha: p.fecha,
+    montoCentavos: p.montoCentavos,
+  }));
+  const conDots = data.length <= MAX_PUNTOS_CON_DOT;
 
   return (
     <div className="grid gap-2">
-      <div className="relative min-h-[220px]">
-        <svg
-          viewBox={`0 0 ${w} ${h}`}
-          className="h-auto w-full"
-          role="img"
-          aria-label={`Ventas por día. Rango: ${serie[0]?.fecha ?? "sin datos"} a ${serie.at(-1)?.fecha ?? "sin datos"}`}
-          onMouseLeave={() => setHover(null)}
+      <ChartContainer
+        config={chartConfig}
+        className="aspect-auto h-[240px] w-full"
+        initialDimension={{ width: 560, height: ALTO }}
+      >
+        <AreaChart
+          data={data}
+          margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+          accessibilityLayer
         >
-          {ticks.map((t) => (
-            <g key={t}>
-              <line
-                x1={pad.l}
-                x2={w - pad.r}
-                y1={y(t)}
-                y2={y(t)}
-                stroke="var(--ink-200)"
-                strokeWidth={1}
+          {/* Lavado de un solo tono: el área acompaña a la línea, no compite. */}
+          <defs>
+            <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor="var(--color-montoCentavos)"
+                stopOpacity={0.16}
               />
-              <text
-                x={pad.l - 8}
-                y={y(t) + 4}
-                textAnchor="end"
-                fill="var(--ink-500)"
-                fontSize={12}
-                fontFamily="var(--font-mono)"
-              >
-                {formatearCentavos(t)}
-              </text>
-            </g>
-          ))}
+              <stop
+                offset="100%"
+                stopColor="var(--color-montoCentavos)"
+                stopOpacity={0.02}
+              />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--ink-200)" />
+          <XAxis
+            dataKey="fecha"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={24}
+            tickFormatter={(v: string) =>
+              fechasEtiqueta.has(v) ? formatearFechaCorta(v) : ""
+            }
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={72}
+            tickMargin={4}
+            tickFormatter={(v: number) => formatearCentavos(v)}
+          />
           {anteriorPromedioCentavos != null && anteriorPromedioCentavos > 0 && (
-            <line
-              x1={pad.l}
-              x2={w - pad.r}
-              y1={y(anteriorPromedioCentavos)}
-              y2={y(anteriorPromedioCentavos)}
-              stroke="var(--ink-500)"
-              strokeWidth={1.5}
+            <ReferenceLine
+              y={anteriorPromedioCentavos}
+              stroke="var(--ink-400)"
               strokeDasharray="5 4"
+              strokeWidth={1.5}
             />
           )}
-          <polygon
-            points={area}
-            fill="var(--green-50)"
-            fillOpacity={0.85}
+          <ChartTooltip
+            cursor={{ stroke: "var(--ink-300)", strokeWidth: 1 }}
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, payload) => {
+                  const fecha = payload?.[0]?.payload?.fecha as
+                    | string
+                    | undefined;
+                  return fecha ? formatearFechaLarga(fecha) : "";
+                }}
+                formatter={(value) => (
+                  <div className="flex w-full items-center justify-between gap-4">
+                    <span className="text-tinta-500">Ventas del día</span>
+                    <span className="font-mono font-medium tabular-nums text-tinta-900">
+                      {formatearCentavos(Number(value))}
+                    </span>
+                  </div>
+                )}
+              />
+            }
           />
-          <polyline
-            points={puntos}
-            fill="none"
-            stroke="var(--green-800)"
-            strokeWidth={2.5}
-            strokeLinejoin="round"
+          <Area
+            dataKey="montoCentavos"
+            type="monotone"
+            fill={`url(#${fillId})`}
+            stroke="var(--color-montoCentavos)"
+            strokeWidth={2}
             strokeLinecap="round"
+            strokeLinejoin="round"
+            dot={
+              conDots
+                ? {
+                    r: 4,
+                    fill: "var(--color-montoCentavos)",
+                    stroke: "var(--surface-card)",
+                    strokeWidth: 2,
+                  }
+                : false
+            }
+            activeDot={{
+              r: 5,
+              fill: "var(--color-montoCentavos)",
+              stroke: "var(--surface-card)",
+              strokeWidth: 2,
+            }}
+            isAnimationActive={animar}
+            animationDuration={640}
+            animationEasing="ease-out"
           />
-          {serie.map((p, i) => (
-            <circle
-              key={p.fecha}
-              cx={x(i)}
-              cy={y(p.montoCentavos)}
-              r={hover === i ? 5 : 3.5}
-              fill="var(--green-800)"
-              onMouseEnter={() => setHover(i)}
-              style={{ cursor: "pointer" }}
-            />
-          ))}
-          <text
-            x={pad.l}
-            y={h - 8}
-            fill="var(--ink-500)"
-            fontSize={12}
-          >
-            {formatearFechaCorta(serie[0]?.fecha ?? "")}
-          </text>
-          <text
-            x={w - pad.r}
-            y={h - 8}
-            textAnchor="end"
-            fill="var(--ink-500)"
-            fontSize={12}
-          >
-            {formatearFechaCorta(serie.at(-1)?.fecha ?? "")}
-          </text>
-        </svg>
-        {tip && (
-          <div
-            id={tipId}
-            role="tooltip"
-            className="pointer-events-none absolute left-1/2 top-2 z-[1] -translate-x-1/2 rounded-campo border border-[var(--border-subtle)] bg-blanco px-3 py-2 text-sm shadow-tarjeta"
-          >
-            <p className="font-semibold text-tinta-900">
-              {formatearFechaLarga(tip.fecha)}
-            </p>
-            <p className="mt-0.5 font-mono tabular-nums text-tinta-800">
-              {formatearCentavos(tip.montoCentavos)}
-            </p>
-          </div>
-        )}
-      </div>
+        </AreaChart>
+      </ChartContainer>
       {anteriorPromedioCentavos != null && anteriorPromedioCentavos > 0 && (
         <p className="text-xs text-tinta-500">
-          Línea punteada = promedio del recorte anterior (
-          {formatearCentavos(anteriorPromedioCentavos)})
+          Línea punteada = promedio diario del recorte anterior (
+          <span className="tabular-nums">
+            {formatearCentavos(anteriorPromedioCentavos)}
+          </span>
+          )
         </p>
       )}
     </div>

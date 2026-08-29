@@ -1,14 +1,24 @@
 "use client";
 
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import { formatearCentavos } from "@misupertostada/shared";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  SERIE_COLOR,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { useAnimarGraficas } from "@/hooks/use-animar-graficas";
 import {
   etiquetasEjeX,
   formatearFechaCorta,
   serieTodoCero,
-  ticksEjeCentavos,
 } from "@/lib/tablero-vista";
-import { cn } from "@/lib/utils";
 
 type Dia = {
   fecha: string;
@@ -16,11 +26,40 @@ type Dia = {
   transferenciaCentavos: number;
 };
 
-export function ChartBarrasApiladas({ serie }: { serie: Dia[] }) {
+/* Mismo criterio de color que «Origen del pedido»: ámbar = lo que pasa a mano
+   (efectivo), verde = lo que ya entra por el sistema (transferencia). */
+const chartConfig = {
+  efectivoCentavos: {
+    label: "Efectivo",
+    color: SERIE_COLOR.manual,
+  },
+  transferenciaCentavos: {
+    label: "Transferencia",
+    color: SERIE_COLOR.digital,
+  },
+} satisfies ChartConfig;
+
+const ETIQUETA_SERIE: Record<string, string> = {
+  efectivoCentavos: "Efectivo",
+  transferenciaCentavos: "Transferencia",
+};
+
+export function ChartBarrasApiladas({
+  serie,
+  cargando = false,
+}: {
+  serie: Dia[];
+  cargando?: boolean;
+}) {
+  const animar = useAnimarGraficas();
   const totales = serie.map(
     (d) => d.efectivoCentavos + d.transferenciaCentavos,
   );
-  const max = Math.max(1, ...totales);
+
+  if (cargando) {
+    // Misma altura que la gráfica real: al llegar los datos nada salta.
+    return <Skeleton className="h-[260px] w-full rounded-tarjeta" />;
+  }
 
   if (serieTodoCero(totales)) {
     return (
@@ -31,135 +70,122 @@ export function ChartBarrasApiladas({ serie }: { serie: Dia[] }) {
     );
   }
 
-  const ticks = ticksEjeCentavos(max, 4);
-  const labels = etiquetasEjeX(
+  const marks = etiquetasEjeX(
     serie.map((d) => d.fecha),
     serie.length > 10 ? 6 : 8,
   );
-  const densa = serie.length > 10;
+  const fechasEtiqueta = new Set(
+    serie.filter((_, i) => marks[i]).map((d) => d.fecha),
+  );
+  const data = serie.map((d) => ({
+    fecha: d.fecha,
+    efectivoCentavos: d.efectivoCentavos,
+    transferenciaCentavos: d.transferenciaCentavos,
+  }));
 
   return (
-    <div className="grid gap-3">
-      <ul className="flex flex-wrap gap-3 text-sm" aria-label="Leyenda cobrado">
-        <li className="inline-flex items-center gap-2">
-          <span
-            className="size-2.5 rounded-sm bg-marca"
-            aria-hidden
-          />
-          <span className="font-semibold text-tinta-800">Efectivo</span>
-        </li>
-        <li className="inline-flex items-center gap-2">
-          <span
-            className="size-2.5 rounded-sm bg-[var(--blue-700)]"
-            aria-hidden
-          />
-          <span className="font-semibold text-tinta-800">Transferencia</span>
-        </li>
-      </ul>
-
-      {/* Móvil denso: lista día a día */}
-      <ul className={cn("grid gap-2", densa ? "sm:hidden" : "hidden")}>
-        {serie.map((d) => {
-          const total = d.efectivoCentavos + d.transferenciaCentavos;
-          if (total === 0) return null;
-          return (
-            <li
-              key={d.fecha}
-              className="flex min-h-11 items-center justify-between gap-3 rounded-campo border border-[var(--border-subtle)] bg-blanco px-3"
-            >
-              <span className="text-sm font-semibold tabular-nums text-tinta-800">
-                {formatearFechaCorta(d.fecha)}
-              </span>
-              <span className="text-right text-xs text-tinta-500">
-                <span className="block font-mono tabular-nums text-tinta-900">
-                  {formatearCentavos(total)}
-                </span>
-                Ef {formatearCentavos(d.efectivoCentavos)} · Tr{" "}
-                {formatearCentavos(d.transferenciaCentavos)}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div
-        className={cn(
-          "grid grid-cols-[auto_1fr] gap-2",
-          densa && "hidden sm:grid",
-        )}
-        role="img"
-        aria-label="Cobrado por día, efectivo y transferencia"
+    <ChartContainer
+      config={chartConfig}
+      className="aspect-auto h-[260px] w-full"
+      initialDimension={{ width: 560, height: 260 }}
+    >
+      <BarChart
+        data={data}
+        margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+        accessibilityLayer
       >
-        <div className="flex flex-col justify-between py-1 text-right">
-          {[...ticks].reverse().map((t) => (
-            <span
-              key={t}
-              className="font-mono text-xs tabular-nums text-tinta-500"
-            >
-              {formatearCentavos(t)}
-            </span>
-          ))}
-        </div>
-        <div className="min-w-0">
-          <div className="flex h-[200px] items-end gap-1 overflow-x-auto pb-1">
-            {serie.map((d) => {
-              const total = d.efectivoCentavos + d.transferenciaCentavos;
-              const alturaPct = Math.max(0, Math.round((total / max) * 100));
-              return (
-                <div
-                  key={d.fecha}
-                  className="flex min-w-3 flex-1 flex-col items-center justify-end"
-                  style={{ minWidth: 12 }}
-                  title={`${formatearFechaCorta(d.fecha)}: ${formatearCentavos(total)}`}
-                >
-                  <div
-                    className="flex w-full flex-col justify-end overflow-hidden rounded-t-sm"
-                    style={{ height: `${alturaPct}%`, minHeight: total > 0 ? 4 : 0 }}
-                  >
-                    {d.transferenciaCentavos > 0 && (
-                      <div
-                        className="w-full bg-[var(--blue-700)]"
-                        style={{
-                          flexGrow: d.transferenciaCentavos,
-                          flexBasis: 0,
-                          minHeight: 2,
-                        }}
-                      />
-                    )}
-                    {d.efectivoCentavos > 0 && (
-                      <div
-                        className="w-full bg-marca"
-                        style={{
-                          flexGrow: d.efectivoCentavos,
-                          flexBasis: 0,
-                          minHeight: 2,
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-1 flex gap-1 overflow-x-auto">
-            {serie.map((d, i) => (
-              <div
-                key={d.fecha}
-                className="min-w-3 flex-1 text-center"
-                style={{ minWidth: 12 }}
-              >
-                {labels[i] ? (
-                  <span className="text-[12px] tabular-nums text-tinta-500">
-                    {formatearFechaCorta(d.fecha)}
+        <CartesianGrid vertical={false} stroke="var(--ink-200)" />
+        <XAxis
+          dataKey="fecha"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          minTickGap={24}
+          tickFormatter={(v: string) =>
+            fechasEtiqueta.has(v) ? formatearFechaCorta(v) : ""
+          }
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          width={72}
+          tickMargin={4}
+          tickFormatter={(v: number) => formatearCentavos(v)}
+        />
+        <ChartTooltip
+          cursor={{ fill: "var(--ink-100)" }}
+          content={
+            <ChartTooltipContent
+              labelFormatter={(_, payload) => {
+                const fecha = payload?.[0]?.payload?.fecha as
+                  | string
+                  | undefined;
+                return fecha ? formatearFechaCorta(fecha) : "";
+              }}
+              formatter={(value, name) => (
+                <div className="flex w-full items-center justify-between gap-4">
+                  <span className="text-tinta-500">
+                    {ETIQUETA_SERIE[String(name)] ?? String(name)} cobrado
                   </span>
-                ) : (
-                  <span className="sr-only">{formatearFechaCorta(d.fecha)}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+                  <span className="font-mono font-medium tabular-nums text-tinta-900">
+                    {formatearCentavos(Number(value))}
+                  </span>
+                </div>
+              )}
+            />
+          }
+        />
+        <ChartLegend content={<ChartLegendContent />} />
+        {/* El `stroke` del color de la tarjeta abre el respiro de 2 px entre
+            los dos tramos de la pila: separa sin dibujar un borde de dato. Se
+            apaga en los días con tramo en cero para no pintar una raya que
+            se leería como un cobro que no existió. */}
+        <Bar
+          dataKey="efectivoCentavos"
+          stackId="cobrado"
+          fill="var(--color-efectivoCentavos)"
+          strokeWidth={2}
+          maxBarSize={24}
+          isAnimationActive={animar}
+          animationDuration={560}
+          animationEasing="ease-out"
+        >
+          {data.map((d) => (
+            <Cell
+              key={d.fecha}
+              fill="var(--color-efectivoCentavos)"
+              stroke={
+                d.efectivoCentavos > 0 && d.transferenciaCentavos > 0
+                  ? "var(--surface-card)"
+                  : "none"
+              }
+            />
+          ))}
+        </Bar>
+        <Bar
+          dataKey="transferenciaCentavos"
+          stackId="cobrado"
+          fill="var(--color-transferenciaCentavos)"
+          strokeWidth={2}
+          maxBarSize={24}
+          radius={[4, 4, 0, 0]}
+          isAnimationActive={animar}
+          animationDuration={560}
+          animationEasing="ease-out"
+        >
+          {data.map((d) => (
+            <Cell
+              key={d.fecha}
+              fill="var(--color-transferenciaCentavos)"
+              stroke={
+                d.efectivoCentavos > 0 && d.transferenciaCentavos > 0
+                  ? "var(--surface-card)"
+                  : "none"
+              }
+            />
+          ))}
+        </Bar>
+      </BarChart>
+    </ChartContainer>
   );
 }

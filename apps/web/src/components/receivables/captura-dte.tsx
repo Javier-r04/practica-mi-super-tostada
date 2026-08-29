@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/field";
-import { cn } from "@/lib/utils";
+import { Button, Input, Label, Spinner, TextField } from "@heroui/react";
 
 export function CapturaDte({
   id = "numero-dte",
@@ -11,7 +9,6 @@ export function CapturaDte({
   disabled,
   hint,
   loading,
-  compact,
   onSave,
 }: {
   id?: string;
@@ -19,17 +16,14 @@ export function CapturaDte({
   disabled?: boolean;
   hint?: string;
   loading?: boolean;
-  /** Sin label de campo; pensado para celdas de tabla / cards. */
-  compact?: boolean;
   onSave: (numeroDte: string) => void;
 }) {
   const [valor, setValor] = useState(numeroDte ?? "");
+  const vacio = valor.trim().length === 0;
+
   return (
     <form
-      className={cn(
-        "flex flex-wrap items-end gap-2",
-        compact && "items-center",
-      )}
+      className="grid gap-3"
       onSubmit={(e) => {
         e.preventDefault();
         const recortado = valor.trim();
@@ -37,27 +31,35 @@ export function CapturaDte({
         onSave(recortado);
       }}
     >
-      <div className={cn("min-w-[140px] flex-1", compact && "min-w-0")}>
-        <Input
-          id={id}
-          label={compact ? undefined : "Número de DTE"}
-          aria-label={compact ? "Número de DTE" : undefined}
-          value={valor}
-          disabled={disabled}
-          title={hint}
-          className="font-mono"
-          placeholder="Número DTE"
-          onChange={(e) => setValor(e.target.value)}
-        />
-      </div>
-      <Button
-        type="submit"
-        size="sm"
-        disabled={disabled || !valor.trim()}
-        title={hint}
-        loading={loading}
+      <TextField
+        isDisabled={disabled}
+        value={valor}
+        onChange={setValor}
       >
-        {compact ? "Guardar" : "Guardar DTE"}
+        <Label>Número de DTE</Label>
+        <Input
+          autoFocus
+          className="font-mono tabular-nums"
+          id={id}
+          inputMode="numeric"
+          placeholder="Número DTE"
+          title={hint}
+        />
+      </TextField>
+      <Button
+        className="justify-self-start"
+        aria-label={hint ? `Guardar DTE — ${hint}` : undefined}
+        isDisabled={disabled || vacio}
+        isPending={loading}
+        type="submit"
+        variant="primary"
+      >
+        {({ isPending }) => (
+          <>
+            {isPending ? <Spinner color="current" size="sm" /> : null}
+            Guardar DTE
+          </>
+        )}
       </Button>
     </form>
   );
