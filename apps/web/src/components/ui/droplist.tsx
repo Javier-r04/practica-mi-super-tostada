@@ -2,7 +2,6 @@
 
 import { Check, ChevronDown, Search } from "lucide-react";
 import {
-  useEffect,
   useId,
   useMemo,
   useRef,
@@ -11,6 +10,11 @@ import {
   type ReactNode,
 } from "react";
 import { Field } from "@/components/ui/field";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 export type DroplistOption = {
@@ -58,7 +62,6 @@ export function Droplist({
   const autoId = useId();
   const id = idProp ?? autoId;
   const listId = `${id}-listbox`;
-  const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -71,37 +74,19 @@ export function Droplist({
     return options.filter((o) => o.label.toLowerCase().includes(needle));
   }, [options, q]);
 
-  useEffect(() => {
-    if (!open) return;
-    setQ("");
-    const idx = Math.max(
-      0,
-      filtradas.findIndex((o) => o.value === value),
-    );
-    setActive(idx === -1 ? 0 : idx);
-    const t = window.setTimeout(() => {
-      if (searchable) searchRef.current?.focus();
-    }, 0);
-    return () => window.clearTimeout(t);
-    // Solo al abrir
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  /**
+   * El reset va en el cambio de apertura, no en un efecto sobre `open`: es la
+   * misma interacción del usuario, y así el listado nunca se pinta un frame
+   * con el filtro de la vez anterior.
+   */
+  function cambiarApertura(next: boolean) {
+    if (next) {
+      setQ("");
+      const idx = options.findIndex((o) => o.value === value);
+      setActive(idx < 0 ? 0 : idx);
+    }
+    setOpen(next);
+  }
 
   function elegir(next: string) {
     onChange(next);
@@ -121,7 +106,7 @@ export function Droplist({
   function onTriggerKey(e: KeyboardEvent<HTMLButtonElement>) {
     if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      setOpen(true);
+      cambiarApertura(true);
     }
   }
 
@@ -147,59 +132,76 @@ export function Droplist({
 
   return (
     <Field label={label} hint={hint} error={error} required={required} htmlFor={id}>
-      <div ref={rootRef} className={cn("relative", className)}>
+      <div className={cn("relative", className)}>
         <input type="hidden" name={name} value={value} />
-        <button
-          id={id}
-          type="button"
-          disabled={disabled}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-invalid={error ? true : undefined}
-          aria-required={required || undefined}
-          data-open={open ? "true" : undefined}
-          onClick={() => setOpen((v) => !v)}
-          onKeyDown={onTriggerKey}
-          className={cn(
-            "mst-control flex items-center gap-2 px-3 text-left",
-            !selected && "text-tinta-500",
-            selected && "text-tinta-800",
-          )}
-        >
-          <span className="min-w-0 flex-1 truncate">
-            {selected?.label ?? placeholder}
-          </span>
-          <ChevronDown
-            size={16}
-            className={cn(
-              "shrink-0 text-[var(--text-subtle)] transition-transform duration-control",
-              open && "rotate-180",
-            )}
-            aria-hidden
-          />
-        </button>
+        <Popover open={open} onOpenChange={cambiarApertura} modal>
+          <PopoverTrigger asChild>
+            <button
+              id={id}
+              type="button"
+              disabled={disabled}
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              aria-controls={listId}
+              aria-invalid={error ? true : undefined}
+              aria-required={required || undefined}
+              data-open={open ? "true" : undefined}
+              onKeyDown={onTriggerKey}
+              className={cn(
+                "mst-control flex items-center gap-2 px-3 text-left",
+                !selected && "text-tinta-500",
+                selected && "text-tinta-800",
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate">
+                {selected?.label ?? placeholder}
+              </span>
+              <ChevronDown
+                size={16}
+                className={cn(
+                  "shrink-0 text-[var(--text-subtle)] transition-transform duration-control",
+                  open && "rotate-180",
+                )}
+                aria-hidden
+              />
+            </button>
+          </PopoverTrigger>
 
-        {open && (
-          <div
-            className="mst-popover absolute left-0 right-0 top-[calc(100%+6px)] max-h-[min(320px,50vh)] overflow-hidden"
+          <PopoverContent
+            align="start"
+            side="bottom"
+            sideOffset={6}
+            collisionPadding={12}
             onKeyDown={onListKey}
+            onOpenAutoFocus={(e) => {
+              if (!searchable) return;
+              e.preventDefault();
+              searchRef.current?.focus();
+            }}
+            className="w-[var(--radix-popover-trigger-width)] max-h-[min(320px,50vh)] overflow-hidden"
           >
             {searchable && (
-              <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] px-3 py-2">
-                <Search size={15} className="text-[var(--text-subtle)]" aria-hidden />
-                <input
-                  ref={searchRef}
-                  type="search"
-                  value={q}
-                  onChange={(e) => {
-                    setQ(e.target.value);
-                    setActive(0);
-                  }}
-                  placeholder={searchPlaceholder}
-                  aria-label={searchPlaceholder}
-                  className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-tinta-500"
-                />
+              <div className="px-2 pb-1 pt-2">
+                <div className="mst-search flex h-9 items-center gap-2 rounded-pill bg-[var(--ink-100)] px-3">
+                  <Search
+                    size={15}
+                    className="shrink-0 text-[var(--text-subtle)]"
+                    aria-hidden
+                  />
+                  <input
+                    ref={searchRef}
+                    type="search"
+                    value={q}
+                    onChange={(e) => {
+                      setQ(e.target.value);
+                      setActive(0);
+                    }}
+                    placeholder={searchPlaceholder}
+                    aria-label={searchPlaceholder}
+                    autoComplete="off"
+                    className="mst-search__input min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm text-tinta-800 shadow-none outline-none placeholder:text-tinta-500"
+                  />
+                </div>
               </div>
             )}
             <ul
@@ -246,8 +248,8 @@ export function Droplist({
                 })
               )}
             </ul>
-          </div>
-        )}
+          </PopoverContent>
+        </Popover>
       </div>
     </Field>
   );

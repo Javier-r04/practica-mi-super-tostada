@@ -1,5 +1,7 @@
 @import "../styles/styles.css";
 @import "tailwindcss";
+@import "@heroui/styles";
+@import "../styles/heroui-brand.css";
 @config "../../tailwind.config.ts";
 
 @theme inline {

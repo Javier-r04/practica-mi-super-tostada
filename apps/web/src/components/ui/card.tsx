@@ -19,6 +19,7 @@ export function Card({
   tone = "default",
   children,
   className,
+  id,
 }: {
   title?: string;
   subtitle?: string;
@@ -27,23 +28,30 @@ export function Card({
   tone?: keyof typeof tones;
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
   const onBrand = tone === "brand";
   return (
     <section
-      className={cn(
-        "overflow-hidden rounded-tarjeta border",
-        tones[tone],
-        className,
-      )}
+        className={cn(
+          "flex flex-col overflow-hidden rounded-tarjeta border",
+          tones[tone],
+          className,
+        )}
+        id={id}
     >
       {(title || actions) && (
-        <header className="flex flex-col gap-3 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
-          <div>
+        <header
+          className={cn(
+            "flex shrink-0 flex-col gap-2 px-5 pt-5 sm:flex-row sm:items-center sm:justify-between",
+            flush ? "pb-4" : "pb-1.5",
+          )}
+        >
+          <div className="min-w-0">
             {title && (
               <h2
                 className={cn(
-                  "text-base font-semibold",
+                  "text-pretty text-base font-semibold leading-snug tracking-tight",
                   onBrand ? "text-blanco" : "text-tinta-900",
                 )}
               >
@@ -53,7 +61,7 @@ export function Card({
             {subtitle && (
               <p
                 className={cn(
-                  "mt-0.5 text-xs",
+                  "mt-1 text-pretty text-xs leading-normal",
                   onBrand ? "text-[var(--green-200)]" : "text-tinta-500",
                 )}
               >
@@ -61,10 +69,15 @@ export function Card({
               </p>
             )}
           </div>
-          {actions}
+          {actions && <div className="shrink-0">{actions}</div>}
         </header>
       )}
-      <div className={cn(flush ? "p-0" : "p-5", title && !flush && "pt-4")}>
+      <div
+        className={cn(
+          "min-h-0 flex-1",
+          flush ? "p-0" : "px-5 pb-5 pt-2",
+        )}
+      >
         {children}
       </div>
     </section>

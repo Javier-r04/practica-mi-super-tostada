@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Clock } from "lucide-react";
 import type {
   InputHTMLAttributes,
   ReactNode,
@@ -78,7 +78,11 @@ export function Input({
         aria-describedby={
           error && id ? `${id}-error` : hint && id ? `${id}-hint` : undefined
         }
-        className={cn(controlClassName, error && "border-peligro", className)}
+        className={cn(
+          controlClassName,
+          error && "border-peligro",
+          className
+        )}
         {...rest}
       />
     </Field>

@@ -34,7 +34,7 @@ export const Checkbox = forwardRef<HTMLInputElement, Props>(function Checkbox(
       <label
         htmlFor={id}
         className={cn(
-          "inline-flex max-w-full items-center gap-2.5 text-sm text-tinta-800",
+          "inline-flex max-w-full items-start gap-2.5 text-sm text-tinta-800",
           size === "md" && "min-h-tap",
           size === "lg" && "min-h-tap",
           disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer",
@@ -50,14 +50,14 @@ export const Checkbox = forwardRef<HTMLInputElement, Props>(function Checkbox(
           aria-describedby={error ? errorId : hint ? hintId : undefined}
           className={cn(
             "mst-checkbox",
-            label != null && "mt-0.5 self-start",
+            label != null && "mt-[2px]",
             size === "sm" && "mst-checkbox--sm",
             size === "lg" && "mst-checkbox--lg",
           )}
           {...rest}
         />
         {label != null && (
-          <span className="min-w-0 flex-1 pt-px font-semibold leading-snug text-pretty">
+          <span className="min-w-0 flex-1 font-semibold leading-snug text-pretty">
             {label}
             {required ? (
               <span className="text-peligro" aria-hidden>

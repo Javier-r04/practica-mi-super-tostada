@@ -27,8 +27,13 @@ export function Dialog({
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  // Ref «al último valor»: el listener de Escape se registra una sola vez y
+  // no debe capturar un `onClose` viejo. Se sincroniza en efecto porque
+  // escribir refs durante el render rompe con renders concurrentes.
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   const acento = tone === "danger" ? "var(--red-600)" : "var(--green-800)";
 
   useEffect(() => {
@@ -36,7 +41,7 @@ export function Dialog({
     previousFocus.current = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
+      if (e.key === "Escape" && !e.defaultPrevented) onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => {

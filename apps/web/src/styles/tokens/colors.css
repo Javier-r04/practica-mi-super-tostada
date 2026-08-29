@@ -21,6 +21,8 @@
 --text-body:var(--ink-800);--text-strong:var(--ink-900);--text-muted:var(--ink-500);--text-subtle:var(--ink-400);--text-on-brand:var(--white);--text-on-accent:var(--green-900);--text-brand:var(--green-800);--text-link:var(--green-700);--text-link-hover:var(--green-600);--text-danger:var(--red-600);--text-warning:var(--amber-700);--text-money:var(--ink-900);
 /* Bordes */
 --border-subtle:var(--ink-200);--border-default:var(--ink-300);--border-strong:var(--ink-400);--border-brand:var(--green-800);--border-accent:var(--yellow-500);--border-focus:var(--green-600);
+/* Scroll: track invisible, thumb cálido y fino. Visible al pasar, nunca un canal gris. */
+--scrollbar-size:5px;--scrollbar-thumb:var(--ink-300);--scrollbar-thumb-hover:var(--ink-500);--scrollbar-track:transparent;
 /* Estados de dominio (pedido / factura / sync) */
 --estado-borrador-bg:var(--ink-100);--estado-borrador-fg:var(--ink-600);
 --estado-confirmado-bg:var(--blue-100);--estado-confirmado-fg:var(--blue-700);
@@ -34,4 +36,7 @@
 /* Punto de carga */
 --carga-planta-bg:var(--green-100);--carga-planta-fg:var(--green-800);
 --carga-democracia-bg:var(--blue-100);--carga-democracia-fg:var(--blue-700);
+
+/* El mapeo HeroUI v3 → marca vive en src/styles/heroui-brand.css: debe cargarse
+   después de "@heroui/styles" para ganarle al tema por defecto. */
 }

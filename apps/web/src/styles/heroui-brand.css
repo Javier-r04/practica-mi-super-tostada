@@ -1,0 +1,129 @@
+/* Puente HeroUI v3 → marca Mi Súper Tostada.
+   Se importa DESPUÉS de "@heroui/styles" (ver globals.css):
+   - Las variables van en :root sin capa, así ganan sobre el tema por defecto,
+     que HeroUI define dentro de @layer base.
+   - Los ajustes de forma van en @layer components: misma capa que HeroUI, pero
+     reglas posteriores, así ganan sin pisar las utilidades de Tailwind. Un
+     className="rounded-…" sobre un componente sigue mandando. */
+
+:root {
+  /* ---- Color: acento = verde maíz, nunca el azul por defecto ---- */
+  --accent: var(--green-800);
+  --accent-foreground: var(--white);
+  --accent-hover: var(--green-700);
+  --accent-soft: var(--green-50);
+  --accent-soft-foreground: var(--green-800);
+  --accent-soft-hover: var(--green-100);
+
+  --danger: var(--red-600);
+  --danger-foreground: var(--white);
+  --danger-hover: var(--red-700);
+  --danger-soft: var(--red-100);
+  --danger-soft-foreground: var(--red-700);
+  --danger-soft-hover: var(--red-100);
+
+  --warning: var(--amber-600);
+  --warning-foreground: var(--white);
+  --warning-hover: var(--amber-700);
+  --warning-soft: var(--amber-100);
+  --warning-soft-foreground: var(--amber-700);
+  --warning-soft-hover: var(--amber-100);
+
+  --success: var(--green-600);
+  --success-foreground: var(--white);
+  --success-hover: var(--green-700);
+  --success-soft: var(--green-100);
+  --success-soft-foreground: var(--green-700);
+  --success-soft-hover: var(--green-100);
+
+  /* Neutro: cálido, tintado hacia el papel. HeroUI lo usa en chips y botones
+     secundarios; el gris azulado de fábrica choca con la crema del material. */
+  --default: var(--ink-100);
+  --default-foreground: var(--ink-800);
+  --default-hover: var(--ink-200);
+  --default-soft: var(--ink-50);
+  --default-soft-foreground: var(--ink-700);
+  --default-soft-hover: var(--ink-100);
+
+  /* ---- Superficies y texto ---- */
+  --background: var(--surface-page);
+  --foreground: var(--text-body);
+  --surface: var(--surface-card);
+  --surface-foreground: var(--text-body);
+  --surface-secondary: var(--ink-50);
+  --surface-secondary-foreground: var(--text-body);
+  --surface-tertiary: var(--ink-100);
+  --surface-tertiary-foreground: var(--text-body);
+  --surface-hover: var(--ink-50);
+  --overlay: var(--surface-card);
+  --overlay-foreground: var(--text-body);
+  --muted: var(--text-muted);
+  --border: var(--border-subtle);
+  --border-secondary: var(--border-default);
+  --border-tertiary: var(--border-strong);
+  --separator: var(--border-subtle);
+  --separator-secondary: var(--border-default);
+  --focus: var(--border-focus);
+  --link: var(--text-link);
+  --backdrop: var(--surface-overlay);
+  --segment: var(--white);
+  --segment-foreground: var(--text-strong);
+
+  /* ---- Campos: la misma pastilla que .mst-control ---- */
+  --field-background: var(--white);
+  --field-foreground: var(--text-body);
+  --field-placeholder: var(--text-subtle);
+  --field-border: var(--border-default);
+  --field-border-width: var(--border-width);
+  --field-border-hover: var(--border-strong);
+  --field-border-focus: var(--border-focus);
+  --field-hover: var(--white);
+  --field-focus: var(--white);
+  --field-shadow: var(--shadow-inset-field);
+
+  /* ---- Forma y sombra ---- */
+  --radius: var(--radius-card);
+  --field-radius: var(--radius-field);
+  --surface-shadow: var(--shadow-sm);
+  --overlay-shadow: var(--shadow-lg);
+  --disabled-opacity: 0.45;
+}
+
+@layer components {
+  /* Radios: HeroUI trae esquinas de 24–32 px; la marca es de 14 px en
+     contenedores, 6 px en campos y cápsula en botones y etiquetas. */
+  .card,
+  .alert,
+  .modal__dialog,
+  .table-root--primary {
+    border-radius: var(--radius-card);
+  }
+
+  /* Cuerpo y encabezado de tabla: esquinas de la marca, no de 32 px. */
+  .table-root--primary .table__body,
+  .table-root--primary .table__column:first-child,
+  .table-root--primary .table__column:last-child {
+    border-radius: calc(var(--radius-card) - 4px);
+  }
+
+  .button,
+  .chip {
+    border-radius: var(--radius-pill);
+  }
+
+  /* La tarjeta de la marca lleva filete: sin él se pierde sobre el papel. */
+  .card {
+    border: var(--border-width) solid var(--border-subtle);
+    box-shadow: var(--shadow-tarjeta, var(--shadow-sm));
+  }
+
+  .card--transparent {
+    border-color: transparent;
+  }
+
+  /* Cifras siempre tabulares: son columnas de dinero, no prosa. */
+  .table__cell,
+  .chip {
+    font-variant-numeric: tabular-nums;
+  }
+}

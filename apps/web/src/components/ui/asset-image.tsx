@@ -20,19 +20,25 @@ export function AssetImage({
   className?: string;
   srcPath?: string;
 }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const path = srcPath ?? `/assets/${assetId}`;
+  const url = `${API_URL}${path}${path.includes("?") ? "&" : "?"}v=${variante}`;
+
+  // El resultado se guarda junto con la URL que lo produjo. Así cambiar de
+  // asset no necesita un reset síncrono en el efecto: mientras `estado.url`
+  // no coincida con la actual, lo que hay en pantalla es de otra imagen y se
+  // trata como «cargando».
+  const [estado, setEstado] = useState<{
+    url: string;
+    src: string | null;
+    failed: boolean;
+  }>({ url: "", src: null, failed: false });
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
-    setFailed(false);
-    setSrc(null);
 
     void (async () => {
       try {
-        const path = srcPath ?? `/assets/${assetId}`;
-        const url = `${API_URL}${path}${path.includes("?") ? "&" : "?"}v=${variante}`;
         const res = await fetch(url, {
           credentials: srcPath ? "omit" : "include",
           signal: AbortSignal.timeout(15_000),
@@ -41,9 +47,9 @@ export function AssetImage({
         const blob = await res.blob();
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
-        setSrc(objectUrl);
+        setEstado({ url, src: objectUrl, failed: false });
       } catch {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) setEstado({ url, src: null, failed: true });
       }
     })();
 
@@ -51,7 +57,11 @@ export function AssetImage({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [assetId, variante, srcPath]);
+  }, [url, srcPath]);
+
+  const vigente = estado.url === url;
+  const failed = vigente && estado.failed;
+  const src = vigente ? estado.src : null;
 
   if (failed || !src) {
     return (

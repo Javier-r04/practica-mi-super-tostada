@@ -66,6 +66,7 @@ const config: Config = {
       transitionDuration: {
         control: "var(--dur-fast)",
         surface: "var(--dur-normal)",
+        slow: "var(--dur-slow)",
       },
       transitionTimingFunction: {
         out: "var(--ease-out)",

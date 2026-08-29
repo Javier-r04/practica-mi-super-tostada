@@ -15,8 +15,10 @@
 --shadow-focus:0 0 0 3px rgba(43,154,61,.32);
 --shadow-focus-danger:0 0 0 3px rgba(179,35,28,.28);
 
-/* Capas: nav sticky, overlay de diálogo, toasts. Nunca z-50 suelto en pantallas. */
---z-base:0;--z-sticky:20;--z-nav:30;--z-overlay:40;--z-modal:50;--z-toast:60;
+/* Capas: nav sticky, overlay de diálogo, toasts. Nunca z-50 suelto en pantallas.
+   --z-popover queda encima del modal: un droplist dentro de un Dialog no puede
+   renderizarse a --z-overlay o queda detrás del velo. */
+--z-base:0;--z-sticky:20;--z-nav:30;--z-overlay:40;--z-modal:50;--z-popover:55;--z-toast:60;
 
 /* Degradados de protección sobre foto (encabezados con imagen de planta/maíz) */
 --scrim-bottom:linear-gradient(180deg,rgba(3,28,6,0) 0%,rgba(3,28,6,.78) 100%);/* @kind other */
