@@ -1,10 +1,16 @@
 import { createHash, createCipheriv, randomBytes } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import {
   createBusinessCalendar,
+  hojaSnapshotSchema,
+  textoHoja,
   ZONA_NEGOCIO,
+  type BloqueCliente,
   type BusinessCalendar,
+  type HojaSnapshot,
+  type LineaClienteItem,
+  type LineaProducto,
 } from "@misupertostada/shared";
 import { DateTime } from "luxon";
 import * as schema from "../schema";
@@ -115,10 +121,11 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cliente: c,
       productos,
       fechaOperacion: fechaHoy,
+      cal,
       estado: "EN_PRODUCCION",
       origen: chance(0.35) ? "PORTAL" : "MANUAL",
       capturadoPor: carla.id,
-      createdAt: instanteCaptura(fechaHoy, cal, -1),
+      createdAt: instanteCaptura(fechaHoy, cal, 0),
       perfil: perfilDe(c),
     });
     stats.pedidos += 1;
@@ -132,10 +139,11 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cliente: c,
       productos,
       fechaOperacion: fechaHoy,
+      cal,
       estado: "CONFIRMADO",
       origen: chance(0.5) ? "PORTAL" : "MANUAL",
       capturadoPor: carla.id,
-      createdAt: instanteCaptura(fechaHoy, cal, -1),
+      createdAt: instanteCaptura(fechaHoy, cal, 0),
       perfil: perfilDe(c),
     });
     stats.pedidos += 1;
@@ -148,6 +156,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cliente: c,
       productos,
       fechaOperacion: fechaHoy,
+      cal,
       estado: "BORRADOR",
       origen: "MANUAL",
       capturadoPor: carla.id,
@@ -164,10 +173,11 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cliente: c,
       productos,
       fechaOperacion: fechaHoy,
+      cal,
       estado: "ENTREGADO",
       origen: chance(0.4) ? "PORTAL" : "MANUAL",
       capturadoPor: carla.id,
-      createdAt: instanteCaptura(fechaHoy, cal, -1),
+      createdAt: instanteCaptura(fechaHoy, cal, 0),
       perfil: perfilDe(c),
       pagoMode: chance(0.5) ? "completo" : "ninguno",
       registradoPor: tony.id,
@@ -185,10 +195,11 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cliente: shuffleHoy[26],
       productos,
       fechaOperacion: fechaHoy,
+      cal,
       estado: "ANULADO",
       origen: "MANUAL",
       capturadoPor: carla.id,
-      createdAt: instanteCaptura(fechaHoy, cal, -1),
+      createdAt: instanteCaptura(fechaHoy, cal, 0),
       perfil: perfilDe(shuffleHoy[26]),
       anulado: true,
       anuladoPor: cristian.id,
@@ -206,8 +217,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
     fechaOperacion: fechaHoy,
     version: 1,
     generadoPor: cristian.id,
-    clientes: [...enRuta, ...confirmados, ...entregadosHoy],
-    productos,
+    cal,
   });
   stats.hojas += 1;
 
@@ -226,10 +236,11 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
         cliente: c,
         productos,
         fechaOperacion: fecha,
+        cal,
         estado: chance(0.04) ? "ANULADO" : "ENTREGADO",
         origen: chance(0.45) ? "PORTAL" : "MANUAL",
         capturadoPor: carla.id,
-        createdAt: instanteCaptura(fecha, cal, -1),
+        createdAt: instanteCaptura(fecha, cal, 0),
         perfil: perfilDe(c),
         pagoMode: chance(0.04) ? undefined : pagoMode,
         registradoPor: chance(0.6) ? tony.id : carla.id,
@@ -254,8 +265,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
           fechaOperacion: fecha,
           version: 1,
           generadoPor: cristian.id,
-          clientes: pedidosDia,
-          productos,
+          cal,
         });
         stats.hojas += 1;
       }
@@ -415,6 +425,7 @@ async function crearPedidoCompleto(
     cliente: ClienteRow;
     productos: ProductoRow[];
     fechaOperacion: string;
+    cal: BusinessCalendar;
     estado: "BORRADOR" | "CONFIRMADO" | "EN_PRODUCCION" | "ENTREGADO" | "ANULADO";
     origen: "PORTAL" | "MANUAL";
     capturadoPor: string;
@@ -439,6 +450,7 @@ async function crearPedidoCompleto(
       organizacionId: ORG_ID,
       correlativo: opts.correlativo,
       fechaOperacion: opts.fechaOperacion,
+      fechaEntrega: opts.cal.getFechaEntrega(opts.fechaOperacion),
       clienteId: opts.cliente.id,
       estado: anulado ? "ANULADO" : opts.estado,
       origen: opts.origen,
@@ -602,17 +614,16 @@ async function insertarHoja(
     fechaOperacion: string;
     version: number;
     generadoPor: string;
-    clientes: ClienteRow[];
-    productos: ProductoRow[];
+    cal: BusinessCalendar;
   },
 ): Promise<void> {
-  const lineas = opts.clientes.map((c) => `- ${c.nombre}`).join("\n");
-  const texto = [
-    MEGA_SEED_MARKER,
-    `Hoja de producción ${opts.fechaOperacion} v${opts.version}`,
-    `Clientes: ${opts.clientes.length}`,
-    lineas,
-  ].join("\n");
+  const snapshot = await construirSnapshotDesdePedidos(
+    db,
+    opts.fechaOperacion,
+    opts.version,
+    opts.cal,
+  );
+  const texto = `${MEGA_SEED_MARKER}\n${textoHoja(snapshot)}`;
 
   await db
     .insert(schema.hojaProduccion)
@@ -620,17 +631,160 @@ async function insertarHoja(
       organizacionId: ORG_ID,
       fechaOperacion: opts.fechaOperacion,
       version: opts.version,
-      snapshot: {
-        marker: MEGA_SEED_MARKER,
-        fechaOperacion: opts.fechaOperacion,
-        clientes: opts.clientes.map((c) => c.nombre),
-        productos: opts.productos.map((p) => p.sku),
-      },
+      snapshot,
       texto,
       generadoAt: new Date(),
       generadoPor: opts.generadoPor,
     })
     .onConflictDoNothing();
+}
+
+/**
+ * Misma forma que HojaService.construirSnapshot, pero incluye pedidos ya
+ * pasados a EN_PRODUCCION/ENTREGADO (el mega-seed no deja CONFIRMADO al cerrar).
+ */
+async function construirSnapshotDesdePedidos(
+  db: Db,
+  fechaOperacion: string,
+  version: number,
+  cal: BusinessCalendar,
+): Promise<HojaSnapshot> {
+  const filas = await db
+    .select({
+      clienteId: schema.cliente.id,
+      clienteNombre: schema.cliente.nombre,
+      horario: schema.cliente.horarioEntregaFijo,
+      notasPermanentes: schema.cliente.notasPermanentes,
+      notasAdmin: schema.pedido.notasAdmin,
+      productoId: schema.producto.id,
+      nombreCanonico: schema.producto.nombreCanonico,
+      unidadMedida: schema.producto.unidadMedida,
+      puntoCarga: schema.producto.puntoCarga,
+      familia: schema.producto.familia,
+      cantidad: schema.pedidoItem.cantidadPedida,
+      notaProduccion: schema.clienteProducto.notaProduccion,
+    })
+    .from(schema.pedido)
+    .innerJoin(schema.cliente, eq(schema.cliente.id, schema.pedido.clienteId))
+    .innerJoin(
+      schema.pedidoItem,
+      eq(schema.pedidoItem.pedidoId, schema.pedido.id),
+    )
+    .innerJoin(
+      schema.producto,
+      eq(schema.producto.id, schema.pedidoItem.productoId),
+    )
+    .leftJoin(
+      schema.clienteProducto,
+      and(
+        eq(schema.clienteProducto.clienteId, schema.pedido.clienteId),
+        eq(schema.clienteProducto.productoId, schema.pedidoItem.productoId),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.pedido.organizacionId, ORG_ID),
+        eq(schema.pedido.fechaOperacion, fechaOperacion),
+        isNull(schema.pedido.anuladoAt),
+        inArray(schema.pedido.estado, [
+          "CONFIRMADO",
+          "EN_PRODUCCION",
+          "ENTREGADO",
+        ]),
+      ),
+    )
+    .orderBy(asc(schema.cliente.nombre), asc(schema.producto.nombreCanonico));
+
+  const clientesMap = new Map<string, BloqueCliente>();
+  const productoAgg = new Map<
+    string,
+    LineaProducto & { notas: Set<string> }
+  >();
+
+  for (const fila of filas) {
+    const puntoCargaEfectivo = cal.puntoCargaEfectivo(
+      fila.puntoCarga,
+      fechaOperacion,
+    );
+    const horario = fila.horario ? String(fila.horario).slice(0, 5) : null;
+    const nota = fila.notaProduccion?.trim() || null;
+
+    let bloque = clientesMap.get(fila.clienteId);
+    if (!bloque) {
+      bloque = {
+        clienteId: fila.clienteId,
+        nombre: fila.clienteNombre,
+        horarioEntregaFijo: horario,
+        notasPermanentes: fila.notasPermanentes,
+        notasAdmin: null,
+        items: [],
+      };
+      clientesMap.set(fila.clienteId, bloque);
+    }
+    if (fila.notasAdmin?.trim()) {
+      const actuales = bloque.notasAdmin
+        ? bloque.notasAdmin.split(" · ")
+        : [];
+      if (!actuales.includes(fila.notasAdmin.trim())) {
+        actuales.push(fila.notasAdmin.trim());
+        bloque.notasAdmin = actuales.join(" · ");
+      }
+    }
+
+    const itemExistente = bloque.items.find(
+      (i) => i.productoId === fila.productoId,
+    );
+    if (itemExistente) {
+      itemExistente.cantidad += fila.cantidad;
+    } else {
+      const item: LineaClienteItem = {
+        productoId: fila.productoId,
+        nombreCanonico: fila.nombreCanonico,
+        unidadMedida: fila.unidadMedida,
+        cantidad: fila.cantidad,
+        puntoCargaEfectivo,
+        notaProduccion: nota,
+      };
+      bloque.items.push(item);
+    }
+
+    const prod = productoAgg.get(fila.productoId);
+    const notaProducto = nota ? `${nota} · ${fila.clienteNombre}` : null;
+    if (prod) {
+      prod.cantidad += fila.cantidad;
+      if (notaProducto) prod.notas.add(notaProducto);
+    } else {
+      productoAgg.set(fila.productoId, {
+        productoId: fila.productoId,
+        nombreCanonico: fila.nombreCanonico,
+        unidadMedida: fila.unidadMedida,
+        cantidad: fila.cantidad,
+        puntoCargaEfectivo,
+        notaProduccion: null,
+        familia: fila.familia,
+        notas: new Set(notaProducto ? [notaProducto] : []),
+      });
+    }
+  }
+
+  const productos: LineaProducto[] = [...productoAgg.values()]
+    .map(({ notas, ...linea }) => ({
+      ...linea,
+      notaProduccion: notas.size > 0 ? [...notas].join("; ") : null,
+    }))
+    .sort((a, b) => a.nombreCanonico.localeCompare(b.nombreCanonico, "es"));
+
+  const clientes = [...clientesMap.values()].sort((a, b) =>
+    a.nombre.localeCompare(b.nombre, "es"),
+  );
+
+  return hojaSnapshotSchema.parse({
+    fechaOperacion,
+    esSabado: cal.isSabado(fechaOperacion),
+    version,
+    productos,
+    clientes,
+  });
 }
 
 async function seedConversacion(
@@ -764,7 +918,7 @@ function instanteCaptura(
   _cal: BusinessCalendar,
   offsetDiasDesdeOp: number,
 ): Date {
-  // Captura la noche anterior a la entrega (ventana 15:00–00:00).
+  // Captura la misma noche de la fecha_operacion (ventana 15:00–00:00).
   const entrega = DateTime.fromISO(fechaOperacion, { zone: ZONA_NEGOCIO });
   const captura = entrega
     .plus({ days: offsetDiasDesdeOp })

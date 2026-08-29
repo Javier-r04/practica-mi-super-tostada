@@ -79,8 +79,13 @@ export const mensajeDireccionEnum = pgEnum("mensaje_direccion", [
 export const organizacion = pgTable("organizacion", {
   id: uuid("id").primaryKey().defaultRandom(),
   nombre: text("nombre").notNull(),
-  ventanaApertura: time("ventana_apertura").notNull().default("15:00"),
-  ventanaCierre: time("ventana_cierre").notNull().default("00:00"),
+  /**
+   * Tope para no reabrir al adelantar el horario. Null = el reloj manda.
+   */
+  ventanaNoAbrirHasta: timestamp("ventana_no_abrir_hasta", {
+    withTimezone: true,
+    mode: "date",
+  }),
   activo: boolean("activo").notNull().default(true),
   ...timestamps,
 });
@@ -221,6 +226,8 @@ export const pedido = pgTable(
       .references(() => organizacion.id),
     correlativo: integer("correlativo").notNull(),
     fechaOperacion: date("fecha_operacion", { mode: "string" }).notNull(),
+    /** Día de reparto. Congelado al capturar: no se recalcula si cambia la ventana. */
+    fechaEntrega: date("fecha_entrega", { mode: "string" }).notNull(),
     clienteId: uuid("cliente_id")
       .notNull()
       .references(() => cliente.id),
@@ -236,6 +243,7 @@ export const pedido = pgTable(
   (t) => [
     unique("pedido_org_correlativo_unique").on(t.organizacionId, t.correlativo),
     index("pedido_fecha_operacion_idx").on(t.fechaOperacion),
+    index("pedido_fecha_entrega_idx").on(t.fechaEntrega),
     uniqueIndex("pedido_entrega_idempotency_key_unique")
       .on(t.entregaIdempotencyKey)
       .where(sql`${t.entregaIdempotencyKey} is not null`),
@@ -457,7 +465,30 @@ export const auditLog = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("audit_log_entidad_idx").on(t.entidad, t.entidadId)],
+  (t) => [index("audit_log_entidad_idx").on(t.entidad, t.entidadId), index("audit_log_created_at_idx").on(t.createdAt)],
+);
+
+/**
+ * Única fuente de horario del negocio. No hay fallback: si una organización no
+ * tiene sus 7 filas, la semana está apagada. Siémbrala con
+ * `sembrarVentanaSemanal`.
+ */
+export const ventanaSemanal = pgTable(
+  "ventana_semanal",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizacionId: uuid("organizacion_id")
+      .notNull()
+      .references(() => organizacion.id),
+    weekday: integer("weekday").notNull(),
+    activa: boolean("activa").notNull().default(true),
+    apertura: time("apertura").notNull().default("15:00"),
+    cierre: time("cierre").notNull().default("03:00"),
+    cruzaMedianoche: boolean("cruza_medianoche").notNull().default(true),
+  },
+  (t) => [
+    unique("ventana_semanal_org_weekday_unique").on(t.organizacionId, t.weekday),
+  ],
 );
 
 /** Hechos de negocio. Distinto de audit_log. */

@@ -8,11 +8,12 @@ import { resolve } from "node:path";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, notInArray } from "drizzle-orm";
 import postgres from "postgres";
 import * as argon2 from "argon2";
 import { PERMISO_DESCRIPCION, PERMISOS } from "@misupertostada/shared";
 import * as schema from "./schema";
+import { sembrarVentanaSemanal } from "./ventana-semanal";
 
 config({ path: resolve(import.meta.dir, "../../../.env") });
 config({ path: resolve(process.cwd(), ".env") });
@@ -23,7 +24,7 @@ const ORG_ID = "00000000-0000-4000-a000-000000000001";
 const PRODUCTOS = [
   {
     sku: "TORT-16",
-    nombreCanonico: "Tortilla No. 16 (grande)",
+    nombreCanonico: "Tortillas #16",
     familia: "TORTILLA" as const,
     unidadMedida: "LIBRA" as const,
     puntoCarga: "DEMOCRACIA" as const,
@@ -32,7 +33,7 @@ const PRODUCTOS = [
   },
   {
     sku: "TORT-14",
-    nombreCanonico: "Tortilla No. 14 (mediana)",
+    nombreCanonico: "Tortillas #14",
     familia: "TORTILLA" as const,
     unidadMedida: "LIBRA" as const,
     puntoCarga: "DEMOCRACIA" as const,
@@ -41,7 +42,7 @@ const PRODUCTOS = [
   },
   {
     sku: "TORT-12",
-    nombreCanonico: "Tortilla No. 12 (pequeña)",
+    nombreCanonico: "Tortillas #12",
     familia: "TORTILLA" as const,
     unidadMedida: "LIBRA" as const,
     puntoCarga: "DEMOCRACIA" as const,
@@ -49,26 +50,26 @@ const PRODUCTOS = [
     orden: 3,
   },
   {
-    sku: "TOST-G",
-    nombreCanonico: "Tostada grande",
-    familia: "TOSTADA" as const,
+    sku: "TORT-10",
+    nombreCanonico: "Tortillas #10",
+    familia: "TORTILLA" as const,
     unidadMedida: "LIBRA" as const,
-    puntoCarga: "PLANTA" as const,
+    puntoCarga: "DEMOCRACIA" as const,
     esProducido: true,
     orden: 4,
   },
   {
-    sku: "TOST-P",
-    nombreCanonico: "Tostada pequeña",
-    familia: "TOSTADA" as const,
+    sku: "TORT-GARN",
+    nombreCanonico: "Tortillas para Garnachas",
+    familia: "TORTILLA" as const,
     unidadMedida: "LIBRA" as const,
-    puntoCarga: "PLANTA" as const,
+    puntoCarga: "DEMOCRACIA" as const,
     esProducido: true,
     orden: 5,
   },
   {
-    sku: "NACH-B",
-    nombreCanonico: "Nachos blancos",
+    sku: "NACH-B-P",
+    nombreCanonico: "Nachos Blancos Pequeños",
     familia: "FRITURA" as const,
     unidadMedida: "BOLSA" as const,
     puntoCarga: "PLANTA" as const,
@@ -76,8 +77,8 @@ const PRODUCTOS = [
     orden: 6,
   },
   {
-    sku: "NACH-A",
-    nombreCanonico: "Nachos amarillos",
+    sku: "NACH-B-G",
+    nombreCanonico: "Nachos Blancos Grandes",
     familia: "FRITURA" as const,
     unidadMedida: "BOLSA" as const,
     puntoCarga: "PLANTA" as const,
@@ -85,8 +86,8 @@ const PRODUCTOS = [
     orden: 7,
   },
   {
-    sku: "PAL-B",
-    nombreCanonico: "Palitos blancos",
+    sku: "NACH-A-G",
+    nombreCanonico: "Nachos Amarillos Grandes",
     familia: "FRITURA" as const,
     unidadMedida: "BOLSA" as const,
     puntoCarga: "PLANTA" as const,
@@ -94,8 +95,8 @@ const PRODUCTOS = [
     orden: 8,
   },
   {
-    sku: "PAL-A",
-    nombreCanonico: "Palitos amarillos",
+    sku: "PAL-B",
+    nombreCanonico: "Palitos Blancos",
     familia: "FRITURA" as const,
     unidadMedida: "BOLSA" as const,
     puntoCarga: "PLANTA" as const,
@@ -103,8 +104,8 @@ const PRODUCTOS = [
     orden: 9,
   },
   {
-    sku: "PAPA-S",
-    nombreCanonico: "Papalinas saladas",
+    sku: "PAL-A",
+    nombreCanonico: "Palitos Amarillos",
     familia: "FRITURA" as const,
     unidadMedida: "BOLSA" as const,
     puntoCarga: "PLANTA" as const,
@@ -112,8 +113,8 @@ const PRODUCTOS = [
     orden: 10,
   },
   {
-    sku: "PAPA-BBQ",
-    nombreCanonico: "Papalinas barbacoa",
+    sku: "FAJ-B",
+    nombreCanonico: "Fajitas Blancas",
     familia: "FRITURA" as const,
     unidadMedida: "BOLSA" as const,
     puntoCarga: "PLANTA" as const,
@@ -121,96 +122,277 @@ const PRODUCTOS = [
     orden: 11,
   },
   {
-    sku: "FAJITA",
-    nombreCanonico: "Fajitas",
+    sku: "PAPA-S-P",
+    nombreCanonico: "Papalinas Saladas Pequeñas",
     familia: "FRITURA" as const,
     unidadMedida: "BOLSA" as const,
     puntoCarga: "PLANTA" as const,
     esProducido: true,
     orden: 12,
   },
+  {
+    sku: "PAPA-BBQ-P",
+    nombreCanonico: "Papalinas Barbacoa Pequeñas",
+    familia: "FRITURA" as const,
+    unidadMedida: "BOLSA" as const,
+    puntoCarga: "PLANTA" as const,
+    esProducido: true,
+    orden: 13,
+  },
+  {
+    sku: "PAPA-S-G",
+    nombreCanonico: "Papalinas Saladas Grandes",
+    familia: "FRITURA" as const,
+    unidadMedida: "BOLSA" as const,
+    puntoCarga: "PLANTA" as const,
+    esProducido: true,
+    orden: 14,
+  },
+  {
+    sku: "PAPA-BBQ-G",
+    nombreCanonico: "Papalinas Barbacoa Grandes",
+    familia: "FRITURA" as const,
+    unidadMedida: "BOLSA" as const,
+    puntoCarga: "PLANTA" as const,
+    esProducido: true,
+    orden: 15,
+  },
+  {
+    sku: "TOST-16-B",
+    nombreCanonico: "Tostadas #16 Blancas",
+    familia: "TOSTADA" as const,
+    unidadMedida: "BOLSA" as const,
+    puntoCarga: "PLANTA" as const,
+    esProducido: true,
+    orden: 16,
+  },
+  {
+    sku: "TOST-13-B",
+    nombreCanonico: "Tostadas #13 Blancas",
+    familia: "TOSTADA" as const,
+    unidadMedida: "BOLSA" as const,
+    puntoCarga: "PLANTA" as const,
+    esProducido: true,
+    orden: 17,
+  },
+  {
+    sku: "TOST-12-B",
+    nombreCanonico: "Tostadas #12 Blancas",
+    familia: "TOSTADA" as const,
+    unidadMedida: "BOLSA" as const,
+    puntoCarga: "PLANTA" as const,
+    esProducido: true,
+    orden: 18,
+  },
+  {
+    sku: "TOST-BOQ",
+    nombreCanonico: "Tostadas para Boquitas (PIZZEROLAS)",
+    familia: "TOSTADA" as const,
+    unidadMedida: "BOLSA" as const,
+    puntoCarga: "PLANTA" as const,
+    esProducido: true,
+    orden: 19,
+  },
+  {
+    sku: "CANAST-A",
+    nombreCanonico: "Canastitas Amarillas",
+    familia: "TOSTADA" as const,
+    unidadMedida: "BOLSA" as const,
+    puntoCarga: "PLANTA" as const,
+    esProducido: true,
+    orden: 20,
+  },
 ] as const;
 
 const CLIENTES = [
   {
-    nombre: "Tabasco Casa Vieja",
-    notasPermanentes: "Paga en efectivo. ~10 presentaciones.",
+    nombre: "AL ESTILO BAJA (METROPLAZA)",
+    notasPermanentes: "Centro comercial Metroplaza.",
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: "09:00",
+    telefonoWa: null,
+  },
+  {
+    nombre: "AL ESTILO BAJA (FLORESTA)",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "MISTER TACO (LA ESPERANZA)",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "FORTUNATEC",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "TABASCO INTERPLAZA",
+    notasPermanentes: "Pago semanal.",
+    limiteFacturasPendientes: 5,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "TABASCO CASA VIEJA (LA ESPERANZA)",
+    notasPermanentes: "Paga en efectivo. Tortilla gruesa.",
     limiteFacturasPendientes: null,
     horarioEntregaFijo: null,
     telefonoWa: "+50255550101",
   },
   {
-    nombre: "Tabasco Interplaza",
-    notasPermanentes: "Pago semanal.",
-    limiteFacturasPendientes: 5,
-    horarioEntregaFijo: null,
-  },
-  {
-    nombre: "Tabasco de la Esperanza",
-    notasPermanentes: null,
-    limiteFacturasPendientes: null,
-    horarioEntregaFijo: null,
-  },
-  {
-    nombre: "Casa Vieja del estadio",
+    nombre: "TABASCO CASA VIEJA (ATRÁS DEL ESTADIO)",
     notasPermanentes: "Paga diario.",
     limiteFacturasPendientes: 3,
     horarioEntregaFijo: null,
+    telefonoWa: null,
   },
   {
-    nombre: "Don Napo",
-    notasPermanentes: "Pide ~1 vez por semana.",
-    limiteFacturasPendientes: 2,
-    horarioEntregaFijo: null,
-  },
-  {
-    nombre: "Kraken",
-    notasPermanentes: "Único cliente que pide fajitas.",
-    limiteFacturasPendientes: null,
-    horarioEntregaFijo: null,
-  },
-  {
-    nombre: "14 Avenida",
+    nombre: "TABASCO 14 AVENIDA",
     notasPermanentes: null,
     limiteFacturasPendientes: null,
     horarioEntregaFijo: null,
+    telefonoWa: null,
   },
   {
-    nombre: "Victorias",
-    notasPermanentes: "Pago semanal. Caso real de 15 días de atraso.",
+    nombre: "TABASCO (INTERAMERICANA PLAZA)",
+    notasPermanentes: null,
     limiteFacturasPendientes: null,
     horarioEntregaFijo: null,
+    telefonoWa: null,
   },
   {
-    nombre: "Buen Camarón",
-    notasPermanentes: "Paga con TRANSFERENCIA.",
+    nombre: "TABASCO (PAULINOS)",
+    notasPermanentes: null,
     limiteFacturasPendientes: null,
     horarioEntregaFijo: null,
+    telefonoWa: null,
   },
   {
-    nombre: "Pura Frescura",
-    notasPermanentes: "Caso real de 2 pedidos acumulados.",
+    nombre: "VICTORIAS",
+    notasPermanentes: "Pago semanal.",
     limiteFacturasPendientes: null,
     horarioEntregaFijo: null,
+    telefonoWa: null,
   },
   {
-    nombre: "Metroplaza",
-    notasPermanentes: "Centro comercial abre a las 09:00.",
+    nombre: "HOTEL S&J BELLA LUNA",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "COLINA COUNTRY CLUB MANSION DEL VIAJERO",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "LOMA REAL",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "ALPUJARRA",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "ESCUELA LA CIENAGA (ENFRENTE DEL RASTRO)",
+    notasPermanentes: "Paga con cheque.",
     limiteFacturasPendientes: null,
     horarioEntregaFijo: "09:00",
+    telefonoWa: null,
   },
   {
-    nombre: "Escuelita La Ciénaga",
-    notasPermanentes:
-      "Paga con cheque. El enum de método no incluye CHEQUE hasta F-503.",
-    limiteFacturasPendientes: null,
-    horarioEntregaFijo: "09:00",
-  },
-  {
-    nombre: "Tienda 6",
-    notasPermanentes: "Pedidos extraordinarios por llamada.",
+    nombre: "VIENESA (IGSS)",
+    notasPermanentes: null,
     limiteFacturasPendientes: null,
     horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "VIENESA (JUZGADOS)",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "PURA FRESCURA",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "TAQUERO LEO (MINERVA)",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "TAQUERO JOSÉ MORALES (JARDINES)",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "DONA ISABEL (JARDINES)",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "KRAKEN (FLORESTA)",
+    notasPermanentes: "Pide fajitas.",
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "KRAKEN (PASEO LA LUNA)",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "DON NAPO (PASEO LA LUNA)",
+    notasPermanentes: "Pide ~1 vez por semana.",
+    limiteFacturasPendientes: 2,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "DON NAPO (ZONA 3)",
+    notasPermanentes: null,
+    limiteFacturasPendientes: 2,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
+  },
+  {
+    nombre: "FLAUTERÍA",
+    notasPermanentes: null,
+    limiteFacturasPendientes: null,
+    horarioEntregaFijo: null,
+    telefonoWa: null,
   },
 ] as const;
 
@@ -243,13 +425,12 @@ export async function seed(databaseUrl: string) {
   try {
     await db
       .insert(schema.organizacion)
-      .values({
-        id: ORG_ID,
-        nombre: "Mi Súper Tostada",
-        ventanaApertura: "15:00",
-        ventanaCierre: "00:00",
-      })
+      .values({ id: ORG_ID, nombre: "Mi Súper Tostada" })
       .onConflictDoNothing({ target: schema.organizacion.id });
+
+    // Sin estas 7 filas el calendario trata la semana como apagada: no hay
+    // fallback de horario en ninguna parte.
+    await sembrarVentanaSemanal(db, ORG_ID);
 
     await db
       .insert(schema.permiso)
@@ -305,7 +486,29 @@ export async function seed(databaseUrl: string) {
           ...p,
         })),
       )
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: [schema.producto.organizacionId, schema.producto.sku],
+        set: {
+          nombreCanonico: sql`excluded.nombre_canonico`,
+          familia: sql`excluded.familia`,
+          unidadMedida: sql`excluded.unidad_medida`,
+          puntoCarga: sql`excluded.punto_carga`,
+          esProducido: sql`excluded.es_producido`,
+          orden: sql`excluded.orden`,
+          activo: true,
+        },
+      });
+
+    const officialSkus = PRODUCTOS.map((p) => p.sku);
+    await db
+      .update(schema.producto)
+      .set({ activo: false })
+      .where(
+        and(
+          eq(schema.producto.organizacionId, ORG_ID),
+          notInArray(schema.producto.sku, officialSkus),
+        ),
+      );
 
     await db
       .insert(schema.cliente)
@@ -315,7 +518,26 @@ export async function seed(databaseUrl: string) {
           ...c,
         })),
       )
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: [schema.cliente.organizacionId, schema.cliente.nombre],
+        set: {
+          notasPermanentes: sql`excluded.notas_permanentes`,
+          limiteFacturasPendientes: sql`excluded.limite_facturas_pendientes`,
+          horarioEntregaFijo: sql`excluded.horario_entrega_fijo`,
+          activo: true,
+        },
+      });
+
+    const officialNombres = CLIENTES.map((c) => c.nombre);
+    await db
+      .update(schema.cliente)
+      .set({ activo: false })
+      .where(
+        and(
+          eq(schema.cliente.organizacionId, ORG_ID),
+          notInArray(schema.cliente.nombre, officialNombres),
+        ),
+      );
 
     await db
       .insert(schema.diaNoLaborable)
@@ -345,7 +567,7 @@ export async function seed(databaseUrl: string) {
       .where(
         and(
           eq(schema.cliente.organizacionId, ORG_ID),
-          eq(schema.cliente.nombre, "Tabasco Casa Vieja"),
+          eq(schema.cliente.nombre, "TABASCO CASA VIEJA (LA ESPERANZA)"),
         ),
       );
 
@@ -384,6 +606,16 @@ export async function seed(databaseUrl: string) {
           precioCentavos: 1000,
           favorito: true,
         },
+        "TORT-10": {
+          alias: "tortilla mini",
+          precioCentavos: 900,
+          favorito: true,
+        },
+        "TORT-GARN": {
+          alias: "tortilla garnacha",
+          precioCentavos: 1200,
+          favorito: false,
+        },
       };
       for (const t of tortillas) {
         const demo = demoTortilla[t.sku];
@@ -404,23 +636,23 @@ export async function seed(databaseUrl: string) {
           );
       }
 
-      const [nachosBlancos] = await db
+      const [nachosBlancosP] = await db
         .select()
         .from(schema.producto)
         .where(
           and(
             eq(schema.producto.organizacionId, ORG_ID),
-            eq(schema.producto.sku, "NACH-B"),
+            eq(schema.producto.sku, "NACH-B-P"),
           ),
         );
-      if (nachosBlancos) {
+      if (nachosBlancosP) {
         await db
           .insert(schema.clienteProducto)
           .values({
             clienteId: tabascoCasaVieja.id,
-            productoId: nachosBlancos.id,
-            alias: "nachos blancos",
-            precioCentavos: 1500,
+            productoId: nachosBlancosP.id,
+            alias: "nachos blancos pequeños",
+            precioCentavos: 1000,
             favorito: false,
             orden: 10,
           })
@@ -428,45 +660,71 @@ export async function seed(databaseUrl: string) {
         await db
           .update(schema.clienteProducto)
           .set({
-            alias: "nachos blancos",
-            precioCentavos: 1500,
+            alias: "nachos blancos pequeños",
+            precioCentavos: 1000,
           })
           .where(
             and(
               eq(schema.clienteProducto.clienteId, tabascoCasaVieja.id),
-              eq(schema.clienteProducto.productoId, nachosBlancos.id),
+              eq(schema.clienteProducto.productoId, nachosBlancosP.id),
             ),
           );
       }
+    }
 
-      const tokenPortal = "dev-tabasco-casa-vieja-portal-token";
+    if (process.env.NODE_ENV !== "production") {
       await db
         .update(schema.cliente)
         .set({
-          tokenPortalHash: createHash("sha256")
-            .update(tokenPortal)
-            .digest("hex"),
-          tokenPortalCifrado: encryptSeed(tokenPortal),
-          telefonoWa: "+50255550101",
+          tokenPortalHash: null,
+          tokenPortalCifrado: null,
         })
-        .where(eq(schema.cliente.id, tabascoCasaVieja.id));
+        .where(eq(schema.cliente.organizacionId, ORG_ID));
+
+      const todosClientes = await db
+        .select()
+        .from(schema.cliente)
+        .where(eq(schema.cliente.organizacionId, ORG_ID));
+
+      for (const cl of todosClientes) {
+        const slug = cl.nombre
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+        const tokenPortal =
+          cl.nombre === "TABASCO CASA VIEJA (LA ESPERANZA)"
+            ? "dev-tabasco-casa-vieja-portal-token"
+            : `dev-${cl.id.slice(0, 8)}-${slug}-token`;
+
+        const tokenHash = createHash("sha256").update(tokenPortal).digest("hex");
+        const tokenCifrado = encryptSeed(tokenPortal);
+
+        await db
+          .update(schema.cliente)
+          .set({
+            tokenPortalHash: tokenHash,
+            tokenPortalCifrado: tokenCifrado,
+          })
+          .where(eq(schema.cliente.id, cl.id));
+      }
+
       console.log(
-        `[seed] Portal Tabasco Casa Vieja: http://localhost:3000/p/${tokenPortal}`,
+        `[seed] Portal Tabasco Casa Vieja: http://localhost:3000/p/dev-tabasco-casa-vieja-portal-token`,
       );
       console.log(
-        "[seed] Precios de demo (no reales) en tortillas No. 16/14/12 y nachos blancos.",
+        "[seed] Precios de demo en tortillas No. 16/14/12/10/garnachas y nachos.",
       );
     }
 
     await seedPlantillasFake(db, ORG_ID);
 
-    const [kraken] = await db
+    const krakens = await db
       .select()
       .from(schema.cliente)
       .where(
         and(
           eq(schema.cliente.organizacionId, ORG_ID),
-          eq(schema.cliente.nombre, "Kraken"),
+          sql`${schema.cliente.nombre} LIKE 'KRAKEN%'`,
         ),
       );
 
@@ -476,20 +734,22 @@ export async function seed(databaseUrl: string) {
       .where(
         and(
           eq(schema.producto.organizacionId, ORG_ID),
-          eq(schema.producto.sku, "FAJITA"),
+          eq(schema.producto.sku, "FAJ-B"),
         ),
       );
 
-    if (kraken && fajitas) {
-      await db
-        .insert(schema.clienteProducto)
-        .values({
-          clienteId: kraken.id,
-          productoId: fajitas.id,
-          precioCentavos: null,
-          orden: 1,
-        })
-        .onConflictDoNothing();
+    if (fajitas) {
+      for (const kraken of krakens) {
+        await db
+          .insert(schema.clienteProducto)
+          .values({
+            clienteId: kraken.id,
+            productoId: fajitas.id,
+            precioCentavos: 1600,
+            orden: 1,
+          })
+          .onConflictDoNothing();
+      }
     }
   } finally {
     await client.end();

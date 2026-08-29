@@ -57,6 +57,34 @@
       "when": 1787260000000,
       "tag": "0008_cliente_foto",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787270000000,
+      "tag": "0009_configuracion",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787280000000,
+      "tag": "0010_ventana_no_abrir_hasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787290000000,
+      "tag": "0011_fecha_entrega",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787300000000,
+      "tag": "0012_ventana_fuente_unica",
+      "breakpoints": true
     }
   ]
 }
