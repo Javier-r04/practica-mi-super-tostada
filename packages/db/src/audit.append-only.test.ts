@@ -7,6 +7,7 @@ import postgres from "postgres";
 import { config } from "dotenv";
 import { resolve } from "node:path";
 import { auditLog } from "./schema";
+import { testDatabaseUrl } from "./test-url";
 
 config({ path: resolve(process.cwd(), ".env") });
 config({ path: resolve(process.cwd(), "../../.env") });
@@ -25,9 +26,9 @@ describe("migración 0002 audit_log append-only", () => {
   });
 });
 
-const databaseUrl =
-  process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5432/misupertostada";
+// Nunca la base de desarrollo: este test escribe filas en `audit_log`, que es
+// append-only y no se puede limpiar después. Ver `test-url.ts`.
+const databaseUrl = testDatabaseUrl();
 
 async function postgresListo(): Promise<boolean> {
   const client = postgres(databaseUrl, { max: 1, connect_timeout: 2 });

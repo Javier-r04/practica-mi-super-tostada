@@ -1,0 +1,4 @@
+[test]
+# Hooks globales de la suite: borra las organizaciones que dejan los e2e.
+# Ver apps/api/src/test/preload.ts.
+preload = ["./apps/api/src/test/preload.ts"]
