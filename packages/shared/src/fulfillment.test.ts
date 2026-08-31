@@ -25,7 +25,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
     productos: [
       {
         productoId: T16,
-        nombreCanonico: "Tortilla No. 16 (grande)",
+        nombreCanonico: "Tortillas #16",
         unidadMedida: "LIBRA",
         cantidad: 190,
         puntoCargaEfectivo: "PLANTA",
@@ -33,7 +33,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
       },
       {
         productoId: NACHOS,
-        nombreCanonico: "Nachos blancos",
+        nombreCanonico: "Nachos Blancos Grandes",
         unidadMedida: "BOLSA",
         cantidad: 8,
         puntoCargaEfectivo: "PLANTA",
@@ -50,7 +50,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
         items: [
           {
             productoId: T16,
-            nombreCanonico: "Tortilla No. 16 (grande)",
+            nombreCanonico: "Tortillas #16",
             unidadMedida: "LIBRA",
             cantidad: 150,
             puntoCargaEfectivo: "PLANTA",
@@ -58,7 +58,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
           },
           {
             productoId: T14,
-            nombreCanonico: "Tortilla No. 14 (mediana)",
+            nombreCanonico: "Tortillas #14",
             unidadMedida: "LIBRA",
             cantidad: 50,
             puntoCargaEfectivo: "PLANTA",
@@ -66,7 +66,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
           },
           {
             productoId: T12,
-            nombreCanonico: "Tortilla No. 12 (pequeña)",
+            nombreCanonico: "Tortillas #12",
             unidadMedida: "LIBRA",
             cantidad: 20,
             puntoCargaEfectivo: "PLANTA",
@@ -74,7 +74,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
           },
           {
             productoId: NACHOS,
-            nombreCanonico: "Nachos blancos",
+            nombreCanonico: "Nachos Blancos Grandes",
             unidadMedida: "BOLSA",
             cantidad: 8,
             puntoCargaEfectivo: "PLANTA",
@@ -82,7 +82,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
           },
           {
             productoId: PALITOS,
-            nombreCanonico: "Palitos amarillos",
+            nombreCanonico: "Palitos Amarillos",
             unidadMedida: "BOLSA",
             cantidad: 6,
             puntoCargaEfectivo: "PLANTA",
@@ -90,7 +90,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
           },
           {
             productoId: PAPALINAS,
-            nombreCanonico: "Papalinas barbacoa",
+            nombreCanonico: "Papalinas Barbacoa Grandes",
             unidadMedida: "BOLSA",
             cantidad: 4,
             puntoCargaEfectivo: "PLANTA",
@@ -107,7 +107,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
         items: [
           {
             productoId: T16,
-            nombreCanonico: "Tortilla No. 16 (grande)",
+            nombreCanonico: "Tortillas #16",
             unidadMedida: "LIBRA",
             cantidad: 40,
             puntoCargaEfectivo: "PLANTA",
@@ -124,7 +124,7 @@ function snapshotSabado(overrides?: Partial<HojaSnapshot>): HojaSnapshot {
         items: [
           {
             productoId: T16,
-            nombreCanonico: "Tortilla No. 16 (grande)",
+            nombreCanonico: "Tortillas #16",
             unidadMedida: "LIBRA",
             cantidad: 10,
             puntoCargaEfectivo: "PLANTA",
@@ -142,12 +142,12 @@ describe("textoHoja · golden CONTEXT.md §4", () => {
     const texto = textoHoja(snapshotSabado());
     expect(texto.startsWith("PEDIDO PARA SÁBADO")).toBe(true);
     expect(texto).toContain("TABASCO CASA VIEJA");
-    expect(texto).toContain("150 lb Tortilla No. 16 (grande)  (GRUESAS)");
-    expect(texto).toContain(" 50 lb Tortilla No. 14 (mediana)");
-    expect(texto).toContain(" 20 lb Tortilla No. 12 (pequeña)");
-    expect(texto).toContain("  8 bolsas Nachos blancos");
-    expect(texto).toContain("  6 bolsas Palitos amarillos");
-    expect(texto).toContain("  4 bolsas Papalinas barbacoa");
+    expect(texto).toContain("150 lb Tortillas #16  (GRUESAS)");
+    expect(texto).toContain(" 50 lb Tortillas #14");
+    expect(texto).toContain(" 20 lb Tortillas #12");
+    expect(texto).toContain("  8 bolsas Nachos Blancos Grandes");
+    expect(texto).toContain("  6 bolsas Palitos Amarillos");
+    expect(texto).toContain("  4 bolsas Papalinas Barbacoa Grandes");
     expect(texto).not.toContain("cargar en planta");
     expect(texto).toContain("METROPLAZA — ENTREGAR 9:00 AM");
     expect(texto).toContain(
@@ -193,8 +193,8 @@ describe("grupos y diff", () => {
             .concat([
               {
                 productoId: "99999999-9999-9999-9999-999999999999",
-                nombreCanonico: "Tostada grande",
-                unidadMedida: "LIBRA",
+                nombreCanonico: "Tostadas #16 Blancas",
+                unidadMedida: "BOLSA",
                 cantidad: 12,
                 puntoCargaEfectivo: "PLANTA",
                 notaProduccion: null,
@@ -206,8 +206,8 @@ describe("grupos y diff", () => {
         { ...v1.productos[0]!, cantidad: 210 },
         {
           productoId: "99999999-9999-9999-9999-999999999999",
-          nombreCanonico: "Tostada grande",
-          unidadMedida: "LIBRA",
+          nombreCanonico: "Tostadas #16 Blancas",
+          unidadMedida: "BOLSA",
           cantidad: 12,
           puntoCargaEfectivo: "PLANTA",
           notaProduccion: null,
@@ -218,7 +218,7 @@ describe("grupos y diff", () => {
     const t16 = v2.clientes[0]?.items.find((i) => i.productoId === T16);
     const papalinas = v2.clientes[0]?.items.find((i) => i.productoId === PAPALINAS);
     const tostada = v2.clientes[0]?.items.find(
-      (i) => i.nombreCanonico === "Tostada grande",
+      (i) => i.nombreCanonico === "Tostadas #16 Blancas",
     );
     expect(t16?.cambio).toBe("ajustado");
     expect(t16?.cantidadAnterior).toBe(150);
@@ -227,7 +227,7 @@ describe("grupos y diff", () => {
 
     const diffTexto = textoHoja(v2, { soloCambios: true });
     expect(diffTexto).toContain("CAMBIOS · PEDIDO PARA");
-    expect(diffTexto).toContain("Tostada grande");
-    expect(diffTexto).not.toContain("Palitos amarillos");
+    expect(diffTexto).toContain("Tostadas #16 Blancas");
+    expect(diffTexto).not.toContain("Palitos Amarillos");
   });
 });

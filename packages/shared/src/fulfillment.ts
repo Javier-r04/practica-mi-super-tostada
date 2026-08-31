@@ -214,7 +214,8 @@ function itemsVisibles(
 
 /**
  * Plantilla determinista del consolidado. Reconocible respecto a CONTEXT.md §4:
- * nombres canónicos, GRUESAS de nota_produccion, ENTREGAR del horario fijo.
+ * nombres del catálogo (`producto.nombre_canonico`), GRUESAS de nota_produccion,
+ * ENTREGAR del horario fijo. Nunca el alias comercial del pedido (`nombre_mostrado`).
  * "cargar en planta" no se escribe: se agrupa por punto de carga en la hoja.
  */
 export function textoHoja(

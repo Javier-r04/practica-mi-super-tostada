@@ -205,19 +205,27 @@ describe("registrarPagoRequestSchema", () => {
     metodo: "EFECTIVO" as const,
   };
 
-  test("exige exactamente uno de factura o cliente", () => {
+  test("exige clienteId y transferencia con comprobante", () => {
     expect(registrarPagoRequestSchema.safeParse(base).success).toBe(false);
     expect(
       registrarPagoRequestSchema.safeParse({
         ...base,
-        facturaId: "22222222-2222-2222-2222-222222222222",
         clienteId: "33333333-3333-3333-3333-333333333333",
+      }).success,
+    ).toBe(true);
+    expect(
+      registrarPagoRequestSchema.safeParse({
+        ...base,
+        clienteId: "33333333-3333-3333-3333-333333333333",
+        metodo: "TRANSFERENCIA",
       }).success,
     ).toBe(false);
     expect(
       registrarPagoRequestSchema.safeParse({
         ...base,
-        facturaId: "22222222-2222-2222-2222-222222222222",
+        clienteId: "33333333-3333-3333-3333-333333333333",
+        metodo: "TRANSFERENCIA",
+        comprobanteAssetId: "44444444-4444-4444-4444-444444444444",
       }).success,
     ).toBe(true);
   });
@@ -238,7 +246,7 @@ describe("rutaRepartoSchema", () => {
     items: [
       {
         productoId: "cccccccc-cccc-4ccc-cccc-cccccccccccc",
-        nombreMostrado: "Tortilla 16",
+        nombreMostrado: "Tortillas #16",
         unidadMedida: "LIBRA" as const,
         cantidadPedida: 50,
         cantidadEntregada: 50,

@@ -191,7 +191,7 @@ describe("portalProductoSchema", () => {
   const base = {
     productoId: PRODUCTO_ID,
     alias: "tortilla grande",
-    nombreCanonico: "Tortilla No. 16",
+    nombreCanonico: "Tortillas #16",
     unidadMedida: "LIBRA" as const,
     precioCentavos: 1250,
     favorito: true,
@@ -233,6 +233,8 @@ describe("portalSesionSchema", () => {
       limiteFacturasPendientes: null,
       saldoCentavos: 0,
       facturas: [],
+      abonos: [],
+      transferenciasEnRevisionCentavos: 0,
     },
   };
 

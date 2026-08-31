@@ -3,6 +3,7 @@ import { z } from "zod";
 export const ASSET_OWNER_TYPES = [
   "producto",
   "pago",
+  "abono",
   "entrega",
   "cliente",
 ] as const;

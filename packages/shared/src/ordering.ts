@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
+  ABONO_ESTADOS,
   FAMILIAS,
+  PAGO_METODOS,
   PEDIDO_ESTADOS,
   PEDIDO_ORIGENES,
   PUNTOS_CARGA,
@@ -127,11 +129,34 @@ export const portalFacturaPendienteSchema = z.object({
 
 export type PortalFacturaPendiente = z.infer<typeof portalFacturaPendienteSchema>;
 
+export const portalAbonoAplicacionSchema = z.object({
+  facturaId: z.string().uuid(),
+  numeroDte: z.string().nullable(),
+  montoCentavos: centavosSchema,
+});
+export type PortalAbonoAplicacion = z.infer<typeof portalAbonoAplicacionSchema>;
+
+export const portalAbonoSchema = z.object({
+  id: z.string().uuid(),
+  montoCentavos: centavosSchema,
+  metodo: z.enum(PAGO_METODOS),
+  estado: z.enum(ABONO_ESTADOS),
+  descripcion: z.string().nullable(),
+  comprobanteAssetId: z.string().uuid().nullable(),
+  fecha: z.string(),
+  confirmadoAt: z.string().nullable(),
+  motivoRechazo: z.string().nullable(),
+  aplicaciones: z.array(portalAbonoAplicacionSchema),
+});
+export type PortalAbono = z.infer<typeof portalAbonoSchema>;
+
 export const portalCuentaSchema = z.object({
   facturasPendientes: z.number().int().nonnegative(),
   limiteFacturasPendientes: z.number().int().nullable(),
   saldoCentavos: centavosSchema,
   facturas: z.array(portalFacturaPendienteSchema),
+  abonos: z.array(portalAbonoSchema),
+  transferenciasEnRevisionCentavos: centavosSchema,
 });
 
 export type PortalCuenta = z.infer<typeof portalCuentaSchema>;
@@ -405,6 +430,7 @@ export const panelSseEventSchema = z.union([
     pedidoId: z.string().uuid().optional(),
     facturaId: z.string().uuid().optional(),
     clienteId: z.string().uuid().optional(),
+    abonoId: z.string().uuid().optional(),
   }),
   z.object({
     tipo: z.enum(MESSAGING_SSE_TIPOS),

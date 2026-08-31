@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { PAGO_ESTADOS, PAGO_METODOS, PEDIDO_ESTADOS, UNIDADES_MEDIDA, type PagoEstado } from "./estados";
+import {
+  ABONO_ESTADOS,
+  ABONO_ORIGENES,
+  PAGO_ESTADOS,
+  PAGO_METODOS,
+  PEDIDO_ESTADOS,
+  UNIDADES_MEDIDA,
+  type PagoEstado,
+} from "./estados";
 import { centavosSchema } from "./money";
 
 /** Query string: `""` y ausente → `undefined`, compatible con `parseBody`/`ZodType<T>`. */
@@ -34,6 +42,14 @@ export const MENSAJE_COMPROBANTE_REQUERIDO =
   "La transferencia requiere foto del comprobante.";
 export const MENSAJE_PAGO_OBJETIVO =
   "Indique exactamente una factura o un cliente.";
+export const MENSAJE_ABONO_PENDIENTE =
+  "La transferencia queda en revisión hasta que se confirme.";
+export const MENSAJE_MOTIVO_RECHAZO_REQUERIDO =
+  "Indique el motivo del rechazo.";
+export const MENSAJE_ABONO_NO_PENDIENTE =
+  "Solo se puede confirmar o rechazar un abono pendiente.";
+export const MENSAJE_DESCRIPCION_REQUERIDA =
+  "La descripción del abono es obligatoria.";
 export const MENSAJE_SIN_SENAL = "Sin señal · queda en este teléfono";
 export const idempotencyKeySchema = z.string().trim().min(8).max(128);
 
@@ -41,6 +57,9 @@ export const COBRANZA_SSE_TIPOS = [
   "pedido.entregado",
   "factura.actualizada",
   "pago.registrado",
+  "abono.reportado",
+  "abono.confirmado",
+  "abono.rechazado",
 ] as const;
 
 export type CobranzaSseTipo = (typeof COBRANZA_SSE_TIPOS)[number];
@@ -150,25 +169,40 @@ export const registrarPagoRequestSchema = z
   .object({
     id: z.string().uuid(),
     idempotencyKey: idempotencyKeySchema,
-    facturaId: z.string().uuid().optional(),
-    clienteId: z.string().uuid().optional(),
+    clienteId: z.string().uuid(),
     montoCentavos: z.number().int().positive(),
     metodo: z.enum(PAGO_METODOS),
     comprobanteAssetId: z.string().uuid().optional(),
     fecha: fechaCalendarioSchema.optional(),
+    /** Solo REPARTO offline: el comprobante se sube al sincronizar. */
+    origen: z.enum(ABONO_ORIGENES).optional(),
   })
   .superRefine((value, ctx) => {
-    const tieneFactura = Boolean(value.facturaId);
-    const tieneCliente = Boolean(value.clienteId);
-    if (tieneFactura === tieneCliente) {
+    if (value.metodo === "TRANSFERENCIA" && !value.comprobanteAssetId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: MENSAJE_PAGO_OBJETIVO,
-        path: ["facturaId"],
+        message: MENSAJE_COMPROBANTE_REQUERIDO,
+        path: ["comprobanteAssetId"],
       });
     }
   });
 export type RegistrarPagoRequest = z.infer<typeof registrarPagoRequestSchema>;
+
+export const reportarAbonoPortalRequestSchema = z.object({
+  id: z.string().uuid(),
+  idempotencyKey: idempotencyKeySchema,
+  montoCentavos: z.number().int().positive(),
+  descripcion: z.string().trim().min(1).max(280),
+  comprobanteAssetId: z.string().uuid(),
+});
+export type ReportarAbonoPortalRequest = z.infer<
+  typeof reportarAbonoPortalRequestSchema
+>;
+
+export const rechazarAbonoRequestSchema = z.object({
+  motivo: z.string().trim().min(1).max(280),
+});
+export type RechazarAbonoRequest = z.infer<typeof rechazarAbonoRequestSchema>;
 
 /** Entero desde query string (`"40"` → 40). Ausente/`""` → undefined. */
 function opcionalEnteroQuery(
@@ -186,6 +220,14 @@ function opcionalEnteroQuery(
 
 export const CARTERA_PAGE_SIZE_DEFAULT = 40;
 export const CARTERA_PAGE_SIZE_MAX = 200;
+
+export const abonosQuerySchema = z.object({
+  estado: opcionalVacio(z.enum(["PENDIENTE", "CONFIRMADO", "RECHAZADO", "todas"])),
+  clienteId: opcionalVacio(z.string().uuid()),
+  limit: opcionalEnteroQuery(1, CARTERA_PAGE_SIZE_MAX),
+  offset: opcionalEnteroQuery(0, 100_000),
+});
+export type AbonosQuery = z.infer<typeof abonosQuerySchema>;
 
 export const carteraQuerySchema = z.object({
   estado: opcionalVacio(z.enum(["todas", "pendientes", "vencidas"])),
@@ -344,6 +386,7 @@ export const carteraResumenSchema = z.object({
   /** Día de calendario al que corresponde `cobradoHoyCentavos`. */
   fechaCobro: fechaCalendarioSchema.optional(),
   porCobrarFechaOperacionCentavos: centavosSchema,
+  transferenciasPendientesCount: z.number().int().nonnegative(),
   clientesSobreLimite: z.array(clienteSobreLimiteSchema),
 });
 export type CarteraResumen = z.infer<typeof carteraResumenSchema>;
@@ -361,6 +404,52 @@ export const pagoPublicoSchema = z.object({
   numeroDte: z.string().nullable().optional(),
 });
 export type PagoPublico = z.infer<typeof pagoPublicoSchema>;
+
+export const aplicacionAbonoSchema = z.object({
+  facturaId: z.string().uuid(),
+  numeroDte: z.string().nullable(),
+  montoCentavos: centavosSchema,
+});
+export type AplicacionAbono = z.infer<typeof aplicacionAbonoSchema>;
+
+export const abonoPublicoSchema = z.object({
+  id: z.string().uuid(),
+  clienteId: z.string().uuid(),
+  clienteNombre: z.string().optional(),
+  montoCentavos: centavosSchema,
+  metodo: z.enum(PAGO_METODOS),
+  estado: z.enum(ABONO_ESTADOS),
+  descripcion: z.string().nullable(),
+  comprobanteAssetId: z.string().uuid().nullable(),
+  origen: z.enum(ABONO_ORIGENES),
+  fecha: fechaCalendarioSchema,
+  registradoPor: z.string().uuid().nullable(),
+  registradoPorNombre: z.string().nullable().optional(),
+  confirmadoPor: z.string().uuid().nullable(),
+  confirmadoPorNombre: z.string().nullable().optional(),
+  confirmadoAt: z.string().nullable(),
+  motivoRechazo: z.string().nullable(),
+  aplicaciones: z.array(aplicacionAbonoSchema),
+});
+export type AbonoPublico = z.infer<typeof abonoPublicoSchema>;
+
+export const abonoListaSchema = z.object({
+  items: z.array(abonoPublicoSchema),
+  total: z.number().int().nonnegative(),
+  pendientesCount: z.number().int().nonnegative(),
+  offset: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  hasMore: z.boolean(),
+});
+export type AbonoLista = z.infer<typeof abonoListaSchema>;
+
+export const abonoRegistroResultadoSchema = z.object({
+  idempotente: z.boolean(),
+  abono: abonoPublicoSchema,
+  pagos: z.array(pagoPublicoSchema).optional(),
+  facturas: z.array(facturaPublicaSchema).optional(),
+});
+export type AbonoRegistroResultado = z.infer<typeof abonoRegistroResultadoSchema>;
 
 export const pagoRegistroResultadoSchema = z.object({
   idempotente: z.boolean(),

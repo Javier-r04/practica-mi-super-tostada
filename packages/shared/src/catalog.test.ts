@@ -12,7 +12,7 @@ describe("crearProductoRequestSchema", () => {
   test("normaliza SKU a mayúsculas", () => {
     const parsed = crearProductoRequestSchema.parse({
       sku: "tort-16",
-      nombreCanonico: "Tortilla No. 16 (grande)",
+      nombreCanonico: "Tortillas #16",
       familia: "TORTILLA",
       unidadMedida: "LIBRA",
       puntoCarga: "DEMOCRACIA",

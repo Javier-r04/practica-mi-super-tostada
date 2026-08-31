@@ -46,6 +46,12 @@ export type Familia = (typeof FAMILIAS)[number];
 export const PAGO_METODOS = ["EFECTIVO", "TRANSFERENCIA"] as const;
 export type PagoMetodo = (typeof PAGO_METODOS)[number];
 
+export const ABONO_ESTADOS = ["PENDIENTE", "CONFIRMADO", "RECHAZADO"] as const;
+export type AbonoEstado = (typeof ABONO_ESTADOS)[number];
+
+export const ABONO_ORIGENES = ["PORTAL", "REPARTO", "MANUAL"] as const;
+export type AbonoOrigen = (typeof ABONO_ORIGENES)[number];
+
 /**
  * En Guatemala "cancelado" significa pagado, no anulado (CONTEXT.md §2).
  * En UI usar siempre estas etiquetas; nunca "cancelado" a secas.
@@ -53,10 +59,14 @@ export type PagoMetodo = (typeof PAGO_METODOS)[number];
 export const COPY_PAGO_COMPLETO = "Pagado";
 export const COPY_PEDIDO_ANULADO = "Anulado";
 
-/** Unión solo para la cápsula de UI. No usarla en transiciones de pedido. */
+/**
+ * Unión solo para la cápsula de UI. No usarla en transiciones de pedido.
+ * Abono comparte PENDIENTE/CONFIRMADO con pago y pedido; solo RECHAZADO es exclusivo.
+ */
 export const ESTADOS_BADGE = [
   ...PEDIDO_ESTADOS,
   ...PAGO_ESTADOS,
+  "RECHAZADO",
   ...COLA_ESTADOS,
   ...PUNTOS_CARGA,
 ] as const;
@@ -111,6 +121,11 @@ export const ESTADO_PRESENTACION: Record<
     bg: "var(--estado-vencido-bg)",
     fg: "var(--estado-vencido-fg)",
   },
+  RECHAZADO: {
+    label: "Rechazado",
+    bg: "var(--estado-anulado-bg)",
+    fg: "var(--estado-anulado-fg)",
+  },
   SIN_SINCRONIZAR: {
     label: "Sin sincronizar",
     bg: "var(--estado-sin-sincronizar-bg)",
@@ -125,5 +140,27 @@ export const ESTADO_PRESENTACION: Record<
     label: "Democracia",
     bg: "var(--carga-democracia-bg)",
     fg: "var(--carga-democracia-fg)",
+  },
+};
+
+/** Etiquetas de abono a cuenta; no mezclar con factura PENDIENTE. */
+export const ABONO_ESTADO_PRESENTACION: Record<
+  AbonoEstado,
+  { label: string; bg: string; fg: string }
+> = {
+  PENDIENTE: {
+    label: "En revisión",
+    bg: "var(--estado-pendiente-bg)",
+    fg: "var(--estado-pendiente-fg)",
+  },
+  CONFIRMADO: {
+    label: "Confirmado",
+    bg: "var(--estado-pagado-bg)",
+    fg: "var(--estado-pagado-fg)",
+  },
+  RECHAZADO: {
+    label: "Rechazado",
+    bg: "var(--estado-anulado-bg)",
+    fg: "var(--estado-anulado-fg)",
   },
 };

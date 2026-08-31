@@ -200,7 +200,7 @@ export type AuditLista = z.infer<typeof auditListaSchema>;
 export const GRUPOS_PERMISOS_UI = [
   { grupo: "Pedidos", permisos: ["pedidos.capturar_manual"] },
   { grupo: "Reparto", permisos: ["pedidos.entregar"] },
-  { grupo: "Cobranza", permisos: ["cobranza.registrar_pago", "cobranza.capturar_dte"] },
+  { grupo: "Cobranza", permisos: ["cobranza.registrar_pago", "cobranza.capturar_dte", "cobranza.confirmar_transferencia"] },
   { grupo: "Catálogo", permisos: ["catalogo.escribir", "precios.cambiar"] },
   { grupo: "Conversaciones", permisos: ["mensajeria.enviar"] },
   { grupo: "Operación", permisos: ["ventana.cerrar"] },
