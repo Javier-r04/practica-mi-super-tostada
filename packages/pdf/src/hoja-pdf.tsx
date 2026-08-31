@@ -8,9 +8,13 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import {
+  gruposNotaProduccion,
   gruposPorPuntoCarga,
   nombreDiaOperacion,
+  textoClienteNota,
+  type BloqueCliente,
   type HojaSnapshot,
+  type LineaProducto,
 } from "@misupertostada/shared";
 
 const MM = 2.83465;
@@ -45,18 +49,48 @@ const s = StyleSheet.create({
   },
   fila: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     borderBottomWidth: 0.5,
     borderBottomColor: "#ccc",
     paddingVertical: 6,
     paddingHorizontal: 8,
   },
-  filaCambio: { backgroundColor: "#e8e8e8" },
-  producto: { flex: 1, fontSize: 14 },
-  cantidad: { fontSize: 24, fontFamily: "Helvetica-Bold", width: 72, textAlign: "right" },
-  unidad: { fontSize: 10, width: 48, marginLeft: 6, color: "#555" },
-  marcaNuevo: { fontSize: 8, fontFamily: "Helvetica-Bold", width: 48 },
-  nota: { fontSize: 9, color: "#333", marginLeft: 8 },
+  filaCambio: { backgroundColor: "#FDF0D6" },
+  colProducto: { flexGrow: 1, flexShrink: 1, flexBasis: 0, paddingRight: 8 },
+  producto: { fontSize: 14, fontFamily: "Helvetica-Bold" },
+  notaCaja: {
+    marginTop: 4,
+    backgroundColor: "#FFF9D6",
+    borderLeftWidth: 3,
+    borderLeftColor: "#FFE100",
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  notaTitulo: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#8A5502",
+  },
+  notaCuerpo: {
+    fontSize: 9,
+    color: "#8A5502",
+    marginTop: 2,
+    lineHeight: 1.35,
+  },
+  cantidad: {
+    fontSize: 24,
+    fontFamily: "Helvetica-Bold",
+    width: 72,
+    textAlign: "right",
+  },
+  unidad: { fontSize: 10, width: 48, marginLeft: 6, color: "#555", paddingTop: 8 },
+  marcaNuevo: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    width: 48,
+    paddingTop: 6,
+    color: "#8A5502",
+  },
 });
 
 export async function renderHojaPdf(input: {
@@ -101,24 +135,11 @@ export async function renderHojaPdf(input: {
           <View key={grupo.puntoCarga}>
             <Text style={s.grupo}>{grupo.puntoCarga}</Text>
             {grupo.lineas.map((linea) => (
-              <View
+              <FilaPdf
                 key={`${linea.productoId}-${linea.cambio ?? "ok"}`}
-                style={linea.cambio ? [s.fila, s.filaCambio] : s.fila}
-              >
-                <Text style={s.producto}>{linea.nombreCanonico}</Text>
-                {linea.notaProduccion ? (
-                  <Text style={s.nota}>{linea.notaProduccion}</Text>
-                ) : null}
-                {linea.cambio === "nuevo" || linea.cambio === "ajustado" ? (
-                  <Text style={s.marcaNuevo}>NUEVO</Text>
-                ) : linea.cambio === "eliminado" ? (
-                  <Text style={s.marcaNuevo}>QUITADO</Text>
-                ) : (
-                  <Text style={s.marcaNuevo}> </Text>
-                )}
-                <Text style={s.cantidad}>{linea.cantidad}</Text>
-                <Text style={s.unidad}>{linea.unidadMedida}</Text>
-              </View>
+                linea={linea}
+                clientes={snapshot.clientes}
+              />
             ))}
           </View>
         ))}
@@ -128,4 +149,40 @@ export async function renderHojaPdf(input: {
 
   const buf = await renderToBuffer(doc);
   return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+}
+
+function FilaPdf({
+  linea,
+  clientes,
+}: {
+  linea: LineaProducto;
+  clientes: BloqueCliente[];
+}) {
+  const notas = gruposNotaProduccion(linea, clientes);
+  const marca =
+    linea.cambio === "nuevo" || linea.cambio === "ajustado"
+      ? "NUEVO"
+      : linea.cambio === "eliminado"
+        ? "QUITADO"
+        : " ";
+  return (
+    <View style={linea.cambio ? [s.fila, s.filaCambio] : s.fila}>
+      <View style={s.colProducto}>
+        <Text style={s.producto}>{linea.nombreCanonico}</Text>
+        {notas.map((grupo) => (
+          <View key={grupo.nota} style={s.notaCaja}>
+            <Text style={s.notaTitulo}>{grupo.nota}</Text>
+            {grupo.clientes.length > 0 ? (
+              <Text style={s.notaCuerpo}>
+                {grupo.clientes.map(textoClienteNota).join("\n")}
+              </Text>
+            ) : null}
+          </View>
+        ))}
+      </View>
+      <Text style={s.marcaNuevo}>{marca}</Text>
+      <Text style={s.cantidad}>{linea.cantidad}</Text>
+      <Text style={s.unidad}>{linea.unidadMedida}</Text>
+    </View>
+  );
 }
