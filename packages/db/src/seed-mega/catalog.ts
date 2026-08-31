@@ -1,5 +1,8 @@
 /** Catálogo de demo para el mega-seed (precios de prueba, no reales). */
 
+import { PRODUCTOS_SEED } from "../catalogo-seed";
+
+/** Precios demo por SKU del catálogo oficial. */
 export const PRECIOS_DEMO_CENTAVOS: Record<string, number> = {
   "TORT-16": 1250,
   "TORT-14": 1100,
@@ -21,20 +24,14 @@ export const PRECIOS_DEMO_CENTAVOS: Record<string, number> = {
   "TOST-12-B": 1500,
   "TOST-BOQ": 1400,
   "CANAST-A": 1200,
-  "TOST-G": 1800,
-  "TOST-P": 1500,
-  "NACH-B": 1500,
-  "NACH-A": 1500,
-  "PAPA-S": 1400,
-  "PAPA-BBQ": 1400,
-  FAJITA: 1600,
 };
 
+/** Alias comercial por cliente (cómo lo piden); no va al consolidado de producción. */
 export const ALIAS_DEMO: Record<string, string> = {
-  "TORT-16": "tortilla #16",
-  "TORT-14": "tortilla #14",
-  "TORT-12": "tortilla #12",
-  "TORT-10": "tortilla #10",
+  "TORT-16": "tortilla grande",
+  "TORT-14": "tortilla mediana",
+  "TORT-12": "tortilla pequeña",
+  "TORT-10": "tortilla mini",
   "TORT-GARN": "tortilla garnacha",
   "NACH-B-P": "nachos blancos pequeños",
   "NACH-B-G": "nachos blancos grandes",
@@ -51,14 +48,9 @@ export const ALIAS_DEMO: Record<string, string> = {
   "TOST-12-B": "tostadas #12 blancas",
   "TOST-BOQ": "tostadas boquitas",
   "CANAST-A": "canastitas amarillas",
-  "TOST-G": "tostada grande",
-  "TOST-P": "tostada chica",
-  "NACH-B": "nachos blancos",
-  "NACH-A": "nachos amarillos",
-  "PAPA-S": "papalinas",
-  "PAPA-BBQ": "papalinas BBQ",
-  FAJITA: "fajitas",
 };
+
+export const SKUS_CATALOGO = PRODUCTOS_SEED.map((p) => p.sku);
 
 export type PerfilCliente =
   | "diario"
@@ -88,7 +80,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 5,
     horarioEntregaFijo: "07:30",
     notas: "Entrega temprana. Pide tortillas todos los días.",
-    skusPreferidos: ["TORT-16", "TORT-14", "TOST-G"],
+    skusPreferidos: ["TORT-16", "TORT-14", "TOST-16-B"],
   },
   {
     nombre: "Cantina Los Arcos",
@@ -97,7 +89,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 4,
     horarioEntregaFijo: "08:00",
     notas: "Ruta Democracia.",
-    skusPreferidos: ["TORT-16", "NACH-B", "PAL-A"],
+    skusPreferidos: ["TORT-16", "NACH-B-G", "PAL-A"],
   },
   {
     nombre: "Pupusería El Comal",
@@ -115,7 +107,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 6,
     horarioEntregaFijo: "09:00",
     notas: "Pedidos grandes de fin de semana.",
-    skusPreferidos: ["TORT-16", "TOST-G", "NACH-A", "PAPA-S"],
+    skusPreferidos: ["TORT-16", "TOST-16-B", "NACH-A-G", "PAPA-S-G"],
   },
   {
     nombre: "Taquería El Güero",
@@ -124,7 +116,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 4,
     horarioEntregaFijo: "07:00",
     notas: "Paga mixto efectivo/transferencia.",
-    skusPreferidos: ["TORT-14", "TORT-12", "FAJITA"],
+    skusPreferidos: ["TORT-14", "TORT-12", "FAJ-B"],
   },
   {
     nombre: "Café Barista Zona 10",
@@ -133,7 +125,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "10:00",
     notas: "Pide martes y viernes.",
-    skusPreferidos: ["TOST-P", "NACH-B"],
+    skusPreferidos: ["TOST-12-B", "NACH-B-P"],
   },
   {
     nombre: "Mariscos El Capitán",
@@ -142,7 +134,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 3,
     horarioEntregaFijo: "11:00",
     notas: "Solo tostadas para ceviche.",
-    skusPreferidos: ["TOST-G", "TOST-P"],
+    skusPreferidos: ["TOST-16-B", "TOST-12-B"],
   },
   {
     nombre: "Pollo Campero Express Mixco",
@@ -151,7 +143,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 8,
     horarioEntregaFijo: "05:30",
     notas: "Volumen alto. Coordinar con planta.",
-    skusPreferidos: ["TORT-16", "TORT-14", "TORT-12", "TOST-G"],
+    skusPreferidos: ["TORT-16", "TORT-14", "TORT-12", "TOST-16-B"],
   },
   {
     nombre: "Antojitos Doña Chus",
@@ -160,7 +152,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "06:00",
     notas: "Efectivo siempre.",
-    skusPreferidos: ["TORT-14", "PAL-B", "PAPA-BBQ"],
+    skusPreferidos: ["TORT-14", "PAL-B", "PAPA-BBQ-G"],
   },
   {
     nombre: "Sushi Sakura Cayalá",
@@ -169,7 +161,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "14:00",
     notas: "Pedidos esporádicos para eventos.",
-    skusPreferidos: ["TOST-P", "NACH-A"],
+    skusPreferidos: ["TOST-12-B", "NACH-A-G"],
   },
   {
     nombre: "Steak House El Roble",
@@ -178,7 +170,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 4,
     horarioEntregaFijo: "10:30",
     notas: "Nachos y papalinas para bar.",
-    skusPreferidos: ["NACH-B", "NACH-A", "PAPA-S", "PAPA-BBQ"],
+    skusPreferidos: ["NACH-B-G", "NACH-A-G", "PAPA-S-G", "PAPA-BBQ-G"],
   },
   {
     nombre: "Comedor Popular La Esperanza",
@@ -196,7 +188,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 5,
     horarioEntregaFijo: "16:00",
     notas: "Picos en días de fútbol.",
-    skusPreferidos: ["NACH-B", "PAL-A", "PAPA-BBQ", "FAJITA"],
+    skusPreferidos: ["NACH-B-G", "PAL-A", "PAPA-BBQ-G", "FAJ-B"],
   },
   {
     nombre: "Hotel Clarion Suite",
@@ -205,7 +197,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 10,
     horarioEntregaFijo: "08:30",
     notas: "Factura a nombre del hotel.",
-    skusPreferidos: ["TORT-16", "TOST-G", "NACH-B"],
+    skusPreferidos: ["TORT-16", "TOST-16-B", "NACH-B-G"],
   },
   {
     nombre: "Tacos El Norteño",
@@ -214,7 +206,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 4,
     horarioEntregaFijo: "07:15",
     notas: "Quiere fajitas los jueves.",
-    skusPreferidos: ["TORT-16", "FAJITA", "PAL-B"],
+    skusPreferidos: ["TORT-16", "FAJ-B", "PAL-B"],
   },
   {
     nombre: "Cevichería Puerto Azul",
@@ -223,7 +215,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 3,
     horarioEntregaFijo: "09:30",
     notas: "Tostada grande predominante.",
-    skusPreferidos: ["TOST-G", "TOST-P"],
+    skusPreferidos: ["TOST-16-B", "TOST-12-B"],
   },
   {
     nombre: "Panadería San Martín",
@@ -232,7 +224,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "06:30",
     notas: "Complemento de desayunos.",
-    skusPreferidos: ["TORT-14", "TOST-P"],
+    skusPreferidos: ["TORT-14", "TOST-12-B"],
   },
   {
     nombre: "Food Court Oakland Mall",
@@ -241,7 +233,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 7,
     horarioEntregaFijo: "08:00",
     notas: "Varios locales. Consolidar en una entrega.",
-    skusPreferidos: ["TORT-16", "TORT-14", "NACH-B", "NACH-A", "PAPA-S"],
+    skusPreferidos: ["TORT-16", "TORT-14", "NACH-B-G", "NACH-A-G", "PAPA-S-G"],
   },
   {
     nombre: "Rincón Chapín",
@@ -259,7 +251,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 4,
     horarioEntregaFijo: "11:30",
     notas: "Pedidos de fin de semana más grandes.",
-    skusPreferidos: ["TORT-16", "TOST-G", "NACH-A"],
+    skusPreferidos: ["TORT-16", "TOST-16-B", "NACH-A-G"],
   },
   {
     nombre: "Heladería Frosty",
@@ -268,7 +260,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 1,
     horarioEntregaFijo: "12:00",
     notas: "Casi no pide; mantener en catálogo.",
-    skusPreferidos: ["TOST-P"],
+    skusPreferidos: ["TOST-12-B"],
   },
   {
     nombre: "Trattoria Bella Italia",
@@ -277,7 +269,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 3,
     horarioEntregaFijo: "10:00",
     notas: "Tostadas para antipasti.",
-    skusPreferidos: ["TOST-G", "TOST-P"],
+    skusPreferidos: ["TOST-16-B", "TOST-12-B"],
   },
   {
     nombre: "Churrasquería Gaucha",
@@ -286,7 +278,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 5,
     horarioEntregaFijo: "08:15",
     notas: "Volumen medio-alto.",
-    skusPreferidos: ["TORT-16", "TORT-14", "PAPA-S"],
+    skusPreferidos: ["TORT-16", "TORT-14", "PAPA-S-G"],
   },
   {
     nombre: "Snack Zone Universidad",
@@ -295,7 +287,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "09:00",
     notas: "Frituras y nachos.",
-    skusPreferidos: ["NACH-B", "PAL-B", "PAPA-BBQ", "FAJITA"],
+    skusPreferidos: ["NACH-B-G", "PAL-B", "PAPA-BBQ-G", "FAJ-B"],
   },
   {
     nombre: "Asados El Quetzal",
@@ -304,7 +296,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "10:00",
     notas: "Histórico de atraso. Vigilar cartera.",
-    skusPreferidos: ["TORT-16", "TOST-G", "NACH-A"],
+    skusPreferidos: ["TORT-16", "TOST-16-B", "NACH-A-G"],
   },
   {
     nombre: "Cafetería Municipal",
@@ -322,7 +314,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 3,
     horarioEntregaFijo: "17:00",
     notas: "Muchas facturas abiertas a propósito (prueba).",
-    skusPreferidos: ["NACH-B", "NACH-A", "PAPA-BBQ", "PAL-A"],
+    skusPreferidos: ["NACH-B-G", "NACH-A-G", "PAPA-BBQ-G", "PAL-A"],
   },
   {
     nombre: "Buffet El Dorado",
@@ -331,7 +323,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 6,
     horarioEntregaFijo: "06:00",
     notas: "Solo transferencia. Nunca efectivo.",
-    skusPreferidos: ["TORT-16", "TORT-14", "TOST-G", "TOST-P"],
+    skusPreferidos: ["TORT-16", "TORT-14", "TOST-16-B", "TOST-12-B"],
   },
   {
     nombre: "Empresa Catering Alfa",
@@ -340,7 +332,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 8,
     horarioEntregaFijo: "05:00",
     notas: "OC previa. Transferencia semanal.",
-    skusPreferidos: ["TORT-16", "NACH-B", "PAPA-S", "FAJITA"],
+    skusPreferidos: ["TORT-16", "NACH-B-G", "PAPA-S-G", "FAJ-B"],
   },
   {
     nombre: "Hospital Centro Médico (cafetería)",
@@ -349,7 +341,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 5,
     horarioEntregaFijo: "05:15",
     notas: "Facturación institucional.",
-    skusPreferidos: ["TORT-14", "TORT-12", "TOST-P"],
+    skusPreferidos: ["TORT-14", "TORT-12", "TOST-12-B"],
   },
   {
     nombre: "Colegio Monte Verde (comedor)",
@@ -367,7 +359,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "11:00",
     notas: "Eventos y pedidos especiales.",
-    skusPreferidos: ["TOST-P", "PAL-B"],
+    skusPreferidos: ["TOST-12-B", "PAL-B"],
   },
   {
     nombre: "Burger Lab Zona 4",
@@ -385,7 +377,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "12:30",
     notas: "Tostada chica como base.",
-    skusPreferidos: ["TOST-P"],
+    skusPreferidos: ["TOST-12-B"],
   },
   {
     nombre: "Wings & Beer Corner",
@@ -394,7 +386,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 5,
     horarioEntregaFijo: "15:00",
     notas: "Frituras para happy hour.",
-    skusPreferidos: ["NACH-A", "PAL-A", "PAPA-BBQ", "FAJITA"],
+    skusPreferidos: ["NACH-A-G", "PAL-A", "PAPA-BBQ-G", "FAJ-B"],
   },
   {
     nombre: "Taquería 3 Hermanos",
@@ -403,7 +395,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 3,
     horarioEntregaFijo: "06:20",
     notas: "Tres locales, una cuenta.",
-    skusPreferidos: ["TORT-16", "TORT-14", "TORT-12", "FAJITA"],
+    skusPreferidos: ["TORT-16", "TORT-14", "TORT-12", "FAJ-B"],
   },
   {
     nombre: "Rest. Chapinlandia",
@@ -412,7 +404,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 4,
     horarioEntregaFijo: "07:10",
     notas: "Cliente de planta.",
-    skusPreferidos: ["TORT-16", "TOST-G", "PAL-B"],
+    skusPreferidos: ["TORT-16", "TOST-16-B", "PAL-B"],
   },
   {
     nombre: "Mercado Central — Puesto 42",
@@ -430,7 +422,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: null,
     notas: "Horario variable según evento.",
-    skusPreferidos: ["TORT-16", "NACH-B", "FAJITA"],
+    skusPreferidos: ["TORT-16", "NACH-B-G", "FAJ-B"],
   },
   {
     nombre: "Club Deportivo Los Proceres",
@@ -439,7 +431,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 3,
     horarioEntregaFijo: "16:30",
     notas: "Torneos = picos de demanda.",
-    skusPreferidos: ["NACH-B", "PAPA-S", "PAL-A"],
+    skusPreferidos: ["NACH-B-G", "PAPA-S-G", "PAL-A"],
   },
   {
     nombre: "Ex Salón de Té Aurora",
@@ -448,7 +440,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: null,
     horarioEntregaFijo: null,
     notas: "Dejó de pedir. Mantener histórico.",
-    skusPreferidos: ["TOST-P"],
+    skusPreferidos: ["TOST-12-B"],
   },
   {
     nombre: "Ex Comedor El Puente",
@@ -466,7 +458,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 4,
     horarioEntregaFijo: "10:15",
     notas: "Alta rotación de tostada.",
-    skusPreferidos: ["TOST-G", "TOST-P", "NACH-B"],
+    skusPreferidos: ["TOST-16-B", "TOST-12-B", "NACH-B-G"],
   },
   {
     nombre: "Grill House Petapa",
@@ -475,7 +467,7 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 2,
     horarioEntregaFijo: "09:45",
     notas: "Abonos parciales frecuentes.",
-    skusPreferidos: ["TORT-16", "NACH-A", "PAPA-BBQ"],
+    skusPreferidos: ["TORT-16", "NACH-A-G", "PAPA-BBQ-G"],
   },
   {
     nombre: "Cafetería Biblioteca Nacional",
@@ -484,18 +476,18 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     limiteFacturasPendientes: 3,
     horarioEntregaFijo: "07:30",
     notas: "Pago quincenal por transferencia.",
-    skusPreferidos: ["TORT-12", "TOST-P"],
+    skusPreferidos: ["TORT-12", "TOST-12-B"],
   },
 ];
 
+/** Clientes del seed base que el mega-seed enriquece con ligas y pedidos. */
 export const CONTACTOS_BASE_ENRICH = [
-  "Tabasco Casa Vieja",
-  "Tabasco Interplaza",
-  "Kraken",
-  "Victorias",
-  "Buen Camarón",
-  "Pura Frescura",
-  "Metroplaza",
-  "Don Napo",
-  "14 Avenida",
+  "TABASCO CASA VIEJA (LA ESPERANZA)",
+  "TABASCO INTERPLAZA",
+  "KRAKEN (FLORESTA)",
+  "VICTORIAS",
+  "AL ESTILO BAJA (METROPLAZA)",
+  "PURA FRESCURA",
+  "TABASCO 14 AVENIDA",
+  "DON NAPO (PASEO LA LUNA)",
 ] as const;

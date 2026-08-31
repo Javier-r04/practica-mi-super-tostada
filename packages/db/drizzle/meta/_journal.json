@@ -85,6 +85,13 @@
       "when": 1787300000000,
       "tag": "0012_ventana_fuente_unica",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787310000000,
+      "tag": "0013_abono",
+      "breakpoints": true
     }
   ]
 }

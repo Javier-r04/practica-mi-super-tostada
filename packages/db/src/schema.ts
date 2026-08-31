@@ -65,6 +65,18 @@ export const pagoMetodoEnum = pgEnum("pago_metodo", [
   "TRANSFERENCIA",
 ]);
 
+export const abonoEstadoEnum = pgEnum("abono_estado", [
+  "PENDIENTE",
+  "CONFIRMADO",
+  "RECHAZADO",
+]);
+
+export const abonoOrigenEnum = pgEnum("abono_origen", [
+  "PORTAL",
+  "REPARTO",
+  "MANUAL",
+]);
+
 export const outboxEstadoEnum = pgEnum("outbox_estado", [
   "PENDIENTE",
   "ENVIADO",
@@ -285,10 +297,45 @@ export const factura = pgTable(
   ],
 );
 
+export const abono = pgTable(
+  "abono",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clienteId: uuid("cliente_id")
+      .notNull()
+      .references(() => cliente.id),
+    montoCentavos: integer("monto_centavos").notNull(),
+    metodo: pagoMetodoEnum("metodo").notNull(),
+    estado: abonoEstadoEnum("estado").notNull(),
+    descripcion: text("descripcion"),
+    comprobanteAssetId: uuid("comprobante_asset_id"),
+    origen: abonoOrigenEnum("origen").notNull(),
+    registradoPor: uuid("registrado_por").references(() => usuario.id),
+    confirmadoPor: uuid("confirmado_por").references(() => usuario.id),
+    confirmadoAt: timestamp("confirmado_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    anuladoAt: timestamp("anulado_at", { withTimezone: true, mode: "date" }),
+    motivoRechazo: text("motivo_rechazo"),
+    fecha: date("fecha", { mode: "string" }).notNull(),
+    idempotencyKey: text("idempotency_key"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("abono_idempotency_key_unique")
+      .on(t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} is not null`),
+  ],
+);
+
 export const pago = pgTable(
   "pago",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    abonoId: uuid("abono_id")
+      .notNull()
+      .references(() => abono.id),
     facturaId: uuid("factura_id")
       .notNull()
       .references(() => factura.id),

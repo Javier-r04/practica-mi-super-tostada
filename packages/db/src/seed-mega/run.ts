@@ -657,6 +657,7 @@ async function construirSnapshotDesdePedidos(
       notasPermanentes: schema.cliente.notasPermanentes,
       notasAdmin: schema.pedido.notasAdmin,
       productoId: schema.producto.id,
+      // Catálogo vivo: nomenclatura de producción, no pedido_item.nombre_mostrado.
       nombreCanonico: schema.producto.nombreCanonico,
       unidadMedida: schema.producto.unidadMedida,
       puntoCarga: schema.producto.puntoCarga,
@@ -961,10 +962,11 @@ function metodoPago(perfil: PerfilCliente): "EFECTIVO" | "TRANSFERENCIA" {
 function perfilDe(cliente: ClienteRow): PerfilCliente {
   const def = CLIENTES_MEGA.find((d) => d.nombre === cliente.nombre);
   if (def) return def.perfil;
-  // Clientes base: perfiles razonables
-  if (cliente.nombre.includes("Victorias")) return "moroso";
-  if (cliente.nombre.includes("Buen Camarón")) return "transferencia";
-  if (cliente.nombre.includes("Don Napo")) return "ocasional";
+  const nombre = cliente.nombre.toUpperCase();
+  if (nombre.includes("VICTORIAS")) return "moroso";
+  if (nombre.includes("BUEN CAMARÓN") || nombre.includes("BUEN CAMARON"))
+    return "transferencia";
+  if (nombre.includes("DON NAPO")) return "ocasional";
   return "diario";
 }
 

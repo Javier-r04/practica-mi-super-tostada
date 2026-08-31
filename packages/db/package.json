@@ -16,6 +16,8 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "migrate:prod": "bun src/migrate-prod.ts",
+    "bootstrap:prod": "bun src/bootstrap-prod.ts",
     "seed": "bun src/seed.ts",
     "seed:mega": "bun src/seed-mega.ts",
     "seed:mega:clear": "bun src/seed-mega.ts --clear",
