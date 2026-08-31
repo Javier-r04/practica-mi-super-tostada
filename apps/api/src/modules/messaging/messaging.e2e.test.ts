@@ -393,7 +393,7 @@ describe.skipIf(!listo)("mensajería E7", () => {
         .values({
           organizacionId: f.orgId,
           sku,
-          nombreCanonico: "Tortilla No. 16",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
@@ -417,7 +417,7 @@ describe.skipIf(!listo)("mensajería E7", () => {
         cantidadPedida: 10,
         cantidadEntregada: 10,
         precioUnitarioCentavos: 1250,
-        nombreMostrado: "Tortilla No. 16",
+        nombreMostrado: "Tortillas #16",
         unidadMedida: "LIBRA",
       });
       const inserted = await f.db

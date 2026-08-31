@@ -52,6 +52,7 @@ export class HojaService {
         notasPermanentes: cliente.notasPermanentes,
         notasAdmin: pedido.notasAdmin,
         productoId: producto.id,
+        // Nomenclatura de producción (catálogo vivo), no el alias del pedido.
         nombreCanonico: producto.nombreCanonico,
         unidadMedida: producto.unidadMedida,
         puntoCarga: producto.puntoCarga,

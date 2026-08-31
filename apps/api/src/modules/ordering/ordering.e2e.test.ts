@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { and, eq } from "drizzle-orm";
 import { DateTime } from "luxon";
 import {
+  abono,
   asset,
   auditLog,
   diaOperacion,
@@ -44,6 +45,8 @@ import { PortalService } from "./portal.service";
 import { PedidoEvents } from "./pedido-events";
 import { PedidoService } from "./pedido.service";
 import { ConfiguracionService } from "../shared/configuracion.service";
+import { AbonoService } from "../receivables/abono.service";
+import { FacturaService } from "../receivables/factura.service";
 
 const listo = await postgresListo();
 
@@ -77,7 +80,9 @@ async function fixture(clock: Clock) {
   const storage = new FakeStorageAdapter();
   const variants = new AssetVariantsJob(db, storage);
   const assets = new AssetsService(db, storage, variants);
-  const portal = new PortalService(db, audit, calendar, pedidos, assets);
+  const facturas = new FacturaService(db, audit, outboxWriter, calendar, events);
+  const abonos = new AbonoService(db, audit, calendar, events, facturas);
+  const portal = new PortalService(db, audit, calendar, pedidos, assets, abonos);
   const cfg = new ConfiguracionService(db, audit, calendar);
 
   const org = await crearOrgDePrueba(db, "org-e2-");
@@ -551,7 +556,7 @@ describe.skipIf(!listo)("portal E2", () => {
       const tortilla = await f.productos.crear(
         {
           sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 16 (grande)",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
@@ -561,7 +566,7 @@ describe.skipIf(!listo)("portal E2", () => {
       const nachos = await f.productos.crear(
         {
           sku: `NACH-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Nachos blancos",
+          nombreCanonico: "Nachos Blancos Grandes",
           familia: "FRITURA",
           unidadMedida: "BOLSA",
           puntoCarga: "PLANTA",
@@ -571,7 +576,7 @@ describe.skipIf(!listo)("portal E2", () => {
       const sinPrecio = await f.productos.crear(
         {
           sku: `FAJ-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Fajitas",
+          nombreCanonico: "Fajitas Blancas",
           familia: "FRITURA",
           unidadMedida: "BOLSA",
           puntoCarga: "PLANTA",
@@ -741,7 +746,7 @@ describe.skipIf(!listo)("portal E2", () => {
       const prod = await f.productos.crear(
         {
           sku: `CUE-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tostada grande",
+          nombreCanonico: "Tostadas #16 Blancas",
           familia: "TOSTADA",
           unidadMedida: "LIBRA",
           puntoCarga: "PLANTA",
@@ -796,7 +801,19 @@ describe.skipIf(!listo)("portal E2", () => {
           emitidaAt: instanteGT("2026-08-10T10:00:00"),
         })
         .returning();
+      const [abonoPend] = await f.db
+        .insert(abono)
+        .values({
+          clienteId: cli.id,
+          montoCentavos: 3000,
+          metodo: "EFECTIVO",
+          estado: "CONFIRMADO",
+          origen: "MANUAL",
+          fecha: "2026-08-10",
+        })
+        .returning();
       await f.db.insert(pago).values({
+        abonoId: abonoPend!.id,
         facturaId: facPend!.id,
         montoCentavos: 3000,
         metodo: "EFECTIVO",
@@ -812,7 +829,19 @@ describe.skipIf(!listo)("portal E2", () => {
           emitidaAt: instanteGT("2026-08-01T10:00:00"),
         })
         .returning();
+      const [abonoPagado] = await f.db
+        .insert(abono)
+        .values({
+          clienteId: cli.id,
+          montoCentavos: 1000,
+          metodo: "TRANSFERENCIA",
+          estado: "CONFIRMADO",
+          origen: "MANUAL",
+          fecha: "2026-08-02",
+        })
+        .returning();
       await f.db.insert(pago).values({
+        abonoId: abonoPagado!.id,
         facturaId: facPagada!.id,
         montoCentavos: 1000,
         metodo: "TRANSFERENCIA",
@@ -843,7 +872,7 @@ describe.skipIf(!listo)("portal E2", () => {
       const prod = await f.productos.crear(
         {
           sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 16 (grande)",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",

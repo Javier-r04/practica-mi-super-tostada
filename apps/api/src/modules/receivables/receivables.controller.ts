@@ -15,6 +15,7 @@ import type { Actor } from "../identity/actor";
 import { CarteraService } from "./cartera.service";
 import { FacturaService } from "./factura.service";
 import { PagoService } from "./pago.service";
+import { AbonoService } from "./abono.service";
 
 @Controller()
 export class ReceivablesController {
@@ -22,6 +23,7 @@ export class ReceivablesController {
     private readonly cartera: CarteraService,
     private readonly facturas: FacturaService,
     private readonly pagos: PagoService,
+    private readonly abonos: AbonoService,
   ) {}
 
   @Get("cartera")
@@ -46,6 +48,33 @@ export class ReceivablesController {
     @CurrentActor() actor: Actor,
   ) {
     return envelopeOk(await this.cartera.cuadre(actor, query));
+  }
+
+  @Get("abonos")
+  async listarAbonos(
+    @Query() query: Record<string, string | undefined>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.abonos.listar(actor, query));
+  }
+
+  @Post("abonos/:id/confirmar")
+  @RequierePermiso("cobranza.confirmar_transferencia")
+  async confirmarAbono(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.abonos.confirmar(id, actor));
+  }
+
+  @Post("abonos/:id/rechazar")
+  @RequierePermiso("cobranza.confirmar_transferencia")
+  async rechazarAbono(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.abonos.rechazar(id, body, actor));
   }
 
   @Get("clientes/:id/cuenta")

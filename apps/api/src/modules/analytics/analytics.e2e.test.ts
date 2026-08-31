@@ -31,6 +31,7 @@ import { CierreService } from "../fulfillment/cierre.service";
 import { HojaService } from "../fulfillment/hoja.service";
 import { EntregaService } from "../fulfillment/entrega.service";
 import { FacturaService } from "../receivables/factura.service";
+import { AbonoService } from "../receivables/abono.service";
 import { PagoService } from "../receivables/pago.service";
 import { TableroService } from "./tablero.service";
 
@@ -90,6 +91,7 @@ async function fixture(clock: Clock) {
     events,
   );
   const facturas = new FacturaService(db, audit, outboxWriter, calendar, events);
+  const abonos = new AbonoService(db, audit, calendar, events, facturas);
   const entregas = new EntregaService(
     db,
     audit,
@@ -98,7 +100,7 @@ async function fixture(clock: Clock) {
     events,
     facturas,
   );
-  const pagos = new PagoService(db, audit, calendar, events, facturas);
+  const pagos = new PagoService(abonos);
   const tablero = new TableroService(db, calendar, audit);
 
   const org = await crearOrgDePrueba(db, "org-e6-");
@@ -156,7 +158,7 @@ async function altaProducto(
   return f.productos.crear(
     {
       sku: `P-${crypto.randomUUID().slice(0, 6)}`,
-      nombreCanonico: opts.nombre ?? "Tortilla No. 16 (grande)",
+      nombreCanonico: opts.nombre ?? "Tortillas #16",
       familia: opts.familia ?? "TORTILLA",
       unidadMedida: opts.unidad ?? "LIBRA",
       puntoCarga: opts.puntoCarga ?? "DEMOCRACIA",
@@ -304,7 +306,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
         {
           id: crypto.randomUUID(),
           idempotencyKey: `ayer-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 3000,
           metodo: "EFECTIVO",
           fecha: "2026-08-19",
@@ -315,7 +317,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
         {
           id: crypto.randomUUID(),
           idempotencyKey: `hoy-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 2000,
           metodo: "EFECTIVO",
           fecha: "2026-08-20",
@@ -433,11 +435,11 @@ describe.skipIf(!listo)("E6 tablero", () => {
     const f = await fixture(clock);
     try {
       const t16 = await altaProducto(f, {
-        nombre: "Tortilla No. 16 (grande)",
+        nombre: "Tortillas #16",
         puntoCarga: "DEMOCRACIA",
       });
       const nachos = await altaProducto(f, {
-        nombre: "Nachos blancos",
+        nombre: "Nachos Blancos Grandes",
         familia: "FRITURA",
         unidad: "BOLSA",
         puntoCarga: "PLANTA",
@@ -681,7 +683,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
     try {
       const t16 = await altaProducto(f, { puntoCarga: "DEMOCRACIA" });
       const nachos = await altaProducto(f, {
-        nombre: "Nachos blancos",
+        nombre: "Nachos Blancos Grandes",
         familia: "FRITURA",
         unidad: "BOLSA",
         puntoCarga: "PLANTA",

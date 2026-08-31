@@ -130,7 +130,7 @@ async function catalogoTienda6(
   const tortilla = await f.productos.crear(
     {
       sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
-      nombreCanonico: "Tortilla No. 16 (grande)",
+      nombreCanonico: "Tortillas #16",
       familia: "TORTILLA",
       unidadMedida: "LIBRA",
       puntoCarga: "DEMOCRACIA",
@@ -140,7 +140,7 @@ async function catalogoTienda6(
   const papalinas = await f.productos.crear(
     {
       sku: `PAP-${crypto.randomUUID().slice(0, 6)}`,
-      nombreCanonico: "Papalinas barbacoa",
+      nombreCanonico: "Papalinas Barbacoa Grandes",
       familia: "FRITURA",
       unidadMedida: "BOLSA",
       puntoCarga: "PLANTA",
@@ -150,7 +150,7 @@ async function catalogoTienda6(
   const sinPrecio = await f.productos.crear(
     {
       sku: `FAJ-${crypto.randomUUID().slice(0, 6)}`,
-      nombreCanonico: "Fajitas",
+      nombreCanonico: "Fajitas Blancas",
       familia: "FRITURA",
       unidadMedida: "BOLSA",
       puntoCarga: "PLANTA",
@@ -457,7 +457,7 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
       );
       expect(detalle.items[0]?.notaProduccion).toBe("GRUESAS");
       expect(detalle.items[0]?.puntoCarga).toBe("DEMOCRACIA");
-      expect(detalle.items[0]?.nombreCanonico).toBe("Tortilla No. 16 (grande)");
+      expect(detalle.items[0]?.nombreCanonico).toBe("Tortillas #16");
 
       const notas = await f.pedidos.editarNotas(
         creado.id,

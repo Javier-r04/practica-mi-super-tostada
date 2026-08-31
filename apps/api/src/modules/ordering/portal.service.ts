@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import {
+  abono,
   clienteProducto,
   factura,
   pago,
@@ -11,7 +12,6 @@ import {
 import {
   capturaAbierta,
   instanteAIso,
-  portalCuentaSchema,
   portalHistorialSchema,
   portalPedidoDetalleClienteSchema,
   portalPedidoResumenSchema,
@@ -21,6 +21,7 @@ import {
   saludoPortalDe,
   totalPedidoCentavos,
   MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO,
+  type AbonoPublico,
   type PortalCuenta,
   type PortalHistorial,
   type PortalPedidoDetalleCliente,
@@ -36,6 +37,7 @@ import { AssetsService } from "../shared/storage/assets.service";
 import { PedidoService, type PortalMeta } from "./pedido.service";
 import { horarioDe } from "./pedido-reglas";
 import type { ClientePortal } from "./portal-token.service";
+import { ABONO_PORTAL, type AbonoPortal } from "../receivables/abono-portal";
 
 const HISTORIAL_DEFAULT = 20;
 
@@ -52,6 +54,7 @@ export class PortalService {
     private readonly calendar: BusinessCalendarService,
     private readonly pedidos: PedidoService,
     private readonly assets: AssetsService,
+    @Inject(ABONO_PORTAL) private readonly abonos: AbonoPortal,
   ) {}
 
   async abrirSesion(
@@ -121,66 +124,28 @@ export class PortalService {
   }
 
   async cuentaDe(clienteRow: ClientePortal): Promise<PortalCuenta> {
-    const cal = await this.calendar.load(clienteRow.organizacionId);
-    const now = this.calendar.now();
-    const filas = await this.db
-      .select({
-        factura: factura,
-        pedido: pedido,
-      })
-      .from(factura)
-      .innerJoin(pedido, eq(factura.pedidoId, pedido.id))
-      .where(eq(pedido.clienteId, clienteRow.id));
+    return this.abonos.cuentaDe(clienteRow.id, clienteRow.organizacionId);
+  }
 
-    const ids = filas.map((fila) => fila.factura.id);
-    const pagos = ids.length
-      ? await this.db.select().from(pago).where(inArray(pago.facturaId, ids))
-      : [];
-    const abonoPorFactura = new Map<string, number>();
-    for (const p of pagos) {
-      abonoPorFactura.set(
-        p.facturaId,
-        (abonoPorFactura.get(p.facturaId) ?? 0) + p.montoCentavos,
-      );
-    }
+  async reportarAbono(
+    clienteRow: ClientePortal,
+    body: unknown,
+    meta: PortalMeta,
+  ): Promise<AbonoPublico> {
+    return this.abonos.reportarTransferencia(
+      clienteRow.id,
+      clienteRow.organizacionId,
+      body,
+      meta,
+    );
+  }
 
-    const pendientes = [];
-    for (const fila of filas) {
-      const fac = fila.factura;
-      const abonado = abonoPorFactura.get(fac.id) ?? 0;
-      if (abonado >= fac.montoCentavos) continue;
-      const saldo = fac.montoCentavos - abonado;
-      const emitida = fac.emitidaAt ?? fac.createdAt;
-      const antiguedadDias = emitida ? cal.diasCalendarioEntre(emitida, now) : 0;
-      const estado = estadoFactura({
-        montoCentavos: fac.montoCentavos,
-        abonadoCentavos: abonado,
-        antiguedadDias,
-      });
-      if (estado === "PAGADO") continue;
-      pendientes.push({
-        id: fac.id,
-        numeroDte: fac.numeroDte ?? null,
-        montoCentavos: fac.montoCentavos,
-        abonadoCentavos: abonado,
-        saldoCentavos: saldo,
-        emitidaAt: emitida ? instanteAIso(emitida) : null,
-        antiguedadDias,
-        estado:
-          estado === "VENCIDO"
-            ? ("VENCIDO" as const)
-            : estado === "ABONO_PARCIAL"
-              ? ("ABONO_PARCIAL" as const)
-              : ("PENDIENTE" as const),
-      });
-    }
+  presignAbonoAsset(body: unknown) {
+    return this.assets.presignPortal(body);
+  }
 
-    return portalCuentaSchema.parse({
-      facturasPendientes: pendientes.length,
-      limiteFacturasPendientes: clienteRow.limiteFacturasPendientes,
-      saldoCentavos: pendientes.reduce((acc, f) => acc + f.saldoCentavos, 0),
-      facturas: pendientes,
-    });
+  confirmAbonoAsset(body: unknown) {
+    return this.assets.confirmPortal(body);
   }
 
   async listarPedidos(
@@ -327,6 +292,18 @@ export class PortalService {
     assetId: string,
   ): Promise<boolean> {
     if (clienteRow.fotoAssetId === assetId) return true;
+
+    const [ab] = await this.db
+      .select({ id: abono.id })
+      .from(abono)
+      .where(
+        and(
+          eq(abono.comprobanteAssetId, assetId),
+          eq(abono.clienteId, clienteRow.id),
+        ),
+      )
+      .limit(1);
+    if (ab) return true;
 
     const [prod] = await this.db
       .select({ id: producto.id })

@@ -1,9 +1,11 @@
 import {
+  Body,
   Controller,
   Get,
   Header,
   Param,
   ParseUUIDPipe,
+  Post,
   Put,
   Query,
   Req,
@@ -43,6 +45,27 @@ export class PortalController {
   @Get(":token/cuenta")
   async cuenta(@CurrentPortalCliente() clienteRow: ClientePortal) {
     return envelopeOk(await this.portal.cuentaDe(clienteRow));
+  }
+
+  @Post(":token/abonos")
+  async reportarAbono(
+    @Req() req: Request,
+    @CurrentPortalCliente() clienteRow: ClientePortal,
+    @Body() body: unknown,
+  ) {
+    return envelopeOk(
+      await this.portal.reportarAbono(clienteRow, body, meta(req)),
+    );
+  }
+
+  @Post(":token/abonos/assets/presign")
+  async presignAbono(@Body() body: unknown) {
+    return envelopeOk(await this.portal.presignAbonoAsset(body));
+  }
+
+  @Post(":token/abonos/assets/confirm")
+  async confirmAbono(@Body() body: unknown) {
+    return envelopeOk(await this.portal.confirmAbonoAsset(body));
   }
 
   @Get(":token/pedidos")

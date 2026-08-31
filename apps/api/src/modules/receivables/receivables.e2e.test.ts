@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import {
   asset,
   auditLog,
+  abono,
   cliente,
   factura,
   outbox,
@@ -38,8 +39,12 @@ import { CierreService } from "../fulfillment/cierre.service";
 import { HojaService } from "../fulfillment/hoja.service";
 import { EntregaService } from "../fulfillment/entrega.service";
 import { FacturaService } from "./factura.service";
+import { AbonoService } from "./abono.service";
 import { PagoService } from "./pago.service";
 import { CarteraService } from "./cartera.service";
+import { AssetsService } from "../shared/storage/assets.service";
+import { AssetVariantsJob } from "../shared/storage/variants.job";
+import { FakeStorageAdapter } from "../shared/storage/fake.storage";
 
 const listo = await postgresListo();
 
@@ -98,6 +103,7 @@ async function fixture(clock: Clock) {
     events,
   );
   const facturas = new FacturaService(db, audit, outboxWriter, calendar, events);
+  const abonos = new AbonoService(db, audit, calendar, events, facturas);
   const entregas = new EntregaService(
     db,
     audit,
@@ -106,9 +112,11 @@ async function fixture(clock: Clock) {
     events,
     facturas,
   );
-  const pagos = new PagoService(db, audit, calendar, events, facturas);
+  const pagos = new PagoService(abonos);
   const cartera = new CarteraService(db, calendar);
-  const portal = new PortalService(db, audit, calendar, pedidos);
+  const storage = new FakeStorageAdapter();
+  const assets = new AssetsService(db, storage, new AssetVariantsJob(db, storage));
+  const portal = new PortalService(db, audit, calendar, pedidos, assets, abonos);
 
   const org = await crearOrgDePrueba(db, "org-e5-");
 
@@ -156,6 +164,8 @@ async function fixture(clock: Clock) {
     pagos,
     cartera,
     portal,
+    abonos,
+    assets,
     events,
   };
 }
@@ -174,7 +184,7 @@ async function catalogo(
   const prod = await f.productos.crear(
     {
       sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
-      nombreCanonico: "Tortilla No. 16 (grande)",
+      nombreCanonico: "Tortillas #16",
       familia: "TORTILLA",
       unidadMedida: "LIBRA",
       puntoCarga: "DEMOCRACIA",
@@ -256,7 +266,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       const prod = await f.productos.crear(
         {
           sku: `X-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 16 (grande)",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
@@ -447,7 +457,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       const prod = await f.productos.crear(
         {
           sku: `DTE-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 16 (grande)",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
@@ -503,7 +513,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         {
           id: crypto.randomUUID(),
           idempotencyKey: `abono-1-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 3000,
           metodo: "EFECTIVO",
         },
@@ -515,7 +525,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         {
           id: crypto.randomUUID(),
           idempotencyKey: `abono-2-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 7000,
           metodo: "EFECTIVO",
         },
@@ -533,14 +543,14 @@ describe.skipIf(!listo)("E5 cobranza", () => {
   test("F-503 abono 10001 → 409 PAGO_EXCEDE_SALDO, cero filas pago", async () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
-      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
       const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await expect(
         f.pagos.registrar(
           {
             id: crypto.randomUUID(),
             idempotencyKey: `excede-${crypto.randomUUID()}`,
-            facturaId: e.factura.id,
+            clienteId: cli.id,
             montoCentavos: 10001,
             metodo: "EFECTIVO",
           },
@@ -560,7 +570,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       const prod = await f.productos.crear(
         {
           sku: `FIFO-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 16 (grande)",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
@@ -610,25 +620,25 @@ describe.skipIf(!listo)("E5 cobranza", () => {
   test("F-504 transferencia sin comprobante 400; efectivo sin foto 200", async () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
-      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
       const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await expect(
         f.pagos.registrar(
           {
             id: crypto.randomUUID(),
             idempotencyKey: `tr-${crypto.randomUUID()}`,
-            facturaId: e.factura.id,
+            clienteId: cli.id,
             montoCentavos: 1000,
             metodo: "TRANSFERENCIA",
           },
           f.actorReparto,
         ),
-      ).rejects.toMatchObject({ code: "COMPROBANTE_REQUERIDO", httpStatus: 400 });
+      ).rejects.toMatchObject({ code: "VALIDACION", httpStatus: 400 });
       const ok = await f.pagos.registrar(
         {
           id: crypto.randomUUID(),
           idempotencyKey: `ef-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 1000,
           metodo: "EFECTIVO",
         },
@@ -643,12 +653,12 @@ describe.skipIf(!listo)("E5 cobranza", () => {
   test("F-503 mismo idempotency_key dos veces → un pago", async () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
-      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
       const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       const body = {
         id: crypto.randomUUID(),
         idempotencyKey: `dup-${crypto.randomUUID()}`,
-        facturaId: e.factura.id,
+        clienteId: cli.id,
         montoCentavos: 2000,
         metodo: "EFECTIVO" as const,
       };
@@ -670,7 +680,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       const prod = await f.productos.crear(
         {
           sku: `LIM-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 16 (grande)",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
@@ -739,7 +749,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const clock = relojControlado(instanteGT("2026-08-05T16:00:00"));
     const f = await fixture(clock);
     try {
-      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
       const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       const dteCap = await f.facturas.capturarDte(e.factura.id, { numeroDte: `V-${crypto.randomUUID().slice(0, 8)}` }, f.actorTienda);
       expect(dteCap.emitidaAt).toBeTruthy();
@@ -759,13 +769,13 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
     const f = await fixture(clock);
     try {
-      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
       const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await f.pagos.registrar(
         {
           id: crypto.randomUUID(),
           idempotencyKey: `ayer-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 1000,
           metodo: "EFECTIVO",
           fecha: "2026-08-19",
@@ -776,7 +786,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         {
           id: crypto.randomUUID(),
           idempotencyKey: `t1-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 2000,
           metodo: "EFECTIVO",
         },
@@ -786,13 +796,14 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         {
           id: crypto.randomUUID(),
           idempotencyKey: `t2-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 1500,
           metodo: "EFECTIVO",
         },
         f.actorReparto,
       );
       const pagoId = crypto.randomUUID();
+      const abonoId = crypto.randomUUID();
       const [comp] = await f.db
         .insert(asset)
         .values({
@@ -800,15 +811,15 @@ describe.skipIf(!listo)("E5 cobranza", () => {
           bucket: "test",
           mime: "image/jpeg",
           size: 12,
-          ownerType: "pago",
-          ownerId: pagoId,
+          ownerType: "abono",
+          ownerId: abonoId,
         })
         .returning({ id: asset.id });
       await f.pagos.registrar(
         {
-          id: pagoId,
+          id: abonoId,
           idempotencyKey: `c1-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 3000,
           metodo: "TRANSFERENCIA",
           comprobanteAssetId: comp!.id,
@@ -833,7 +844,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       const prod = await f.productos.crear(
         {
           sku: `CERO-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 16 (grande)",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
@@ -886,7 +897,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
     const f = await fixture(clock);
     try {
-      const { pedido: p } = await catalogo(f, {
+      const { pedido: p, cli } = await catalogo(f, {
         precioCentavos: 10000,
         cantidad: 1,
       });
@@ -900,7 +911,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         {
           id: crypto.randomUUID(),
           idempotencyKey: `cobro-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 10000,
           metodo: "EFECTIVO",
         },
@@ -959,7 +970,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
   test("audit_log de entrega, DTE y pago con actor distinto", async () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
-      const { pedido: p } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
       const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await f.facturas.capturarDte(
         e.factura.id,
@@ -970,7 +981,7 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         {
           id: crypto.randomUUID(),
           idempotencyKey: `aud-${crypto.randomUUID()}`,
-          facturaId: e.factura.id,
+          clienteId: cli.id,
           montoCentavos: 1000,
           metodo: "EFECTIVO",
         },
@@ -991,6 +1002,135 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         .from(auditLog)
         .where(eq(auditLog.accion, "cobranza.registrar_pago"));
       expect(pagoAudit.some((a) => a.actorId === f.actorReparto.usuarioId)).toBe(true);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("portal: transferencia pendiente no baja saldo; confirmar aplica FIFO", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    const meta = { ip: "10.0.0.2", userAgent: "portal-abono-e2e" };
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `AB-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortillas #16",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `Portal abono ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 30000 }, f.actor);
+      const p1 = await f.pedidos.crearManual(
+        { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 1 }] },
+        f.actor,
+      );
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 20000 }, f.actor);
+      const p2 = await f.pedidos.crearManual(
+        { clienteId: cli.id, items: [{ productoId: prod.id, cantidad: 1 }] },
+        f.actor,
+      );
+      await f.cierre.cerrar({}, f.actor);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p1.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p2.id }, f.actorReparto);
+
+      const abonoId = crypto.randomUUID();
+      const [comp] = await f.db
+        .insert(asset)
+        .values({
+          key: `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`.slice(0, 64),
+          bucket: "test",
+          mime: "image/jpeg",
+          size: 12,
+          ownerType: "abono",
+          ownerId: abonoId,
+        })
+        .returning({ id: asset.id });
+
+      const reportado = await f.abonos.reportarTransferencia(
+        cli.id,
+        f.orgId,
+        {
+          id: abonoId,
+          idempotencyKey: `portal-${crypto.randomUUID()}`,
+          montoCentavos: 40000,
+          descripcion: "Transferencia Banrural ref 123",
+          comprobanteAssetId: comp!.id,
+        },
+        meta,
+      );
+      expect(reportado.estado).toBe("PENDIENTE");
+
+      const [cliRow] = await f.db.select().from(cliente).where(eq(cliente.id, cli.id));
+      const cuentaPend = await f.portal.cuentaDe(cliRow!);
+      expect(cuentaPend.saldoCentavos).toBe(50000);
+      expect(cuentaPend.transferenciasEnRevisionCentavos).toBe(40000);
+      expect(cuentaPend.abonos.some((a) => a.id === abonoId && a.estado === "PENDIENTE")).toBe(
+        true,
+      );
+
+      const pagosAntes = await f.db.select().from(pago).where(eq(pago.abonoId, abonoId));
+      expect(pagosAntes).toHaveLength(0);
+
+      const confirmado = await f.abonos.confirmar(abonoId, f.actor);
+      expect(confirmado.pagos).toHaveLength(2);
+      expect(confirmado.pagos[0]?.montoCentavos).toBe(30000);
+      expect(confirmado.pagos[1]?.montoCentavos).toBe(10000);
+      expect(confirmado.facturas.find((x) => x.saldoCentavos === 10000)?.estado).toBe(
+        "ABONO_PARCIAL",
+      );
+
+      const cuentaOk = await f.portal.cuentaDe(cliRow!);
+      expect(cuentaOk.saldoCentavos).toBe(10000);
+      expect(cuentaOk.transferenciasEnRevisionCentavos).toBe(0);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("portal: rechazar transferencia no crea pagos ni baja saldo", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    const meta = { ip: "10.0.0.2", userAgent: "portal-rechazo-e2e" };
+    try {
+      const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
+      const abonoId = crypto.randomUUID();
+      const [comp] = await f.db
+        .insert(asset)
+        .values({
+          key: `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`.slice(0, 64),
+          bucket: "test",
+          mime: "image/jpeg",
+          size: 12,
+          ownerType: "abono",
+          ownerId: abonoId,
+        })
+        .returning({ id: asset.id });
+      await f.abonos.reportarTransferencia(
+        cli.id,
+        f.orgId,
+        {
+          id: abonoId,
+          idempotencyKey: `rech-${crypto.randomUUID()}`,
+          montoCentavos: 5000,
+          descripcion: "Comprobante ilegible",
+          comprobanteAssetId: comp!.id,
+        },
+        meta,
+      );
+      await f.abonos.rechazar(abonoId, { motivo: "Monto no coincide" }, f.actor);
+      const [row] = await f.db.select().from(abono).where(eq(abono.id, abonoId));
+      expect(row?.estado).toBe("RECHAZADO");
+      const pagosRows = await f.db.select().from(pago).where(eq(pago.abonoId, abonoId));
+      expect(pagosRows).toHaveLength(0);
+      const [cliRow] = await f.db.select().from(cliente).where(eq(cliente.id, cli.id));
+      const cuenta = await f.portal.cuentaDe(cliRow!);
+      expect(cuenta.saldoCentavos).toBe(10000);
     } finally {
       await f.client.end({ timeout: 1 });
     }

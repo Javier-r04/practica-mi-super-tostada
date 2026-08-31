@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
+  abono,
   cliente,
   factura,
   pago,
@@ -34,6 +35,7 @@ import { DomainException } from "../shared/domain.exception";
 import { parseBody } from "../shared/zod-body";
 import type { Actor } from "../identity/actor";
 import { antiguedadDiasDe } from "./factura-presentacion";
+import { construirCuentaCliente } from "./abono-presentacion";
 
 const abonadoSql = sql<number>`coalesce((
   select sum(${pago.montoCentavos}) from ${pago} where ${pago.facturaId} = ${factura.id}
@@ -267,12 +269,24 @@ export class CarteraService {
       )
       .having(sql`count(*) > ${cliente.limiteFacturasPendientes}`);
 
+    const [pendTrans] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(abono)
+      .innerJoin(cliente, eq(cliente.id, abono.clienteId))
+      .where(
+        and(
+          eq(cliente.organizacionId, actor.organizacionId),
+          eq(abono.estado, "PENDIENTE"),
+        ),
+      );
+
     return carteraResumenSchema.parse({
       pendientesCount: Number(pend?.count ?? 0),
       pendientesSaldoCentavos: Number(pend?.saldo ?? 0),
       cobradoHoyCentavos: Number(cobrado?.total ?? 0),
       fechaCobro: diaCobro,
       porCobrarFechaOperacionCentavos: Number(porCobrar?.saldo ?? 0),
+      transferenciasPendientesCount: Number(pendTrans?.n ?? 0),
       clientesSobreLimite: sobre
         .filter((c) => c.limite != null)
         .map((c) => ({
@@ -378,49 +392,6 @@ export class CarteraService {
   }
 
   async cuentaDeCliente(cli: typeof cliente.$inferSelect): Promise<PortalCuenta> {
-    const cal = await this.calendar.load();
-    const now = this.calendar.now();
-    const filas = await this.db
-      .select({ factura, pedido })
-      .from(factura)
-      .innerJoin(pedido, eq(factura.pedidoId, pedido.id))
-      .where(eq(pedido.clienteId, cli.id));
-    const ids = filas.map((f) => f.factura.id);
-    const pagos = ids.length
-      ? await this.db.select().from(pago).where(inArray(pago.facturaId, ids))
-      : [];
-    const abonoPor = new Map<string, number>();
-    for (const p of pagos) {
-      abonoPor.set(p.facturaId, (abonoPor.get(p.facturaId) ?? 0) + p.montoCentavos);
-    }
-    const pendientes = [];
-    for (const fila of filas) {
-      const fac = fila.factura;
-      const abonado = abonoPor.get(fac.id) ?? 0;
-      const emitida = fac.emitidaAt ?? fac.createdAt;
-      const antiguedadDias = antiguedadDiasDe(cal, emitida, now);
-      const estado = estadoFactura({
-        montoCentavos: fac.montoCentavos,
-        abonadoCentavos: abonado,
-        antiguedadDias,
-      });
-      if (estado === "PAGADO") continue;
-      pendientes.push({
-        id: fac.id,
-        numeroDte: fac.numeroDte ?? null,
-        montoCentavos: fac.montoCentavos,
-        abonadoCentavos: abonado,
-        saldoCentavos: fac.montoCentavos - abonado,
-        emitidaAt: emitida ? instanteAIso(emitida) : null,
-        antiguedadDias,
-        estado: estado === "VENCIDO" ? ("VENCIDO" as const) : estado === "ABONO_PARCIAL" ? ("ABONO_PARCIAL" as const) : ("PENDIENTE" as const),
-      });
-    }
-    return portalCuentaSchema.parse({
-      facturasPendientes: pendientes.length,
-      limiteFacturasPendientes: cli.limiteFacturasPendientes,
-      saldoCentavos: pendientes.reduce((acc, f) => acc + f.saldoCentavos, 0),
-      facturas: pendientes,
-    });
+    return construirCuentaCliente(this.db, this.calendar, cli);
   }
 }

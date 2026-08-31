@@ -97,6 +97,68 @@ export class AssetsService {
     return (await this.byKey(saved.key)) ?? saved;
   }
 
+  /** Portal: comprobante de abono sin sesión de usuario interno. */
+  async confirmPortal(body: unknown) {
+    const input = parseBody(confirmAssetRequestSchema, body);
+    if (input.ownerType !== "abono") {
+      throw new DomainException(
+        "PERMISO_DENEGADO",
+        "Solo se permiten comprobantes de abono",
+        403,
+      );
+    }
+    const existing = await this.byKey(input.sha256);
+    if (existing) return existing;
+
+    const head = await this.storage.head(input.sha256);
+    if (!head) {
+      throw new DomainException(
+        "ASSET_NO_ENCONTRADO",
+        "El archivo aún no está en el bucket",
+        409,
+      );
+    }
+    if (head.size !== input.size) {
+      throw new DomainException(
+        "ASSET_TAMANO",
+        "El tamaño subido no coincide",
+        409,
+      );
+    }
+
+    const [row] = await this.db
+      .insert(asset)
+      .values({
+        key: input.sha256,
+        bucket: this.storage.bucket,
+        mime: input.mime,
+        size: input.size,
+        ownerType: input.ownerType,
+        ownerId: input.ownerId,
+        subidoPor: null,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    const saved = row ?? (await this.byKey(input.sha256));
+    if (!saved) {
+      throw new DomainException("ASSET_NO_ENCONTRADO", "No se pudo registrar el archivo", 500);
+    }
+    return saved;
+  }
+
+  async presignPortal(body: unknown) {
+    const input = parseBody(presignRequestSchema, body);
+    if (input.ownerType !== "abono") {
+      throw new DomainException(
+        "PERMISO_DENEGADO",
+        "Solo se permiten comprobantes de abono",
+        403,
+      );
+    }
+    return this.presign(body);
+  }
+
   async getContent(
     id: string,
     variante?: "thumb" | "card",

@@ -168,7 +168,7 @@ async function catalogoBasico(f: Awaited<ReturnType<typeof fixture>>) {
   const t16 = await f.productos.crear(
     {
       sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
-      nombreCanonico: "Tortilla No. 16 (grande)",
+      nombreCanonico: "Tortillas #16",
       familia: "TORTILLA",
       unidadMedida: "LIBRA",
       puntoCarga: "DEMOCRACIA",
@@ -178,7 +178,7 @@ async function catalogoBasico(f: Awaited<ReturnType<typeof fixture>>) {
   const nachos = await f.productos.crear(
     {
       sku: `NAC-${crypto.randomUUID().slice(0, 6)}`,
-      nombreCanonico: "Nachos blancos",
+      nombreCanonico: "Nachos Blancos Grandes",
       familia: "FRITURA",
       unidadMedida: "BOLSA",
       puntoCarga: "PLANTA",
@@ -463,6 +463,46 @@ describe.skipIf(!listo)("E4 operación diaria", () => {
       expect(hoja.esSabado).toBe(true);
       expect(hoja.grupos.map((g) => g.puntoCarga)).toEqual(["PLANTA"]);
       expect(hoja.snapshot.productos[0]?.puntoCargaEfectivo).toBe("PLANTA");
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-402 consolidado usa nombre del catálogo, no el alias del pedido", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const t16 = await f.productos.crear(
+        {
+          sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortillas #16",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "DEMOCRACIA",
+        },
+        f.actor,
+      );
+      const tabasco = await f.clientes.crear(
+        { nombre: `Tabasco alias ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(
+        tabasco.id,
+        t16.id,
+        {
+          alias: "tortilla comercial del cliente",
+          precioCentavos: 1250,
+          notaProduccion: "GRUESAS",
+        },
+        f.actor,
+      );
+      await f.pedidos.crearManual(
+        { clienteId: tabasco.id, items: [{ productoId: t16.id, cantidad: 50 }] },
+        f.actor,
+      );
+      await f.cierre.cerrar({}, f.actor);
+      const texto = await f.hoja.textoPlano(f.orgId, "2026-08-20");
+      expect(texto).toContain("Tortillas #16");
+      expect(texto).not.toContain("tortilla comercial del cliente");
     } finally {
       await f.client.end({ timeout: 1 });
     }
@@ -849,7 +889,7 @@ describe.skipIf(!listo)("E4 operación diaria", () => {
       const t16 = await f.productos.crear(
         {
           sku: `T16-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 16 (grande)",
+          nombreCanonico: "Tortillas #16",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
@@ -859,7 +899,7 @@ describe.skipIf(!listo)("E4 operación diaria", () => {
       const t14 = await f.productos.crear(
         {
           sku: `T14-${crypto.randomUUID().slice(0, 6)}`,
-          nombreCanonico: "Tortilla No. 14 (mediana)",
+          nombreCanonico: "Tortillas #14",
           familia: "TORTILLA",
           unidadMedida: "LIBRA",
           puntoCarga: "DEMOCRACIA",
