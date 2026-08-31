@@ -126,4 +126,12 @@
   .chip {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Amarillo de captura: único CTA destacado en Pedidos y Tablero. */
+  .button--accent {
+    --button-bg: var(--surface-accent);
+    --button-bg-hover: var(--yellow-500);
+    --button-bg-pressed: var(--yellow-500);
+    --button-fg: var(--text-on-accent);
+  }
 }

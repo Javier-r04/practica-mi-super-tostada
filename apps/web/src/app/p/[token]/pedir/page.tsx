@@ -207,8 +207,8 @@ export default function PortalPedirPage() {
       {sesion.cuenta.facturasPendientes > 0 ? (
         <ContadorFacturas
           pendientes={sesion.cuenta.facturasPendientes}
-          limite={sesion.cuenta.limiteFacturasPendientes}
           montoCentavos={sesion.cuenta.saldoCentavos}
+          destacado={aviso != null}
         />
       ) : null}
       <Button
@@ -404,8 +404,8 @@ export default function PortalPedirPage() {
                 <div className="grid gap-2">
                   <ContadorFacturas
                     pendientes={sesion.cuenta.facturasPendientes}
-                    limite={sesion.cuenta.limiteFacturasPendientes}
                     montoCentavos={sesion.cuenta.saldoCentavos}
+                    destacado={aviso != null}
                   />
                   <ul className="grid gap-1.5">
                     {sesion.cuenta.facturas.map((fac) => (

@@ -5,11 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Button,
-  ComboBox,
-  Input,
-  Label,
-  ListBox,
-  Select,
   ToggleButton,
   ToggleButtonGroup,
 } from "@heroui/react";
@@ -25,6 +20,7 @@ import {
 } from "@misupertostada/shared";
 import { api } from "@/lib/api";
 import { DateField } from "@/components/ui/date-field";
+import { Droplist, DroplistGroup } from "@/components/ui/droplist";
 import {
   etiquetaRangoCorto,
   hoyCivilIso,
@@ -40,9 +36,6 @@ export type FiltrosTablero = {
   puntoCarga: string;
   origen: string;
 };
-
-/** Clave de lista para «sin filtro»: una cadena vacía no sirve como `Key`. */
-const TODOS = "__todos";
 
 export function queryDeFiltros(f: FiltrosTablero): string {
   const s = new URLSearchParams();
@@ -191,34 +184,13 @@ function SelectFiltro({
   opciones: { value: string; label: string }[];
 }) {
   return (
-    <Select
-      fullWidth
-      value={value || TODOS}
-      onChange={(k) => {
-        const key = Array.isArray(k) ? k[0] : k;
-        onChange(key == null || key === TODOS ? "" : String(key));
-      }}
-    >
-      <Label>{label}</Label>
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox>
-          <ListBox.Item id={TODOS} textValue={todosLabel}>
-            {todosLabel}
-            <ListBox.ItemIndicator />
-          </ListBox.Item>
-          {opciones.map((o) => (
-            <ListBox.Item key={o.value} id={o.value} textValue={o.label}>
-              {o.label}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
+    <Droplist
+      label={label}
+      value={value}
+      onChange={onChange}
+      placeholder={todosLabel}
+      options={[{ value: "", label: todosLabel }, ...opciones]}
+    />
   );
 }
 
@@ -300,8 +272,10 @@ export function FiltrosTableroBarra({
         de exportar vivía en el cuerpo, una banda vacía abajo del filtro que no
         se alineaba con nada; junto al periodo queda claro qué recorte baja.
       */}
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <ToggleButtonGroup
+          className="mst-segmento-activo"
+          isDetached
           aria-label="Periodo del tablero"
           disallowEmptySelection
           selectedKeys={new Set([value.periodo])}
@@ -312,19 +286,17 @@ export function FiltrosTableroBarra({
             if (typeof next === "string") elegirPeriodo(next as PeriodoTablero);
           }}
         >
-          {PERIODOS.map((p, i) => (
+          {PERIODOS.map((p) => (
             <ToggleButton key={p.id} id={p.id}>
-              {i > 0 && <ToggleButtonGroup.Separator />}
               {p.label}
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
 
         {enPersonalizado ? (
-          <div className="min-w-[13rem] flex-1 sm:max-w-[18rem]">
+          <div className="min-w-[13rem] flex-1 sm:max-w-[18rem] [&_.mst-control]:h-9 [&_.mst-control]:md:h-8">
             <DateField
               id="tab-rango"
-              label="Rango"
               value={desdeMostrado}
               rangeEnd={hastaMostrado || undefined}
               ancla={desdeMostrado || hastaMostrado || aplicados?.hasta}
@@ -348,7 +320,7 @@ export function FiltrosTableroBarra({
             />
           </div>
         ) : desdeMostrado && hastaMostrado ? (
-          <p className="mst-label pb-1.5 tabular-nums" aria-live="polite">
+          <p className="mst-label tabular-nums" aria-live="polite">
             {etiquetaRangoCorto(desdeMostrado, hastaMostrado)}
           </p>
         ) : null}
@@ -409,69 +381,54 @@ export function FiltrosTableroBarra({
       {filtrosAbiertos ? (
         <div
           id="tab-filtros-panel"
-          className="mt-1 grid gap-3 rounded-tarjeta border border-[var(--border-subtle)] bg-blanco p-3 sm:grid-cols-2 lg:grid-cols-4"
+          className="mt-1 rounded-tarjeta border border-[var(--border-subtle)] bg-blanco p-3"
         >
-          <ComboBox
-            fullWidth
-            selectedKey={value.clienteId || TODOS}
-            onSelectionChange={(key) =>
-              aplicar({
-                clienteId: key == null || key === TODOS ? "" : String(key),
-              })
-            }
-          >
-            <Label>Cliente</Label>
-            <ComboBox.InputGroup>
-              <Input placeholder="Buscar restaurante" />
-              <ComboBox.Trigger />
-            </ComboBox.InputGroup>
-            <ComboBox.Popover>
-              <ListBox>
-                <ListBox.Item id={TODOS} textValue="Todos">
-                  Todos
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                {clientes.map((c) => (
-                  <ListBox.Item key={c.id} id={c.id} textValue={c.nombre}>
-                    {c.nombre}
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </ComboBox.Popover>
-          </ComboBox>
+          <DroplistGroup>
+            <Droplist
+              label="Cliente"
+              searchable
+              searchPlaceholder="Buscar restaurante"
+              value={value.clienteId}
+              onChange={(clienteId) => aplicar({ clienteId })}
+              placeholder="Todos"
+              options={[
+                { value: "", label: "Todos" },
+                ...clientes.map((c) => ({ value: c.id, label: c.nombre })),
+              ]}
+            />
 
-          <SelectFiltro
-            label="Familia"
-            value={value.familia}
-            onChange={(familia) => aplicar({ familia })}
-            todosLabel="Todas"
-            opciones={FAMILIAS.map((fam) => ({
-              value: fam,
-              label: FAMILIA_ETIQUETA[fam],
-            }))}
-          />
-          <SelectFiltro
-            label="Punto de carga"
-            value={value.puntoCarga}
-            onChange={(puntoCarga) => aplicar({ puntoCarga })}
-            todosLabel="Ambos"
-            opciones={PUNTOS_CARGA.map((p) => ({
-              value: p,
-              label: p === "PLANTA" ? "Planta" : "La Demo",
-            }))}
-          />
-          <SelectFiltro
-            label="Origen"
-            value={value.origen}
-            onChange={(origen) => aplicar({ origen })}
-            todosLabel="Todos"
-            opciones={PEDIDO_ORIGENES.map((o) => ({
-              value: o,
-              label: o === "PORTAL" ? "Portal" : "Manual",
-            }))}
-          />
-          <div className="flex items-end sm:col-span-2 lg:col-span-4">
+            <SelectFiltro
+              label="Familia"
+              value={value.familia}
+              onChange={(familia) => aplicar({ familia })}
+              todosLabel="Todas"
+              opciones={FAMILIAS.map((fam) => ({
+                value: fam,
+                label: FAMILIA_ETIQUETA[fam],
+              }))}
+            />
+            <SelectFiltro
+              label="Punto de carga"
+              value={value.puntoCarga}
+              onChange={(puntoCarga) => aplicar({ puntoCarga })}
+              todosLabel="Ambos"
+              opciones={PUNTOS_CARGA.map((p) => ({
+                value: p,
+                label: p === "PLANTA" ? "Planta" : "La Demo",
+              }))}
+            />
+            <SelectFiltro
+              label="Origen"
+              value={value.origen}
+              onChange={(origen) => aplicar({ origen })}
+              todosLabel="Todos"
+              opciones={PEDIDO_ORIGENES.map((o) => ({
+                value: o,
+                label: o === "PORTAL" ? "Portal" : "Manual",
+              }))}
+            />
+          </DroplistGroup>
+          <div className="mt-3 flex items-end">
             <Button
               className="w-full sm:w-auto"
               variant="ghost"

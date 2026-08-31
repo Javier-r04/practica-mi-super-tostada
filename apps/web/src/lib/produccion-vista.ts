@@ -102,3 +102,30 @@ function unidadDominanteDe(lineas: readonly LineaProducto[]): UnidadMedida {
   }
   return mejor;
 }
+
+const MAX_LINEAS_PREVIEW_CONSOLIDADO = 8;
+
+export type RecorteConsolidado = {
+  preview: string;
+  totalLineas: number;
+  recortado: boolean;
+};
+
+/**
+ * Preview del riel: las primeras N líneas. El consolidado real puede ser
+ * decenas de clientes; no se pinta entero al lado de la hoja.
+ */
+export function recortarConsolidado(
+  texto: string,
+  maxLineas = MAX_LINEAS_PREVIEW_CONSOLIDADO,
+): RecorteConsolidado {
+  const crudo = texto.replace(/\n$/, "");
+  const lineas = crudo === "" ? [] : crudo.split("\n");
+  const totalLineas = lineas.length;
+  const recortado = totalLineas > maxLineas;
+  return {
+    preview: recortado ? lineas.slice(0, maxLineas).join("\n") : crudo,
+    totalLineas,
+    recortado,
+  };
+}

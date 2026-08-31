@@ -99,7 +99,7 @@ describe("avisoLimiteCredito", () => {
         facturasPendientes: 4,
         limiteFacturasPendientes: 4,
       }),
-    ).toMatch(/límite de facturas/);
+    ).toMatch(/acumulación alta/);
   });
 });
 
@@ -115,7 +115,7 @@ describe("gruposCatalogo", () => {
       productoId: "00000000-0000-4000-a000-000000000002",
       alias: "nachos",
       familia: "FRITURA",
-      nombreCanonico: "Nachos blancos",
+      nombreCanonico: "Nachos Blancos Grandes",
     }),
     producto({
       productoId: "00000000-0000-4000-a000-000000000003",

@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/reparto",
     scope: "/",
     display: "standalone",
-    background_color: "#0E4E15",
+    background_color: "#ffffff",
     theme_color: "#0E4E15",
     lang: "es-GT",
     icons: [

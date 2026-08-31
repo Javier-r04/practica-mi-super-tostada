@@ -157,7 +157,7 @@ export default function ProduccionPage() {
         />
         <PageToolbar
           className="print:hidden"
-          description="Hoja del día: cantidades por familia. A la derecha, el consolidado del cierre para copiar o descargar."
+          description="Hoja del día: cantidades por familia, listas para producir."
           meta={
             hoja.data
               ? corregida
@@ -194,23 +194,6 @@ export default function ProduccionPage() {
                         <Printer size={15} aria-hidden />
                       )}
                       Imprimir
-                    </>
-                  )}
-                </Button>
-                <Button
-                  isPending={copiando}
-                  size="sm"
-                  variant="primary"
-                  onPress={() => void copiar()}
-                >
-                  {({ isPending }) => (
-                    <>
-                      {isPending ? (
-                        <Spinner color="current" size="sm" />
-                      ) : (
-                        <Copy size={15} aria-hidden />
-                      )}
-                      Copiar consolidado
                     </>
                   )}
                 </Button>
@@ -335,32 +318,35 @@ export default function ProduccionPage() {
                       Toda la carga sale de planta.
                     </p>
                   )}
-                  <HojaGrupos lineas={lineas} soloCambios={soloCambios} />
+                  <HojaGrupos
+                    lineas={lineas}
+                    clientes={hoja.data.snapshot.clientes}
+                    soloCambios={soloCambios}
+                  />
                 </>
               )}
             </Card.Content>
           </Card>
 
           {hoja.data && (
-            <Card className="print:hidden">
-              <Card.Header className="flex flex-col items-start gap-1">
-                <Card.Title>Consolidado</Card.Title>
-                <Card.Description>
-                  Mensaje del cierre · copiar o descargar si hace falta reenviar
-                </Card.Description>
+            <Card className="print:hidden lg:sticky lg:top-[calc(var(--topbar-height)+0.75rem)] lg:flex lg:max-h-[calc(100dvh-var(--topbar-height)-1.5rem)] lg:flex-col lg:overflow-hidden">
+              <Card.Header className="flex shrink-0 flex-col items-start gap-1">
+                <Card.Title>Consolidado del cierre</Card.Title>
               </Card.Header>
-              <Card.Content>
+              <Card.Content className="min-h-0 lg:overflow-y-auto">
                 <ConsolidadoPreview
                   cuerpo={hoja.data.texto}
                   version={hoja.data.version}
                   fecha={fecha}
+                  copiando={copiando}
+                  onCopiar={() => void copiar()}
                 />
               </Card.Content>
-              <Card.Footer className="flex flex-wrap gap-2">
+              <Card.Footer className="flex shrink-0 flex-wrap gap-2">
                 <Button
                   isPending={copiando}
                   size="sm"
-                  variant="secondary"
+                  variant="primary"
                   onPress={() => void copiar()}
                 >
                   {({ isPending }) => (

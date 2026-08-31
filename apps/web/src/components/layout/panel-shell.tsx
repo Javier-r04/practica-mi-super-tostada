@@ -155,7 +155,15 @@ export function PanelShell({
     enabled: Boolean(me.data),
     refetchInterval: 60_000,
   });
+  const carteraResumen = useQuery({
+    queryKey: ["cartera", "resumen"],
+    queryFn: () => api<{ transferenciasPendientesCount: number }>("/cartera/resumen"),
+    enabled: Boolean(me.data),
+    refetchInterval: 60_000,
+  });
   const aviso = avisoReabierto(calendario.data);
+  const transferenciasPendientes =
+    carteraResumen.data?.transferenciasPendientesCount ?? 0;
 
   useEffect(() => {
     if (me.error instanceof ApiError && me.error.status === 401) {
@@ -284,6 +292,16 @@ export function PanelShell({
                 {aviso.chip}
               </span>
             )}
+            {transferenciasPendientes > 0 ? (
+              <Link
+                className="mst-label shrink-0 rounded-full bg-[var(--amber-100)] px-2 py-0.5 text-[var(--amber-700)] no-underline hover:text-[var(--amber-800)]"
+                href="/cartera?panel=transferencias"
+                title="Transferencias reportadas por clientes, pendientes de confirmar"
+              >
+                {transferenciasPendientes} transferencia
+                {transferenciasPendientes === 1 ? "" : "s"}
+              </Link>
+            ) : null}
             {calendario.data && (
               <VentanaBadge
                 abierta={calendario.data.ventanaAbierta}

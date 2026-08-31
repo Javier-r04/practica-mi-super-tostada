@@ -30,7 +30,7 @@ const basePedido = (over: Partial<PedidoBandeja> = {}): PedidoBandeja => ({
 const fila = (over: Partial<ClienteProductoFila> = {}): ClienteProductoFila => ({
   productoId: "33333333-3333-4333-8333-333333333333",
   sku: "T16",
-  nombreCanonico: "Tortilla 16",
+  nombreCanonico: "Tortillas #16",
   familia: "TORTILLA",
   unidadMedida: "LIBRA",
   puntoCarga: "PLANTA",
@@ -136,14 +136,14 @@ describe("agruparProductosCaptura", () => {
       fila({
         productoId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         familia: "TOSTADA",
-        nombreCanonico: "Tostada",
+        nombreCanonico: "Tostadas #16 Blancas",
         favorito: false,
         orden: 1,
       }),
       fila({
         productoId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
         favorito: false,
-        nombreCanonico: "Tortilla 12",
+        nombreCanonico: "Tortillas #12",
         orden: 1,
       }),
     ];

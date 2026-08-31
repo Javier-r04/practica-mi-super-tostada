@@ -74,6 +74,7 @@ export default function PortalInicioPage() {
             fullWidth
             size="lg"
             variant="primary"
+            className={cta.kind === "pedidos" ? "button--accent" : undefined}
             onPress={() => router.push(hrefCta)}
           >
             {cta.label}
@@ -108,8 +109,8 @@ export default function PortalInicioPage() {
           />
           <LosetaCuenta
             pendientes={sesion.cuenta.facturasPendientes}
-            limite={sesion.cuenta.limiteFacturasPendientes}
             saldoCentavos={sesion.cuenta.saldoCentavos}
+            destacado={aviso != null}
             href={`${base}/cuenta`}
           />
           <LosetaUltimoPedido pedido={sesion.ultimoPedido} hrefBase={base} />
@@ -186,39 +187,41 @@ function LosetaPedidoEstaNoche({
 
 function LosetaCuenta({
   pendientes,
-  limite,
   saldoCentavos,
+  destacado,
   href,
 }: {
   pendientes: number;
-  limite: number | null;
   saldoCentavos: number;
+  destacado?: boolean;
   href: string;
 }) {
-  const excedido = limite != null && pendientes >= limite;
   return (
-    <Loseta etiqueta="Cuenta" href={href}>
+    <Loseta etiqueta="Estado de cuenta" href={href}>
       {pendientes === 0 ? (
         <p className="text-sm text-tinta-600">Sin facturas pendientes.</p>
       ) : (
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span
-            className={cn(
-              "text-[22px] font-semibold leading-none tabular-nums",
-              excedido ? "text-peligro" : "text-tinta-900",
-            )}
-          >
-            {pendientes}
-            {limite != null ? (
-              <span className="text-sm font-medium text-tinta-500">
-                /{limite}
-              </span>
-            ) : null}
-          </span>
-          <Money
-            centavos={saldoCentavos}
-            tone={saldoCentavos > 0 ? "pendiente" : "default"}
-          />
+        <div className="grid gap-1">
+          <p className="text-sm leading-snug">
+            <span
+              className={cn(
+                "text-[22px] font-semibold leading-none tabular-nums",
+                destacado ? "text-aviso-700" : "text-tinta-900",
+              )}
+            >
+              {pendientes}
+            </span>{" "}
+            <span className="text-tinta-900">
+              {pendientes === 1 ? "factura pendiente" : "facturas pendientes"}
+            </span>
+          </p>
+          <p className="text-sm text-tinta-600">
+            <Money
+              centavos={saldoCentavos}
+              tone={saldoCentavos > 0 ? "pendiente" : "default"}
+            />{" "}
+            por pagar
+          </p>
         </div>
       )}
     </Loseta>

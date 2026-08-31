@@ -12,22 +12,17 @@ const THEMES = { light: "", dark: ".dark" } as const
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const
 
 /**
- * Paleta categórica del tablero. Sale de los tokens de marca
- * (`src/styles/tokens/colors.css`) y es la MISMA en las cuatro gráficas:
- * una serie conserva su color en todas.
+ * Paleta categórica del tablero. Solo verde maíz y amarillo rótulo del sistema;
+ * sin ámbar ni naranja. La misma pareja en las cuatro gráficas.
  *
- *  - `digital`  = verde maíz 700 (#136220): el camino que ya está en el sistema
+ *  - `digital`  = verde 700 (#136220): lo que ya pasa por el sistema
  *                 (ventas, transferencia, portal).
- *  - `manual`   = ámbar 600 (#C77A02): el camino a mano (efectivo, pedido manual).
+ *  - `manual`   = amarillo 600 (#C9A400): lo que va a mano (efectivo, pedido manual).
  *  - `neutral`  = tinta 500 (#767A69): agregados sin identidad propia ("Otros").
- *
- * Validada con el validador de la skill `dataviz` sobre superficie blanca:
- * banda de luminosidad OK, croma OK, separación CVD ΔE 14.7 (protanopía),
- * visión normal ΔE 27.1, contraste 7.5:1 y 3.4:1 contra la tarjeta.
  */
 export const SERIE_COLOR = {
   digital: "var(--green-700)",
-  manual: "var(--amber-600)",
+  manual: "var(--yellow-600)",
   neutral: "var(--ink-500)",
 } as const
 type TooltipNameType = number | string

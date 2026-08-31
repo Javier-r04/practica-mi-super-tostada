@@ -57,6 +57,7 @@ import {
 } from "@/components/receivables/tabla-cartera";
 import { DialogoPago } from "@/components/receivables/dialogo-pago";
 import { VistaCuadre } from "@/components/receivables/cuadre-dia";
+import { BandejaTransferencias } from "@/components/receivables/bandeja-transferencias";
 import { cn } from "@/lib/utils";
 import {
   etiquetaDiaSemanaCorto,
@@ -65,10 +66,17 @@ import {
 } from "@/lib/fecha-ui";
 
 type TabCartera = "todas" | "pendientes" | "vencidas";
-type PanelCartera = "lista" | "cuadre";
+type PanelCartera = "lista" | "cuadre" | "transferencias";
+
+type CobroCliente = {
+  clienteId: string;
+  clienteNombre: string;
+  saldoCentavos: number;
+};
 
 const PANELES = [
   { id: "lista", label: "Facturas" },
+  { id: "transferencias", label: "Transferencias" },
   { id: "cuadre", label: "Cuadre del día" },
 ] as const;
 
@@ -85,9 +93,13 @@ function CarteraInner() {
   const online = useOnline();
   const searchParams = useSearchParams();
   const clienteIdUrl = searchParams.get("clienteId") ?? "";
+  const panelUrl = searchParams.get("panel");
 
   const [tab, setTab] = useState<TabCartera>("pendientes");
-  const [panel, setPanel] = useState<PanelCartera>("lista");
+  const [panel, setPanel] = useState<PanelCartera>(() => {
+    if (panelUrl === "transferencias" || panelUrl === "cuadre") return panelUrl;
+    return "lista";
+  });
   const [vista, setVista] = useState<VistaCartera>("factura");
   const [q, setQ] = useState("");
   const qBusqueda = useDeferredValue(q.trim());
@@ -105,7 +117,7 @@ function CarteraInner() {
   // lista. Se deriva en vez de auto-colapsar desde un efecto, que además
   // pintaba la alerta abierta un frame antes de cerrarla.
   const [alertaTocada, setAlertaTocada] = useState<boolean | null>(null);
-  const [cobrando, setCobrando] = useState<FacturaCartera | null>(null);
+  const [cobrando, setCobrando] = useState<CobroCliente | null>(null);
   const [pagoError, setPagoError] = useState<string>();
 
   const me = useQuery({
@@ -125,6 +137,21 @@ function CarteraInner() {
     me.data?.usuario.permisos ?? [],
     "mensajeria.enviar",
   );
+  const puedeConfirmar = tienePermiso(
+    me.data?.usuario.permisos ?? [],
+    "cobranza.confirmar_transferencia",
+  );
+
+  function abrirCobro(fac: FacturaCartera) {
+    const saldo = lista
+      .filter((f) => f.clienteId === fac.clienteId && f.estado !== "PAGADO")
+      .reduce((acc, f) => acc + f.saldoCentavos, 0);
+    setCobrando({
+      clienteId: fac.clienteId,
+      clienteNombre: fac.clienteNombre,
+      saldoCentavos: saldo,
+    });
+  }
 
   const filtros = {
     estado: tab,
@@ -312,7 +339,7 @@ function CarteraInner() {
   return (
     <PanelShell title="Cartera">
       <div className="grid gap-5">
-        <PageToolbar description="Facturas abiertas, captura de DTE y cobros. El límite de crédito es alerta, no candado." />
+        <PageToolbar description="Facturas abiertas, captura de DTE y cobros." />
 
         <ResumenCartera cargando={!resumen.data} resumen={resumen.data} />
 
@@ -322,19 +349,19 @@ function CarteraInner() {
               isExpanded={alertaAbierta}
               onExpandedChange={setAlertaTocada}
             >
-              <Disclosure.Heading>
+              <Disclosure.Heading className="transition-colors hover:bg-tinta-50">
                 <Button
-                  className="w-full justify-start px-4 py-3 text-left"
+                  className="min-h-16 w-full justify-start rounded-none px-4 py-5 text-left hover:bg-transparent"
                   slot="trigger"
                   variant="ghost"
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-tinta-900">
+                    <span className="block text-base font-semibold text-tinta-900">
                       Al límite de crédito
                     </span>
-                    <span className="mst-label mt-0.5 block font-normal">
+                    <span className="mt-1 block text-sm font-normal text-tinta-600">
                       {sobreLimite.length} restaurante
-                      {sobreLimite.length === 1 ? "" : "s"} · alerta, no candado
+                      {sobreLimite.length === 1 ? "" : "s"}
                     </span>
                   </span>
                   <Disclosure.Indicator />
@@ -399,6 +426,7 @@ function CarteraInner() {
 
         <ToggleButtonGroup
           aria-label="Panel de cartera"
+          className="mst-segmento-activo"
           disallowEmptySelection
           fullWidth
           selectedKeys={new Set([panel])}
@@ -435,6 +463,10 @@ function CarteraInner() {
               <Skeleton className="h-48 w-full rounded-tarjeta" />
             )}
           </div>
+        ) : panel === "transferencias" ? (
+          <Card className="gap-0 overflow-hidden p-0">
+            <BandejaTransferencias puedeConfirmar={puedeConfirmar} />
+          </Card>
         ) : (
           <>
             <section className="grid gap-3" aria-label="Buscar y filtrar">
@@ -465,7 +497,7 @@ function CarteraInner() {
                 </Button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="mst-segmento-activo flex flex-wrap items-center gap-2">
                 <ToggleButtonGroup
                   aria-label="Estado de facturas"
                   disallowEmptySelection
@@ -707,7 +739,7 @@ function CarteraInner() {
                       recordar.isPending ? recordar.variables : undefined
                     }
                     vista={vista}
-                    onCobrar={setCobrando}
+                    onCobrar={abrirCobro}
                     onDte={(fac, numeroDte) =>
                       dte.mutate({ id: fac.id, numeroDte })
                     }
@@ -742,9 +774,9 @@ function CarteraInner() {
 
       {cobrando ? (
         <DialogoPago
-          key={cobrando.id}
+          key={cobrando.clienteId}
           open
-          descripcion={`${cobrando.clienteNombre} · ${cobrando.numeroDte ?? "Sin DTE"}`}
+          descripcion={`${cobrando.clienteNombre} · se aplica a las facturas más antiguas`}
           error={pagoError}
           loading={pagar.isPending}
           online={online}
@@ -758,7 +790,7 @@ function CarteraInner() {
             pagar.mutate({
               id: input.id,
               idempotencyKey: `cartera-${input.id}`,
-              facturaId: cobrando.id,
+              clienteId: cobrando.clienteId,
               montoCentavos: input.montoCentavos,
               metodo: input.metodo,
               comprobanteAssetId: input.comprobanteAssetId,

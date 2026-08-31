@@ -8,6 +8,8 @@ export function ContadorFacturas({
   montoCentavos,
   etiqueta = "Facturas pendientes",
   href,
+  /** Portal: resalta sin revelar el límite interno del cliente. */
+  destacado = false,
 }: {
   pendientes: number;
   limite?: number | null;
@@ -15,12 +17,14 @@ export function ContadorFacturas({
   etiqueta?: string;
   /** Si existe, el contador es un enlace (p. ej. ficha del cliente). */
   href?: string;
+  destacado?: boolean;
 }) {
   const excedido = limite != null && pendientes >= limite;
   const cerca = limite != null && !excedido && pendientes >= limite - 1;
+  const alertaSuave = destacado && !excedido;
   const color = excedido
     ? "text-peligro"
-    : cerca
+    : alertaSuave || cerca
       ? "text-aviso"
       : "text-marca";
 
@@ -28,7 +32,7 @@ export function ContadorFacturas({
     "flex min-h-fila items-center gap-3 rounded-tarjeta border bg-blanco px-4 py-3",
     excedido ? "border-peligro" : "border-[var(--border-subtle)]",
     href &&
-      "transition-[background-color] duration-control ease-out hover:bg-tinta-50 focus-visible:outline-none focus-visible:shadow-foco",
+      "text-inherit no-underline transition-[background-color] duration-control ease-out hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco",
   );
 
   const body = (

@@ -43,7 +43,7 @@ import {
   PRESETS_OPERACION,
 } from "@/lib/fecha-ui";
 import { DateField } from "@/components/ui/date-field";
-import { copyRangoPedidos, fechaFocoUi } from "@/lib/ejes-vista";
+import { fechaFocoUi } from "@/lib/ejes-vista";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -196,8 +196,6 @@ function PedidosInner() {
     ? (clientePorId.get(clienteId)?.nombre ?? "cliente")
     : null;
 
-  const rotuloEje = copyRangoPedidos(desde, hasta, calendario.data);
-
   const totalPedidos = pedidos.data?.length ?? 0;
   const cargandoLista = pedidos.isLoading && !pedidos.data;
 
@@ -332,7 +330,7 @@ function PedidosInner() {
             </SearchField>
             {puedeEscribir && (
               <Button
-                className="shrink-0"
+                className="button--accent shrink-0"
                 variant="primary"
                 onPress={() => setCaptura(true)}
               >
@@ -346,6 +344,7 @@ function PedidosInner() {
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
               <ToggleButtonGroup
                 aria-label="Filtrar pedidos por estado"
+                className="mst-segmento-activo"
                 disallowEmptySelection
                 selectedKeys={new Set([segmento])}
                 selectionMode="single"
@@ -364,11 +363,6 @@ function PedidosInner() {
                   </ToggleButton>
                 ))}
               </ToggleButtonGroup>
-              {rotuloEje && !historialCliente ? (
-                <span className="text-xs tabular-nums text-tinta-500">
-                  {rotuloEje}
-                </span>
-              ) : null}
             </div>
 
             {!cargandoLista && pedidos.data ? (
@@ -434,6 +428,7 @@ function PedidosInner() {
                   action={
                     puedeEscribir && !q && segmento !== "ANULADO" ? (
                       <Button
+                        className="button--accent"
                         size="sm"
                         variant="primary"
                         onPress={() => setCaptura(true)}
@@ -480,7 +475,15 @@ function PedidosInner() {
                             </span>
                             <span className="flex gap-2 text-[12px] text-tinta-500">
                               <span>
-                                {p.origen === "PORTAL" ? "Portal" : "Manual"} ·{" "}
+                                <span
+                                  className={cn(
+                                    p.origen === "MANUAL" &&
+                                      "font-semibold text-[var(--amber-700)]",
+                                  )}
+                                >
+                                  {p.origen === "PORTAL" ? "Portal" : "Manual"}
+                                </span>
+                                {" · "}
                                 {desde !== hasta
                                   ? `${etiquetaDiaSemanaCorto(p.fechaOperacion)} · entrega ${etiquetaDiaSemanaCorto(p.fechaEntrega)} · `
                                   : ""}
@@ -615,7 +618,7 @@ function BandejaResumen({
   return (
     <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Cifra label="Pedidos" valor={resumen.pedidos} />
-      <Cifra label="Vivos" valor={resumen.vivos} tono="text-marca" />
+      <Cifra label="Vivos" valor={resumen.vivos} tono="text-[var(--amber-700)]" />
       <Cifra
         label="Anulados"
         valor={resumen.anulados}
@@ -623,7 +626,15 @@ function BandejaResumen({
       />
       <Cifra
         label="Total vivo"
-        valor={<Money centavos={resumen.totalCentavos} className="text-[22px]" />}
+        className="border-[var(--amber-600)]/30 bg-[var(--amber-100)]/20"
+        tono="text-aviso-700"
+        valor={
+          <Money
+            centavos={resumen.totalCentavos}
+            tone="pendiente"
+            className="font-display text-[28px] leading-none"
+          />
+        }
       />
     </dl>
   );
@@ -633,13 +644,15 @@ function Cifra({
   label,
   valor,
   tono = "text-tinta-900",
+  className,
 }: {
   label: string;
   valor: ReactNode;
   tono?: string;
+  className?: string;
 }) {
   return (
-    <Card className="gap-1 p-4">
+    <Card className={cn("gap-1 p-4", className)}>
       <dt className="mst-label text-[11px]">{label}</dt>
       <dd
         className={cn(

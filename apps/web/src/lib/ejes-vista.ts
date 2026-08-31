@@ -124,3 +124,66 @@ export function copyRangoPedidos(
   }
   return `Operación ${dia(desde)} · histórico`;
 }
+
+/** Campos extra de `CalendarioAhora` que la bandeja de pedidos necesita para copy. */
+export type CalendarioEjePedidos = EjesUi & {
+  fechaEntregaCaptura: string;
+  fechaEntregaEnCurso: string;
+  capturaAbierta: boolean;
+  diaEstado: "SIN_CIERRE" | "CERRADO" | "REABIERTO";
+};
+
+/**
+ * `/pedidos` vive en el eje **foco**: captura con la ventana abierta, en curso
+ * cuando cerró. La bandeja puede además mirar un rango o el historial de un
+ * cliente; el copy dice qué está viendo y a qué operación iría un pedido nuevo.
+ */
+export function copyEjePedidos(
+  desde: string,
+  hasta: string,
+  cal: CalendarioEjePedidos | undefined,
+  opts?: { historialCliente?: boolean },
+): CopyEje | null {
+  if (opts?.historialCliente) {
+    return {
+      titulo: "Historial del cliente",
+      detalle:
+        "Todos los pedidos de este restaurante, sin filtro de fecha. Elija «Día» para volver a la bandeja de hoy.",
+    };
+  }
+  if (!desde) return null;
+  if (desde !== hasta) {
+    return {
+      titulo: `Rango de operaciones · ${dia(desde)} → ${dia(hasta)}`,
+      detalle:
+        "Varias noches a la vez. Un solo día distingue captura, reparto en curso o histórico.",
+    };
+  }
+
+  const eje = ejeDeFecha(desde, cal);
+  if (eje === "captura" && cal) {
+    const ventana = cal.capturaAbierta
+      ? "Ventana abierta: portal y llamadas entran aquí."
+      : cal.diaEstado === "REABIERTO"
+        ? "Día reabierto: puede seguir capturando fuera de horario."
+        : "Ventana cerrada. Solo correcciones si el día está reabierto.";
+    return {
+      titulo: `Operación en captura · ${dia(desde)}`,
+      detalle: `Entrega ${dia(cal.fechaEntregaCaptura)}. ${ventana}`,
+    };
+  }
+  if (eje === "curso" && cal) {
+    const capturaParalela =
+      !cal.mismaOperacion && cal.ventanaAbierta
+        ? ` La captura vive en ${dia(cal.fechaOperacionCaptura)}.`
+        : "";
+    return {
+      titulo: `Operación en curso · ${dia(desde)}`,
+      detalle: `Entrega ${dia(cal.fechaEntregaEnCurso)}. Lo que ya se cerró y sale a reparto.${capturaParalela}`,
+    };
+  }
+  return {
+    titulo: `Operación ${dia(desde)}`,
+    detalle: "Histórico: ya se repartió y cerró. Sirve para consultar o anular.",
+  };
+}

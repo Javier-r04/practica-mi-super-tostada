@@ -4,7 +4,11 @@ import { Chip } from "@heroui/react";
 import {
   FAMILIA_ETIQUETA,
   UNIDAD_CORTA,
+  gruposNotaProduccion,
+  textoClienteNota,
+  type BloqueCliente,
   type LineaProducto,
+  type NotaProduccionGrupo,
   type UnidadMedida,
 } from "@misupertostada/shared";
 import { EstadoBadge } from "@/components/domain/estado-badge";
@@ -17,9 +21,11 @@ import { cn } from "@/lib/utils";
 
 export function HojaGrupos({
   lineas,
+  clientes,
   soloCambios,
 }: {
   lineas: LineaProducto[];
+  clientes?: readonly BloqueCliente[];
   soloCambios: boolean;
 }) {
   const visibles = lineasVisibles(lineas, soloCambios);
@@ -69,6 +75,7 @@ export function HojaGrupos({
                 <FilaHoja
                   key={`${linea.productoId}-${linea.cambio ?? "ok"}`}
                   linea={linea}
+                  clientes={clientes}
                 />
               ))}
             </ul>
@@ -93,71 +100,111 @@ function subtotalDe(
   };
 }
 
-function FilaHoja({ linea }: { linea: LineaProducto }) {
+function FilaHoja({
+  linea,
+  clientes,
+}: {
+  linea: LineaProducto;
+  clientes?: readonly BloqueCliente[];
+}) {
   const delta = deltaCantidad(linea);
   const eliminado = linea.cambio === "eliminado";
+  const notas = gruposNotaProduccion(linea, clientes);
 
   return (
     <li
       className={cn(
-        "flex min-h-fila items-center gap-2 border-b border-[var(--border-subtle)] px-4 py-2 last:border-b-0 sm:gap-3 sm:px-5",
+        "border-b border-[var(--border-subtle)] px-4 py-2.5 last:border-b-0 sm:px-5",
         linea.cambio ? "bg-[var(--amber-100)]/60" : "bg-blanco",
         eliminado && "opacity-70",
       )}
     >
-      <span
-        className={cn(
-          "min-w-0 flex-1 text-sm font-semibold text-pretty text-tinta-900",
-          eliminado && "line-through",
-        )}
-      >
-        {linea.nombreCanonico}
-      </span>
-      {linea.notaProduccion && (
-        <Chip color="success" size="sm" variant="soft">
-          {linea.notaProduccion}
-        </Chip>
-      )}
-      <EstadoBadge estado={linea.puntoCargaEfectivo} size="sm" />
-      {linea.cambio === "nuevo" && (
-        <Chip color="warning" size="sm" variant="soft">
-          nuevo
-        </Chip>
-      )}
-      {linea.cambio === "ajustado" && !delta && (
-        <Chip color="warning" size="sm" variant="soft">
-          ajustado
-        </Chip>
-      )}
-      {eliminado && (
-        <Chip color="warning" size="sm" variant="soft">
-          eliminado
-        </Chip>
-      )}
-      <span
-        aria-label={delta ? `${delta.de} antes, ${delta.a} ahora` : undefined}
-        className={cn(
-          "shrink-0 font-display text-2xl leading-none tabular-nums text-marca",
-          eliminado && "line-through",
-        )}
-      >
-        {delta ? (
-          <>
-            <span className="text-base text-tinta-500" aria-hidden>
-              {delta.de}
-            </span>
-            <span className="mx-1 text-base text-tinta-400" aria-hidden>
-              →
-            </span>
-            <span aria-hidden>{delta.a}</span>
-          </>
-        ) : (
-          linea.cantidad
-        )}
-      </span>
-      <span className="w-14 shrink-0 text-xs text-tinta-500">
-        {UNIDAD_CORTA[linea.unidadMedida]}
-      </span>
+      <div className="flex items-start gap-2 sm:gap-3">
+        <p
+          className={cn(
+            "min-w-0 flex-1 text-sm font-semibold text-pretty text-tinta-900",
+            eliminado && "line-through",
+          )}
+        >
+          {linea.nombreCanonico}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <EstadoBadge estado={linea.puntoCargaEfectivo} size="sm" />
+          {linea.cambio === "nuevo" && (
+            <Chip color="warning" size="sm" variant="soft">
+              nuevo
+            </Chip>
+          )}
+          {linea.cambio === "ajustado" && !delta && (
+            <Chip color="warning" size="sm" variant="soft">
+              ajustado
+            </Chip>
+          )}
+          {eliminado && (
+            <Chip color="warning" size="sm" variant="soft">
+              eliminado
+            </Chip>
+          )}
+          <span
+            aria-label={
+              delta ? `${delta.de} antes, ${delta.a} ahora` : undefined
+            }
+            className={cn(
+              "shrink-0 font-display text-2xl leading-none tabular-nums text-marca",
+              eliminado && "line-through",
+            )}
+          >
+            {delta ? (
+              <>
+                <span className="text-base text-tinta-500" aria-hidden>
+                  {delta.de}
+                </span>
+                <span className="mx-1 text-base text-tinta-400" aria-hidden>
+                  →
+                </span>
+                <span aria-hidden>{delta.a}</span>
+              </>
+            ) : (
+              linea.cantidad
+            )}
+          </span>
+          <span className="w-10 shrink-0 text-xs text-tinta-500 sm:w-14">
+            {UNIDAD_CORTA[linea.unidadMedida]}
+          </span>
+        </div>
+      </div>
+      <NotasProduccion grupos={notas} />
     </li>
+  );
+}
+
+/** Notas de producción: bloque amarillo que envuelve. Nunca un Chip de una línea. */
+function NotasProduccion({ grupos }: { grupos: NotaProduccionGrupo[] }) {
+  if (grupos.length === 0) return null;
+  return (
+    <ul className="mt-1.5 grid min-w-0 gap-1.5">
+      {grupos.map((grupo) => (
+        <li
+          key={grupo.nota}
+          className="rounded-campo border border-[var(--yellow-400)]/45 border-l-[3px] border-l-[var(--yellow-400)] bg-[var(--yellow-100)] px-2.5 py-1.5"
+        >
+          <p className="text-[11px] font-semibold leading-snug text-pretty text-[var(--amber-700)]">
+            {grupo.nota}
+          </p>
+          {grupo.clientes.length > 0 ? (
+            <ul className="mt-1 flex flex-wrap gap-1">
+              {grupo.clientes.map((cliente, i) => (
+                <li
+                  key={`${cliente.nombre}-${i}`}
+                  className="max-w-full rounded-pill bg-[var(--yellow-200)] px-2 py-0.5 text-xs leading-snug text-pretty break-words tabular-nums text-[var(--amber-700)]"
+                >
+                  {textoClienteNota(cliente)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }

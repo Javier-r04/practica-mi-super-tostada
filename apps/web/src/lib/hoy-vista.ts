@@ -94,19 +94,10 @@ export function copyHeroFoco(foco: FocoOperacion): {
 }
 
 export const PEDIDOS_NOCHE_LIMITE = 8;
-/** Primer corte y paso de «Cargar más» en clientes sin pedido. */
-export const CLIENTES_SIN_PEDIDO_PASO = 8;
 
 export type PedidoNocheRecorte<T> = {
   visible: T[];
   total: number;
-  meta: string | null;
-};
-
-export type ListaPaginadaUi<T> = {
-  visible: T[];
-  total: number;
-  hayMas: boolean;
   meta: string | null;
 };
 
@@ -148,28 +139,6 @@ export function recortarPedidosNoche<T>(
   const visible = rows.slice(0, limite);
   const meta = total > limite ? `${limite} de ${total}` : null;
   return { visible, total, meta };
-}
-
-/**
- * Página incremental de «Aún no piden».
- * `visibles` crece con «Cargar más»; la meta siempre refleja cuántos se ven.
- */
-export function paginaClientesSinPedido<T>(
-  rows: readonly T[],
-  visibles: number,
-): ListaPaginadaUi<T> {
-  const total = rows.length;
-  const limite = Math.max(0, visibles);
-  const visible = rows.slice(0, limite);
-  const mostrados = visible.length;
-  const hayMas = total > mostrados;
-  const meta =
-    total === 0
-      ? null
-      : hayMas || total > CLIENTES_SIN_PEDIDO_PASO
-        ? `${mostrados} de ${total}`
-        : null;
-  return { visible, total, hayMas, meta };
 }
 
 /** Join clienteId → fotoAssetId para avatares (misma query que Pedidos). */

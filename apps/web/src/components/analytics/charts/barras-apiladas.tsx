@@ -26,7 +26,7 @@ type Dia = {
   transferenciaCentavos: number;
 };
 
-/* Mismo criterio de color que «Origen del pedido»: ámbar = lo que pasa a mano
+/* Mismo criterio de color que «Origen del pedido»: amarillo = lo que pasa a mano
    (efectivo), verde = lo que ya entra por el sistema (transferencia). */
 const chartConfig = {
   efectivoCentavos: {

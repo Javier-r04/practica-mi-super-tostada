@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   copyEjeCartera,
+  copyEjePedidos,
   copyEjeProduccion,
   copyEjeReparto,
   copyRangoPedidos,
@@ -89,5 +90,37 @@ describe("copyRangoPedidos", () => {
 
   test("sin fecha no rotula nada", () => {
     expect(copyRangoPedidos("", "", SEPARADOS)).toBe("");
+  });
+});
+
+const CAL_PEDIDOS = {
+  ...SEPARADOS,
+  fechaEntregaCaptura: "2026-08-26",
+  fechaEntregaEnCurso: "2026-08-25",
+  capturaAbierta: true,
+  diaEstado: "SIN_CIERRE" as const,
+};
+
+describe("copyEjePedidos", () => {
+  test("un día en captura nombra entrega y ventana", () => {
+    const copy = copyEjePedidos("2026-08-25", "2026-08-25", CAL_PEDIDOS);
+    expect(copy?.titulo).toContain("captura");
+    expect(copy?.detalle).toContain("Mi 26 ago");
+    expect(copy?.detalle).toContain("Ventana abierta");
+  });
+
+  test("un día en curso avisa si la captura vive en otra operación", () => {
+    const copy = copyEjePedidos("2026-08-24", "2026-08-24", CAL_PEDIDOS);
+    expect(copy?.titulo).toContain("curso");
+    expect(copy?.detalle).toContain("Ma 25 ago");
+  });
+
+  test("rango e historial de cliente tienen copy propio", () => {
+    expect(
+      copyEjePedidos("2026-08-17", "2026-08-23", CAL_PEDIDOS)?.titulo,
+    ).toContain("Rango");
+    expect(
+      copyEjePedidos("", "", CAL_PEDIDOS, { historialCliente: true })?.titulo,
+    ).toBe("Historial del cliente");
   });
 });

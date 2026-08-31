@@ -369,3 +369,12 @@ button.mst-control {
   inline-size: 12px;
   block-size: 12px;
 }
+
+/* Segmentos en cápsulas: activo en amarillo legible (tablero, cartera, pedidos). */
+.mst-segmento-activo .toggle-button[data-selected="true"] {
+  --toggle-button-bg-selected: var(--yellow-400);
+  --toggle-button-bg-selected-hover: var(--yellow-500);
+  --toggle-button-bg-selected-pressed: var(--yellow-500);
+  --toggle-button-fg-selected: var(--green-900);
+  font-weight: var(--weight-semibold);
+}

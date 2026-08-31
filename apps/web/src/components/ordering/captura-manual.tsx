@@ -20,6 +20,7 @@ import {
   FAMILIA_ETIQUETA,
   UNIDAD_CORTA,
   totalPedidoCentavos,
+  type CalendarioAhora,
   type ClienteProductoFila,
   type ClientePublico,
   type PedidoDetalle,
@@ -28,9 +29,11 @@ import {
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import { agruparProductosCaptura } from "@/lib/pedido-vista";
+import { copyEjePedidos } from "@/lib/ejes-vista";
 import { toastFromError, toastSuccess } from "@/lib/toast";
 import { ContadorFacturas } from "@/components/domain/contador-facturas";
 import { Money } from "@/components/domain/money";
+import { PildorasEjePedidos } from "@/components/ordering/pildoras-eje-pedidos";
 import { ProductoThumb } from "@/components/catalog/producto-thumb";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { cn } from "@/lib/utils";
@@ -61,6 +64,11 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
   const clientes = useQuery({
     queryKey: ["clientes"],
     queryFn: () => api<ClientePublico[]>("/clientes"),
+    enabled: open,
+  });
+  const calendario = useQuery({
+    queryKey: ["calendario", "ahora"],
+    queryFn: () => api<CalendarioAhora>("/calendario/ahora"),
     enabled: open,
   });
   const productos = useQuery({
@@ -123,6 +131,14 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
     cuenta.data.limiteFacturasPendientes != null &&
     cuenta.data.facturasPendientes >= cuenta.data.limiteFacturasPendientes;
 
+  const copyCaptura = calendario.data
+    ? copyEjePedidos(
+        calendario.data.fechaOperacionCaptura,
+        calendario.data.fechaOperacionCaptura,
+        calendario.data,
+      )
+    : null;
+
   const capturar = useMutation({
     mutationFn: () =>
       api<PedidoDetalle>("/pedidos", {
@@ -158,6 +174,19 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
 
           <Modal.Body>
             <div className="grid gap-4">
+              {copyCaptura && calendario.data ? (
+                <div className="grid gap-2.5 rounded-campo border border-[var(--yellow-400)]/35 bg-[var(--yellow-100)]/90 px-3 py-3">
+                  <p className="text-sm leading-relaxed text-pretty text-[var(--amber-700)]">
+                    <span className="font-semibold">{copyCaptura.titulo}.</span>{" "}
+                    {copyCaptura.detalle}
+                  </p>
+                  <PildorasEjePedidos
+                    fecha={calendario.data.fechaOperacionCaptura}
+                    cal={calendario.data}
+                  />
+                </div>
+              ) : null}
+
               <ComboBox
                 isRequired
                 selectedKey={clienteId || null}
@@ -301,6 +330,7 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
               Cancelar
             </Button>
             <Button
+              className="button--accent"
               isDisabled={!clienteId || items.length === 0 || capturar.isPending}
               isPending={capturar.isPending}
               variant="primary"

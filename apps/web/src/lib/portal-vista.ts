@@ -74,7 +74,7 @@ export function avisoLimiteCredito(cuenta: {
   const limite = cuenta.limiteFacturasPendientes;
   if (limite == null) return null;
   if (cuenta.facturasPendientes < limite) return null;
-  return "Llegó al límite de facturas pendientes. Puede pedir igual; la fábrica le avisa antes de despachar.";
+  return "Tiene una acumulación alta de facturas pendientes. Puede pedir igual; la fábrica le avisa antes de despachar.";
 }
 
 export type GrupoCatalogo = {

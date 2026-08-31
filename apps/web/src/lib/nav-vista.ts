@@ -64,6 +64,7 @@ export const ESCRITURAS_POR_SECCION: Record<
   cartera: [
     "cobranza.registrar_pago",
     "cobranza.capturar_dte",
+    "cobranza.confirmar_transferencia",
     "mensajeria.enviar",
   ],
   conversaciones: ["mensajeria.enviar", "mensajeria.conectar"],

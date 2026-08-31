@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  CLIENTES_SIN_PEDIDO_PASO,
   copyHeroFoco,
   copyVentanaHoy,
   fechaDeFoco,
@@ -11,7 +10,6 @@ import {
   hrefLimiteCredito,
   hrefPedidoNoche,
   mapaFotoCliente,
-  paginaClientesSinPedido,
   PEDIDOS_NOCHE_LIMITE,
   recortarPedidosNoche,
 } from "./hoy-vista";
@@ -72,33 +70,6 @@ describe("recortarPedidosNoche", () => {
     expect(r.visible[7]).toBe(8);
     expect(r.total).toBe(12);
     expect(r.meta).toBe("8 de 12");
-  });
-});
-
-describe("paginaClientesSinPedido", () => {
-  test("sin meta si cabe en el primer paso", () => {
-    const rows = [1, 2, 3];
-    const r = paginaClientesSinPedido(rows, CLIENTES_SIN_PEDIDO_PASO);
-    expect(r.visible).toEqual([1, 2, 3]);
-    expect(r.hayMas).toBe(false);
-    expect(r.meta).toBeNull();
-  });
-
-  test("meta y hayMás cuando supera el paso", () => {
-    const rows = Array.from({ length: 20 }, (_, i) => i + 1);
-    const r = paginaClientesSinPedido(rows, CLIENTES_SIN_PEDIDO_PASO);
-    expect(r.visible).toHaveLength(CLIENTES_SIN_PEDIDO_PASO);
-    expect(r.total).toBe(20);
-    expect(r.hayMas).toBe(true);
-    expect(r.meta).toBe("8 de 20");
-  });
-
-  test("cargar más amplía visibles", () => {
-    const rows = Array.from({ length: 20 }, (_, i) => i + 1);
-    const r = paginaClientesSinPedido(rows, CLIENTES_SIN_PEDIDO_PASO * 2);
-    expect(r.visible).toHaveLength(16);
-    expect(r.hayMas).toBe(true);
-    expect(r.meta).toBe("16 de 20");
   });
 });
 

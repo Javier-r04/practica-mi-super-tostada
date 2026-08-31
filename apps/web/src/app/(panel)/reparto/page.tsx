@@ -384,19 +384,18 @@ export default function RepartoPage() {
           key={parada.pedidoId}
           open={cobrando}
           titulo="Registrar cobro"
-          descripcion={`${parada.clienteNombre} · se aplica a la factura más antigua`}
+          descripcion={`${parada.clienteNombre} · se aplica a las facturas más antiguas`}
           saldoCentavos={saldoParadaCentavos({
             saldoAnteriorCentavos: parada.saldoAnteriorCentavos,
             facturaSaldoCentavos: parada.factura?.saldoCentavos,
           })}
           online={cola.online}
           permitirOffline
+          metodos={["EFECTIVO"]}
           error={error}
           onClose={() => setCobrando(false)}
           onConfirm={(input) => {
             setError(undefined);
-            const blobId =
-              input.metodo === "TRANSFERENCIA" ? crypto.randomUUID() : undefined;
             void cola
               .encolarPago(
                 {
@@ -407,9 +406,8 @@ export default function RepartoPage() {
                   pedidoId: parada.pedidoId,
                   montoCentavos: input.montoCentavos,
                   metodo: input.metodo,
-                  blobId,
                 },
-                input.archivo,
+                undefined,
               )
               .then(() => {
                 setCobrando(false);

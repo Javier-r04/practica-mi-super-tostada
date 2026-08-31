@@ -241,7 +241,7 @@ export function PedidoDetalle({
               </h2>
               <EstadoBadge estado={pedido.estado} />
               <Chip
-                color={pedido.origen === "PORTAL" ? "success" : "default"}
+                color={pedido.origen === "PORTAL" ? "success" : "warning"}
                 size="sm"
                 variant="soft"
               >
@@ -265,7 +265,7 @@ export function PedidoDetalle({
             */}
             <p className="mt-0.5 text-xs tabular-nums text-tinta-500">
               Operación {etiquetaDiaSemanaCorto(pedido.fechaOperacion)} · entrega{" "}
-              <span className="font-semibold text-tinta-800">
+              <span className="font-semibold text-[var(--amber-700)]">
                 {etiquetaDiaSemanaCorto(pedido.fechaEntrega)}
               </span>
             </p>

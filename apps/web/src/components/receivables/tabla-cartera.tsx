@@ -141,9 +141,19 @@ export function TablaCartera({
                     </Table.Cell>
                     <Table.Cell>
                       {f.numeroDte ? (
-                        <span className="font-mono text-xs tabular-nums">
+                        <Button
+                          aria-label={
+                            hintDte ??
+                            `Corregir DTE del pedido #${f.correlativo}`
+                          }
+                          className="h-auto min-h-0 border-0 bg-transparent p-0 font-mono text-xs tabular-nums text-tinta-900 shadow-none"
+                          isDisabled={!puedeDte}
+                          size="sm"
+                          variant="ghost"
+                          onPress={() => setDteTarget(f)}
+                        >
                           {f.numeroDte}
-                        </span>
+                        </Button>
                       ) : (
                         <Button
                           aria-label={
@@ -278,7 +288,9 @@ function DialogoCapturaDte({
         <Modal.Dialog>
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>Capturar DTE</Modal.Heading>
+            <Modal.Heading>
+              {factura.numeroDte ? "Corregir DTE" : "Capturar DTE"}
+            </Modal.Heading>
             <p className="text-sm text-tinta-500">
               {factura.clienteNombre} · pedido #{factura.correlativo}
             </p>
@@ -381,6 +393,16 @@ function FacturaCard({
         >
           <Receipt size={14} aria-hidden />
           Capturar DTE
+        </Button>
+      ) : puedeDte ? (
+        <Button
+          className="min-h-11"
+          size="sm"
+          variant="outline"
+          onPress={() => onPedirDte(f)}
+        >
+          <Receipt size={14} aria-hidden />
+          Corregir DTE
         </Button>
       ) : null}
 

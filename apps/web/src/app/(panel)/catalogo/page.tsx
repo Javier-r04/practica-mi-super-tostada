@@ -137,7 +137,7 @@ export default function CatalogoPage() {
             </SearchField>
             {canWrite && (
               <Button
-                className="shrink-0"
+                className="button--accent shrink-0"
                 variant="primary"
                 onPress={() => setEditing("new")}
               >
@@ -150,6 +150,7 @@ export default function CatalogoPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <ToggleButtonGroup
               aria-label="Filtrar productos"
+              className="mst-segmento-activo"
               disallowEmptySelection
               selectedKeys={new Set([filtro])}
               selectionMode="single"
@@ -193,7 +194,12 @@ export default function CatalogoPage() {
               }
               action={
                 canWrite && !q && filtro !== "sin_foto" ? (
-                  <Button size="sm" variant="primary" onPress={() => setEditing("new")}>
+                  <Button
+                    className="button--accent"
+                    size="sm"
+                    variant="primary"
+                    onPress={() => setEditing("new")}
+                  >
                     Nuevo producto
                   </Button>
                 ) : null
@@ -708,6 +714,7 @@ function OpcionUnica({
       <span className="mst-label">{label}</span>
       <ToggleButtonGroup
         aria-label={label}
+        className="mst-segmento-activo"
         disallowEmptySelection
         fullWidth
         selectedKeys={new Set([value])}

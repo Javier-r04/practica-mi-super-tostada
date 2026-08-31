@@ -25,7 +25,6 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { buildPedidosHref } from "@/lib/pedido-vista";
 import {
-  CLIENTES_SIN_PEDIDO_PASO,
   copyHeroFoco,
   copyVentanaHoy,
   fechaDeFoco,
@@ -36,7 +35,6 @@ import {
   hrefLimiteCredito,
   hrefPedidoNoche,
   mapaFotoCliente,
-  paginaClientesSinPedido,
   recortarPedidosNoche,
   type FocoOperacion,
 } from "@/lib/hoy-vista";
@@ -59,6 +57,7 @@ import { ContadorFacturas } from "@/components/domain/contador-facturas";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
+import { ScrollFadeLista } from "@/components/ui/scroll-fade-lista";
 import { cn } from "@/lib/utils";
 
 /* Tira de cifras del arranque del día: el mismo patrón que `ClientesResumen`,
@@ -163,15 +162,15 @@ function HeroNoche({
         {/* El avance de reparto es la otra mitad del titular: cuánto vale la
             operación y cuánto de eso ya salió. Las cifras sueltas viven abajo
             en la tira de KPIs, no repetidas aquí. */}
-        <div className="w-full rounded-[14px] border border-white/15 bg-black/20 px-4 py-3.5 lg:max-w-xs lg:shrink-0">
+        <div className="w-full rounded-[14px] border border-[var(--yellow-300)]/35 bg-[var(--yellow-100)]/10 px-4 py-3.5 lg:max-w-xs lg:shrink-0">
           <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-            <span className="text-[var(--green-200)]">Avance de reparto</span>
-            <span className="font-semibold tabular-nums text-[var(--green-300)]">
+            <span className="text-[var(--yellow-200)]">Avance de reparto</span>
+            <span className="font-semibold tabular-nums text-acento">
               {loading ? "—" : `${entregados} / ${pedidosTotal}`}
             </span>
           </div>
           <div
-            className="h-2.5 overflow-hidden rounded-pill bg-black/30"
+            className="h-2.5 overflow-hidden rounded-pill bg-black/25"
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
@@ -179,11 +178,11 @@ function HeroNoche({
             aria-label="Avance de reparto"
           >
             <div
-              className="h-full rounded-pill bg-[var(--green-400)] transition-[width] duration-surface ease-out"
+              className="h-full rounded-pill bg-acento transition-[width] duration-surface ease-out"
               style={{ width: `${loading ? 0 : progreso}%` }}
             />
           </div>
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--green-200)]">
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--yellow-200)]">
             {loading ? "—" : `${progreso}% entregado`}
           </p>
         </div>
@@ -207,15 +206,6 @@ function HoyInner() {
   // /hoy sin parámetro— manda la URL y el eco se descarta.
   const [eco, setEco] = useState({ url: fechaFromUrl, valor: fechaFromUrl });
   const fechaLocal = eco.url === fechaFromUrl ? eco.valor : fechaFromUrl;
-
-  // La paginación se guarda junto a la fecha a la que pertenece: cambiar de
-  // operación la reinicia por derivación, sin resetear estado en un efecto.
-  const [pagina, setPagina] = useState({
-    fecha: fechaLocal,
-    visibles: CLIENTES_SIN_PEDIDO_PASO,
-  });
-  const visiblesSinPedido =
-    pagina.fecha === fechaLocal ? pagina.visibles : CLIENTES_SIN_PEDIDO_PASO;
 
   const me = useQuery({
     queryKey: ["auth", "me"],
@@ -272,14 +262,7 @@ function HoyInner() {
     () => recortarPedidosNoche(pedidos.data ?? []),
     [pedidos.data],
   );
-  const listaSinPedido = useMemo(
-    () =>
-      paginaClientesSinPedido(
-        operacion.data?.clientesSinPedido ?? [],
-        visiblesSinPedido,
-      ),
-    [operacion.data?.clientesSinPedido, visiblesSinPedido],
-  );
+  const clientesSinPedido = operacion.data?.clientesSinPedido ?? [];
 
   const puedeCerrar = tienePermiso(
     me.data?.usuario.permisos ?? [],
@@ -289,6 +272,12 @@ function HoyInner() {
     me.data?.usuario.permisos ?? [],
     "ventana.reabrir",
   );
+  const puedeConfirmarTransferencias = tienePermiso(
+    me.data?.usuario.permisos ?? [],
+    "cobranza.confirmar_transferencia",
+  );
+  const transferenciasPendientes =
+    cartera.data?.transferenciasPendientesCount ?? 0;
 
   const cerrar = useMutation({
     mutationFn: () =>
@@ -505,11 +494,10 @@ function HoyInner() {
                     centavos={
                       cartera.data?.porCobrarFechaOperacionCentavos ?? null
                     }
-                    tone="pendiente"
+                    className="text-acento-fuerte"
                   />
                 }
                 nota="Facturas de esta operación"
-                tono="aviso"
               />
             </dl>
 
@@ -581,7 +569,7 @@ function HoyInner() {
                             aria-label={`Pedido #${p.correlativo} ${p.clienteNombre}`}
                             className={cn(
                               "grid min-h-fila w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 border-b border-[var(--border-subtle)] px-4 py-2.5 text-left",
-                              "transition-[background-color] duration-control ease-out hover:bg-tinta-50",
+                              "text-inherit no-underline transition-[background-color] duration-control ease-out hover:bg-tinta-50 hover:text-inherit hover:no-underline",
                               "focus-visible:outline-none focus-visible:shadow-foco",
                             )}
                           >
@@ -625,78 +613,87 @@ function HoyInner() {
                   <Card.Header className="flex flex-col gap-1 items-start">
                     <Card.Title>Aún no piden</Card.Title>
                     <Card.Description>
-                      {listaSinPedido.meta
-                        ? `${listaSinPedido.meta} clientes activos sin pedido`
+                      {clientesSinPedido.length > 0
+                        ? `${clientesSinPedido.length} clientes activos sin pedido`
                         : "Clientes activos pendientes de pedir en esta operación"}
                     </Card.Description>
                   </Card.Header>
                   <Card.Content className="p-0">
-                  {listaSinPedido.total === 0 ? (
+                  {clientesSinPedido.length === 0 ? (
                     <p className="px-5 pb-5 pt-2 text-sm text-tinta-500">
                       Todos los clientes activos ya ingresaron pedido.
                     </p>
                   ) : (
-                    <>
-                      <ul className="max-h-[min(22rem,50vh)] overflow-y-auto border-t border-[var(--border-subtle)]">
-                        {listaSinPedido.visible.map((c) => (
-                          <li key={c.clienteId}>
-                            <Link
-                              href={hrefClienteSinPedido(c.clienteId)}
-                              aria-label={`Ficha de ${c.nombre}`}
-                              className="flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-2.5 hover:bg-tinta-50 focus-visible:outline-none focus-visible:shadow-foco"
-                            >
-                              <ClienteAvatar
-                                nombre={c.nombre}
-                                fotoAssetId={fotoPorCliente.get(c.clienteId)}
-                                size="sm"
-                              />
-                              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-pretty text-marca">
-                                {c.nombre}
-                              </span>
-                              <span className="text-[12px] text-tinta-500">
-                                Capture en Pedidos
-                              </span>
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                      {listaSinPedido.hayMas ? (
-                        <div className="border-t border-[var(--border-subtle)] p-3">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="w-full"
-                            onPress={() =>
-                              setPagina({
-                                fecha: fechaLocal,
-                                visibles:
-                                  visiblesSinPedido + CLIENTES_SIN_PEDIDO_PASO,
-                              })
-                            }
+                    <ScrollFadeLista
+                      className="max-h-[min(22rem,50vh)] overflow-y-auto border-t border-[var(--border-subtle)]"
+                      ariaLabel="Clientes sin pedido"
+                    >
+                      {clientesSinPedido.map((c) => (
+                        <li key={c.clienteId}>
+                          <Link
+                            href={hrefClienteSinPedido(c.clienteId)}
+                            aria-label={`Ficha de ${c.nombre}`}
+                            className="flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-2.5 text-inherit no-underline transition-[background-color] duration-control ease-out hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
                           >
-                            Cargar más (
-                            {listaSinPedido.total - listaSinPedido.visible.length}{" "}
-                            restantes)
-                          </Button>
-                        </div>
-                      ) : null}
-                    </>
+                            <ClienteAvatar
+                              nombre={c.nombre}
+                              fotoAssetId={fotoPorCliente.get(c.clienteId)}
+                              size="sm"
+                            />
+                            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-pretty text-marca">
+                              {c.nombre}
+                            </span>
+                            <span className="text-[12px] text-tinta-500">
+                              Capture en Pedidos
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ScrollFadeLista>
                   )}
                   </Card.Content>
                 </Card>
               </div>
 
               <div className="grid gap-4">
-                <Card className="w-full bg-[var(--surface-brand)] border-[var(--green-900)]">
+                <Card
+                  className="w-full border-[var(--green-900)] bg-[var(--surface-brand)] text-[var(--text-on-brand)]"
+                >
                   <Card.Header className="flex flex-col gap-1 items-start">
-                    <Card.Title>Cierre de la ventana</Card.Title>
-                    <Card.Description>{copyVentana.subtitle}</Card.Description>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--green-200)]">
+                      Ventana de captura
+                    </p>
+                    <Card.Title className="text-acento">
+                      Cierre de la ventana
+                    </Card.Title>
+                    <Card.Description className="text-[var(--green-200)]">
+                      {copyVentana.subtitle}
+                    </Card.Description>
                   </Card.Header>
                   <Card.Content>
                   <div className="grid gap-3">
+                    {horarioVentana ? (
+                      <div
+                        className="flex flex-wrap items-center gap-2"
+                        aria-label="Horario de la ventana"
+                      >
+                        <span className="inline-flex min-h-7 items-center rounded-pill bg-acento px-3 text-xs font-semibold tabular-nums text-[var(--green-900)]">
+                          Abre {horarioVentana.apertura.slice(0, 5)}
+                        </span>
+                        <span className="inline-flex min-h-7 items-center rounded-pill bg-[var(--yellow-200)] px-3 text-xs font-semibold tabular-nums text-[var(--amber-700)]">
+                          Cierra {horarioVentana.cierre.slice(0, 5)}
+                        </span>
+                        <span className="inline-flex min-h-7 items-center rounded-pill border border-[var(--yellow-300)]/50 bg-[var(--yellow-100)]/15 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--yellow-200)]">
+                          America/Guatemala
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="flex flex-wrap items-center gap-2">
                       <VentanaBadge
                         abierta={Boolean(calendario.data?.ventanaAbierta)}
+                        reabierta={reabierto}
+                        cierraAt={calendario.data?.cierraAt}
+                        proximaAperturaAt={calendario.data?.proximaAperturaAt}
                       />
                       {reabierto && (
                         <Chip color="warning" size="sm" variant="soft">
@@ -709,13 +706,13 @@ function HoyInner() {
                         </Chip>
                       )}
                     </div>
-                    <p className="text-sm leading-relaxed text-pretty text-tinta-800">
+                    <p className="text-sm leading-relaxed text-pretty text-[var(--green-100)]">
                       {reabierto
                         ? "La hoja que ya imprimieron quedó vieja. Al cerrar de nuevo sale la hoja corregida, con los cambios resaltados."
                         : "Al cerrar se materializa la hoja de producción. El consolidado queda listo para descargar y enviar por WhatsApp. Un solo paso."}
                     </p>
                     {reabierto && (
-                      <p className="flex gap-2 rounded-campo border border-[var(--amber-700)]/25 bg-[var(--amber-100)] px-3 py-2.5 text-sm leading-relaxed text-pretty text-[var(--amber-700)]">
+                      <p className="flex gap-2 rounded-campo border border-[var(--yellow-400)]/35 bg-[var(--yellow-100)]/90 px-3 py-2.5 text-sm leading-relaxed text-pretty text-[var(--amber-700)]">
                         <TriangleAlert
                           size={16}
                           className="mt-0.5 shrink-0"
@@ -753,7 +750,7 @@ function HoyInner() {
                           : "Cerrar ventana y generar hoja"}
                     </Button>
                     {!puedeCerrar && (
-                      <p className="text-xs text-tinta-500">
+                      <p className="text-xs text-[var(--green-200)]">
                         Solo ADMIN o ADMIN_JEFE cierra la ventana.
                       </p>
                     )}
@@ -773,14 +770,14 @@ function HoyInner() {
                       </Button>
                     )}
                     {cerrado && !puedeReabrir && (
-                      <p className="text-xs text-tinta-500">
+                      <p className="text-xs text-[var(--green-200)]">
                         Solo ADMIN_JEFE puede reabrir un día cerrado.
                       </p>
                     )}
                     {cerrado && (
                       <Link
                         href="/produccion"
-                        className="text-center text-sm font-semibold text-marca underline-offset-2 hover:underline"
+                        className="text-center text-sm font-semibold text-acento no-underline hover:text-[var(--yellow-300)] hover:no-underline"
                       >
                         Ver hoja de producción
                       </Link>
@@ -814,6 +811,32 @@ function HoyInner() {
                   )}
                   </Card.Content>
                 </Card>
+
+                {puedeConfirmarTransferencias && transferenciasPendientes > 0 ? (
+                  <Card className="w-full border-[var(--yellow-500)]/40 bg-[var(--yellow-500)]/5">
+                    <Card.Header className="flex flex-col gap-1 items-start">
+                      <Card.Title>Transferencias en revisión</Card.Title>
+                      <Card.Description>
+                        Reportadas por clientes; el saldo no baja hasta confirmarlas.
+                      </Card.Description>
+                    </Card.Header>
+                    <Card.Content className="flex flex-col gap-3 px-5 pb-5">
+                      <p className="text-sm text-tinta-700">
+                        {transferenciasPendientes} transferencia
+                        {transferenciasPendientes === 1 ? "" : "s"} pendiente
+                        {transferenciasPendientes === 1 ? "" : "s"} de confirmación.
+                      </p>
+                      <Button
+                        as={Link}
+                        href="/cartera?panel=transferencias"
+                        variant="flat"
+                        className="self-start"
+                      >
+                        Revisar en cartera
+                      </Button>
+                    </Card.Content>
+                  </Card>
+                ) : null}
               </div>
             </div>
           </>

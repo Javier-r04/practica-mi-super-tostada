@@ -80,6 +80,7 @@ export async function drenarCola(
           montoCentavos: next.montoCentavos,
           metodo: next.metodo,
           comprobanteAssetId,
+          origen: "REPARTO",
         });
       }
       await store.escribirCola(

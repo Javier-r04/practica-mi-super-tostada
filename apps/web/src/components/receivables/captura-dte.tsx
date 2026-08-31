@@ -20,6 +20,7 @@ export function CapturaDte({
 }) {
   const [valor, setValor] = useState(numeroDte ?? "");
   const vacio = valor.trim().length === 0;
+  const esCorreccion = Boolean(numeroDte);
 
   return (
     <form
@@ -57,7 +58,7 @@ export function CapturaDte({
         {({ isPending }) => (
           <>
             {isPending ? <Spinner color="current" size="sm" /> : null}
-            Guardar DTE
+            {esCorreccion ? "Guardar cambio" : "Guardar DTE"}
           </>
         )}
       </Button>

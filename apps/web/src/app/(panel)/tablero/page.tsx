@@ -4,7 +4,7 @@ import { Suspense, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { Alert, Button, Card, Chip } from "@heroui/react";
+import { Alert, Card, Chip } from "@heroui/react";
 import { FileDown } from "lucide-react";
 import {
   fechasEnRango,
@@ -21,6 +21,7 @@ import {
   participacionTopN,
   topProductosVolumen,
 } from "@/lib/tablero-vista";
+import { Button } from "@/components/ui/button";
 import { PanelShell } from "@/components/layout/panel-shell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -223,15 +224,16 @@ function TableroInner() {
           onChange={cambiarFiltros}
           acciones={
             <Button
+              className="button--accent"
               variant="primary"
-              onPress={() => void descargar()}
-              isDisabled={descargando || !data || mostrandoPrevios}
+              size="sm"
+              loading={descargando}
+              disabled={descargando || !data || mostrandoPrevios}
+              onClick={() => void descargar()}
               aria-label={`Descargar el PDF de ${reporte.titulo.toLowerCase()} con el recorte actual`}
             >
               <FileDown size={16} aria-hidden />
-              {descargando
-                ? "Un momento…"
-                : `Descargar ${reporte.titulo.toLowerCase()}`}
+              {`Descargar ${reporte.titulo.toLowerCase()}`}
             </Button>
           }
         />

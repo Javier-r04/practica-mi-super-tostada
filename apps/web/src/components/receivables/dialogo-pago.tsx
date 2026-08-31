@@ -22,7 +22,7 @@ import {
 } from "@misupertostada/shared";
 import { Camera } from "lucide-react";
 import { Money } from "@/components/domain/money";
-import { subirComprobantePago } from "@/lib/upload-asset";
+import { subirComprobanteAbono } from "@/lib/upload-asset";
 import { avisoSinSenal } from "@/hooks/use-online";
 
 type PropsPago = {
@@ -35,6 +35,8 @@ type PropsPago = {
   error?: string;
   /** Solo /reparto. Cartera no lo pasa: sigue exigiendo señal. */
   permitirOffline?: boolean;
+  /** Por defecto efectivo y transferencia. Reparto solo efectivo. */
+  metodos?: readonly PagoMetodo[];
   onClose: () => void;
   onConfirm: (input: {
     id: string;
@@ -70,13 +72,19 @@ function FormularioPago({
   loading,
   error,
   permitirOffline = false,
+  metodos = METODOS,
   onClose,
   onConfirm,
 }: PropsPago) {
+  const metodosVisibles = METODOS.filter((m) =>
+    metodos.some((x) => x === m.id),
+  );
   const [monto, setMonto] = useState(() =>
     formatearCentavos(saldoCentavos, { simbolo: false, miles: false }),
   );
-  const [metodo, setMetodo] = useState<PagoMetodo>("EFECTIVO");
+  const [metodo, setMetodo] = useState<PagoMetodo>(
+    metodosVisibles[0]?.id ?? "EFECTIVO",
+  );
   const [archivo, setArchivo] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string>();
   const [subiendo, setSubiendo] = useState(false);
@@ -119,7 +127,7 @@ function FormularioPago({
     let comprobanteAssetId: string | undefined;
     try {
       setSubiendo(true);
-      if (archivo) comprobanteAssetId = await subirComprobantePago(archivo, id);
+      if (archivo) comprobanteAssetId = await subirComprobanteAbono(archivo, id);
     } catch (err) {
       setLocalError(
         err instanceof Error ? err.message : "No se pudo subir el comprobante",
@@ -177,8 +185,8 @@ function FormularioPago({
                   inputMode="decimal"
                 />
                 <Description>
-                  Puede ser un abono parcial. Se aplica a la factura más antigua
-                  si cobra al cliente.
+                  Se aplica a las facturas más antiguas del cliente. Puede ser un
+                  abono parcial.
                 </Description>
               </TextField>
 
@@ -197,7 +205,7 @@ function FormularioPago({
                     if (typeof next === "string") setMetodo(next as PagoMetodo);
                   }}
                 >
-                  {METODOS.map((m, i) => (
+                  {metodosVisibles.map((m, i) => (
                     <ToggleButton key={m.id} id={m.id}>
                       {i > 0 && <ToggleButtonGroup.Separator />}
                       {m.label}
