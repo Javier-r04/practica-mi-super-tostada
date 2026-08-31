@@ -2,6 +2,8 @@ node_modules
 .DS_Store
 .env*
 !.env.example
+.openship
+.next
 .next
 out
 dist

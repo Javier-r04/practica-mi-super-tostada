@@ -7,6 +7,7 @@ Guía práctica de lo que **ya está implementado** en este repositorio: qué ha
 | **`CONTEXT.md`** | Qué se construye, backlog, glosario, actores |
 | **`AGENTS.md`** | Reglas técnicas duras (centavos, calendario, idempotencia, etc.) |
 | **`USAGE.md`** (este archivo) | Arranque, pantallas, flujos y pruebas |
+| **`DEPLOY.md`** | Producción: Openship (Mac) → VPS. El local no usa ese flujo |
 | **`README.md`** | Instalación mínima y scripts |
 
 ---

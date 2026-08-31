@@ -7,6 +7,7 @@ Sistema web para la fábrica de tortillas, tostadas y frituras. Reemplaza el ped
 - [Bun](https://bun.sh) 1.3+
 - Postgres nativo en marcha (en esta máquina: Homebrew). El desarrollo local **no usa Docker**.
 - Node.js LTS solo para correr la API en producción (`node dist/main.js`). En local, Nest se levanta con `nest start`.
+- Producción en VPS: ver **`DEPLOY.md`** (Openship desde el Mac). El loop de abajo no usa Docker.
 
 ## Arranque local
 

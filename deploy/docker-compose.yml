@@ -1,0 +1,129 @@
+# Producción (Openship). No es el loop local: `bun run dev:all` sigue
+# usando Postgres nativo. Este archivo solo lo consume el VPS.
+#
+# Contexto de build = raíz del repo (`..` respecto a este archivo).
+name: misupertostada
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tostada
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
+      POSTGRES_DB: misupertostada
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - max_connections=50
+    mem_limit: 768m
+    cpus: "1.0"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tostada -d misupertostada"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    # Sin ports: solo la red interna. Openship no debe publicarlo.
+
+  api:
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://tostada:${POSTGRES_PASSWORD}@postgres:5432/misupertostada
+      API_PORT: "3001"
+      WEB_ORIGIN: ${WEB_ORIGIN:?WEB_ORIGIN es la URL pública del panel}
+      SESSION_COOKIE_NAME: session
+      SESSION_TTL_SECONDS: "604800"
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:?}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?}
+      R2_BUCKET: ${R2_BUCKET:?}
+      R2_ENDPOINT: ${R2_ENDPOINT:?}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-cristian}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?}
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
+    mem_limit: 768m
+    cpus: "1.5"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "1.5"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?URL pública de la API}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 40s
+    mem_limit: 512m
+    cpus: "1.0"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
