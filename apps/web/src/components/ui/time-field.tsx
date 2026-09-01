@@ -33,6 +33,7 @@ export function TimeField({
 }: Props) {
   const autoId = useId();
   const id = idProp ?? autoId;
+  const panelId = `${id}-panel`;
   const [open, setOpen] = useState(false);
 
   const val = value || "00:00";
@@ -66,9 +67,11 @@ export function TimeField({
             <button
               id={id}
               type="button"
+              role="combobox"
               disabled={disabled}
               aria-haspopup="dialog"
               aria-expanded={open}
+              aria-controls={panelId}
               aria-invalid={error ? true : undefined}
               aria-required={required || undefined}
               className={cn(
@@ -96,6 +99,7 @@ export function TimeField({
             </button>
           </PopoverTrigger>
           <PopoverContent
+            id={panelId}
             align="start"
             className="w-[14rem] p-0 overflow-hidden"
           >

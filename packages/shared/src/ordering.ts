@@ -349,6 +349,8 @@ export const pedidoDetalleSchema = z.object({
   motivoAnulacion: z.string().nullable(),
   items: z.array(pedidoDetalleItemSchema),
   totalCentavos: centavosSchema,
+  /** Presente cuando el pedido ya generó factura (típicamente ENTREGADO). */
+  factura: portalPedidoDetalleFacturaSchema.nullable(),
   historial: z.array(pedidoAuditEntrySchema),
 });
 

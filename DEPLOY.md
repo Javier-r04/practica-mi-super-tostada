@@ -84,10 +84,11 @@ echo '/swapfile none swap sw 0 0' >> /etc/fstab
 4. Target: **Server** → `produccion`. Isolation: **Sandboxed (Docker)**.
 5. **Build: This Machine** si Docker Desktop está en **linux/amd64** (Rosetta / “Use Virtualization framework”). El VPS es AMD EPYC, no ARM. Si el contenedor muere con `exec format error`, cambia el build al **servidor** y no despliegues en la ventana 21:00–03:00.
 6. Pega las variables de `deploy/openship.env.example` (secretos en el panel, nunca en git).
-7. Dominios (A record a la IP del VPS, mismo dominio registrable):
+7. **Antes del primer deploy:** en el Mac, con las mismas `R2_*` y `WEB_ORIGIN` en tu `.env` local, corre `bun run r2:cors` (ver **R2 y CORS** más abajo).
+8. Dominios (A record a la IP del VPS, mismo dominio registrable):
    - `web` :3000 → `https://app.TU-DOMINIO` (panel + portal)
    - `api` :3001 → `https://api.TU-DOMINIO`
-8. Deploy.
+9. Deploy.
 
 `openship.json` apunta a `deploy/docker-compose.yml`. No hace falta wizard de framework.
 
@@ -131,6 +132,48 @@ Fotos y comprobantes van a **R2**, no al disco del VPS.
 
 ---
 
+## R2 y CORS (obligatorio en production)
+
+En **production** el browser sube directo al bucket con URLs prefirmadas (comprobantes del portal, fotos de producto/cliente, adjuntos en cartera/reparto). R2 responde al preflight del browser; si el bucket no tiene CORS para tu `WEB_ORIGIN`, la subida falla en consola con *No 'Access-Control-Allow-Origin' header*.
+
+En **development** (`NODE_ENV !== production`) la API hace de proxy (`PUT /internal/storage/:key`) y no hace falta CORS en R2 para `localhost`.
+
+### Una vez por bucket (desde el Mac)
+
+Antes del primer deploy con clientes reales, o cada vez que cambies el dominio público del panel (`WEB_ORIGIN`):
+
+1. En tu `.env` local (no en git), pon las mismas claves que usarás en Openship:
+   - `WEB_ORIGIN=https://app.TU-DOMINIO` (exacto, sin slash final)
+   - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`
+2. Ejecuta:
+
+```bash
+bun run r2:cors
+```
+
+El script (`scripts/r2-cors.ts`) aplica en el bucket:
+
+- **Orígenes:** `WEB_ORIGIN` de tu `.env` (en dev también añade `http://localhost:3000`).
+- **Métodos:** `GET`, `PUT`, `HEAD`
+- **Headers:** `content-type`, `content-length`
+
+Debe imprimir algo como: `CORS aplicado en mi-super-tostada para: https://app.TU-DOMINIO`.
+
+### Alternativa manual (Cloudflare)
+
+Dashboard → R2 → tu bucket → **Settings** → **CORS policy** → pega la misma regla (origen = `WEB_ORIGIN`, métodos y headers de arriba). El script evita errores de tipeo y se puede repetir si cambias dominio.
+
+### Qué no confundir
+
+| Entorno | Subida al bucket | CORS en R2 |
+|---|---|---|
+| Local con `bun run dev:all` | Proxy por la API (`localhost:3001`) | No necesario |
+| Production (Openship/VPS) | Directo desde el browser | **Sí**, con `WEB_ORIGIN` |
+
+Si cambias `WEB_ORIGIN` en Openship después del deploy, vuelve a correr `bun run r2:cors` con el valor nuevo. No hace falta redeploy de contenedores solo por CORS.
+
+---
+
 ## Recursos (Cloud VPS Plus 4, 8 GB)
 
 Tope del compose (~2 GB de RAM, ~3.5 vCPU). El resto queda para el kernel, Docker y OpenResty.
@@ -167,6 +210,7 @@ No actives preview/staging ni un segundo entorno en esta caja.
 | `exec format error` | Imagen ARM en VPS x86. Build `linux/amd64` o construir **en el servidor**. |
 | OOM al desplegar | Build en el Mac, no en el VPS; confirma el swap de 2 GB. |
 | API no arranca | `APP_ENCRYPTION_KEY` y `R2_*` obligatorios. Logs del contenedor `api`. |
+| Comprobante o foto no sube (CORS en consola del browser) | CORS del bucket R2. Desde el Mac: `bun run r2:cors` con `WEB_ORIGIN` y `R2_*` de production. Ver sección **R2 y CORS**. |
 | `/health` → `db: down` | Postgres aún no healthy; espera el `start_period` de 90 s. |
 
 Respaldos de negocio: `pg_dump` a R2 (F-903), además de los snapshots del VPS. Los backups de Openship no sustituyen eso.
@@ -182,4 +226,5 @@ deploy/Dockerfile.api         # Bun build, Node 22 runtime
 deploy/Dockerfile.web         # Next standalone
 deploy/entrypoint-api.sh      # migrate → bootstrap → node
 deploy/openship.env.example   # plantilla de secretos
+scripts/r2-cors.ts            # CORS del bucket R2 (correr desde el Mac)
 ```

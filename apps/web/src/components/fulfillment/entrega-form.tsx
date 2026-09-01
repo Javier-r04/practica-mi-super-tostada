@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Chip, NumberField } from "@heroui/react";
+import { Chip } from "@heroui/react";
 import {
   UNIDAD_CORTA,
   montoFacturaCentavos,
@@ -9,12 +9,7 @@ import {
 } from "@misupertostada/shared";
 import { Money } from "@/components/domain/money";
 import { ProductoThumb } from "@/components/catalog/producto-thumb";
-
-/* Los steppers son de 52px por lado: se tocan con guante y sin mirar. El
-   NumberField de HeroUI trae los botones y el teclado numérico; solo le
-   subimos el tamaño. */
-const BOTON = "size-13 shrink-0";
-const CAJA = "h-13 w-20 text-center text-lg font-semibold tabular-nums";
+import { QuantityStepper } from "@/components/ui/quantity-stepper";
 
 export function EntregaForm({
   items,
@@ -45,9 +40,8 @@ export function EntregaForm({
     (i) => (cant[i.productoId] ?? i.cantidadPedida) !== i.cantidadPedida,
   ).length;
 
-  function set(productoId: string, value: number | undefined) {
-    if (value == null || Number.isNaN(value)) return;
-    const next = { ...cant, [productoId]: Math.max(0, Math.trunc(value)) };
+  function set(productoId: string, value: number) {
+    const next = { ...cant, [productoId]: value };
     setCant(next);
     onChange?.(new Map(Object.entries(next)));
   }
@@ -94,20 +88,14 @@ export function EntregaForm({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <NumberField
-                aria-label={`Cantidad entregada de ${it.nombreMostrado}`}
-                isDisabled={disabled}
-                minValue={0}
-                step={1}
+              <QuantityStepper
                 value={value}
                 onChange={(v) => set(it.productoId, v)}
-              >
-                <NumberField.Group className="h-13">
-                  <NumberField.DecrementButton className={BOTON} />
-                  <NumberField.Input className={CAJA} />
-                  <NumberField.IncrementButton className={BOTON} />
-                </NumberField.Group>
-              </NumberField>
+                min={0}
+                unidad={unidad}
+                disabled={disabled}
+                size="lg"
+              />
               <div className="text-right">
                 <p className="mst-label text-[11px]">{unidad} entregadas</p>
                 <Money

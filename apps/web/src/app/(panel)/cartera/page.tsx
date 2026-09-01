@@ -203,10 +203,7 @@ function CarteraInner() {
     enabled: Boolean(me.data),
   });
 
-  const lista = useMemo(
-    () => facturas.data?.pages.flatMap((p) => p.items) ?? [],
-    [facturas.data],
-  );
+  const lista = facturas.data?.pages.flatMap((p) => p.items) ?? [];
   const counts = facturas.data?.pages[0]?.counts ?? {
     todas: 0,
     pendientes: 0,
@@ -222,12 +219,13 @@ function CarteraInner() {
 
   const clienteNombre = useMemo(() => {
     if (!clienteId) return null;
+    const items = facturas.data?.pages.flatMap((p) => p.items) ?? [];
     return (
-      lista.find((f) => f.clienteId === clienteId)?.clienteNombre ??
+      items.find((f) => f.clienteId === clienteId)?.clienteNombre ??
       (clientes.data ?? []).find((c) => c.id === clienteId)?.nombre ??
       null
     );
-  }, [clienteId, clientes.data, lista]);
+  }, [clienteId, clientes.data, facturas.data]);
 
   const chips = useMemo(() => {
     const out: { key: string; label: string; clear: () => void }[] = [];
@@ -259,17 +257,10 @@ function CarteraInner() {
         clear: () => setMetodoPago(""),
       });
     }
-    if (sinDte) {
-      out.push({
-        key: "sinDte",
-        label: "Sin DTE",
-        clear: () => setSinDte(false),
-      });
-    }
     return out;
-  }, [clienteId, clienteNombre, desde, hasta, metodoPago, sinDte]);
+  }, [clienteId, clienteNombre, desde, hasta, metodoPago]);
 
-  const hayFiltros = chips.length > 0 || Boolean(q.trim());
+  const hayFiltros = chips.length > 0 || Boolean(q.trim()) || sinDte;
   const sobreLimite = resumen.data?.clientesSobreLimite ?? [];
   const alertaAbierta = alertaTocada ?? sobreLimite.length <= 3;
 
@@ -282,6 +273,7 @@ function CarteraInner() {
     onSuccess: () => {
       toastSuccess("DTE guardado");
       void qc.invalidateQueries({ queryKey: ["cartera"] });
+      void qc.invalidateQueries({ queryKey: ["pedidos"] });
     },
     onError: (err) => toastFromError(err, "No se pudo guardar el DTE"),
   });
@@ -546,6 +538,7 @@ function CarteraInner() {
                   onChange={setSinDte}
                 >
                   Sin DTE
+                  {sinDte ? <X size={12} aria-hidden /> : null}
                 </ToggleButton>
 
                 {chips.map((chip) => (
@@ -560,11 +553,6 @@ function CarteraInner() {
                     <span className="sr-only">Quitar filtro</span>
                   </Button>
                 ))}
-                {hayFiltros ? (
-                  <Button size="sm" variant="ghost" onPress={limpiarFiltros}>
-                    Limpiar
-                  </Button>
-                ) : null}
                 {facturas.data ? (
                   <p
                     className="mst-label ml-auto tabular-nums"

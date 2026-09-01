@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { DateTime } from "luxon";
 import {
   auditLog,
+  factura,
   organizacion,
   outbox,
   pedido,
@@ -467,6 +468,46 @@ describe.skipIf(!listo)("panel E3 pedidos", () => {
       expect(notas.notasAdmin).toBe("Confirmó por WhatsApp a las 21:02");
       expect(notas.horarioEntregaFijo).toBe("09:00");
       expect(notas.items[0]?.notaProduccion).toBe("GRUESAS");
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-502 detalle de pedido: sin factura en CONFIRMADO; con DTE en ENTREGADO", async () => {
+    const f = await fixture(fixedClock(instanteGT("2026-08-20T10:00:00")));
+    try {
+      const { tortilla, cli } = await catalogoTienda6(f);
+      const creado = await f.pedidos.crearManual(
+        {
+          clienteId: cli.id,
+          items: [{ productoId: tortilla.id, cantidad: 10 }],
+        },
+        f.actor,
+      );
+
+      const vivo = await f.pedidos.obtener(creado.id, f.actor);
+      expect(vivo.factura).toBeNull();
+
+      await f.db
+        .update(pedido)
+        .set({ estado: "ENTREGADO" })
+        .where(eq(pedido.id, creado.id));
+      const [fac] = await f.db
+        .insert(factura)
+        .values({
+          pedidoId: creado.id,
+          montoCentavos: 12500,
+          numeroDte: `DTE-${crypto.randomUUID().slice(0, 8)}`,
+        })
+        .returning();
+
+      const entregado = await f.pedidos.obtener(creado.id, f.actor);
+      expect(entregado.factura).toMatchObject({
+        id: fac!.id,
+        numeroDte: fac!.numeroDte,
+        saldoCentavos: 12500,
+        estado: "PENDIENTE",
+      });
     } finally {
       await f.client.end({ timeout: 1 });
     }

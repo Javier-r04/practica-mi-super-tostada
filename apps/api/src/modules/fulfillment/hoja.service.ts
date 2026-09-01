@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   cliente,
   clienteProducto,
@@ -75,7 +75,11 @@ export class HojaService {
         and(
           eq(pedido.organizacionId, organizacionId),
           eq(pedido.fechaOperacion, fechaOperacion),
-          eq(pedido.estado, "CONFIRMADO"),
+          // El primer cierre solo ve CONFIRMADO. Un rematerializar tardío
+          // (portal o captura manual con el día ya CERRADO) tiene que incluir
+          // también los que ya estaban EN_PRODUCCION: si no, la v2 sale solo
+          // con el pedido nuevo y el diff borra el resto de la hoja.
+          inArray(pedido.estado, ["CONFIRMADO", "EN_PRODUCCION"]),
           isNull(pedido.anuladoAt),
         ),
       )

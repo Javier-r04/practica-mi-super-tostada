@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, Chip } from "@heroui/react";
-import { ChevronRight } from "lucide-react";
+import { Banknote, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { RutaParada } from "@misupertostada/shared";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
@@ -43,13 +43,15 @@ export function ParadaCard({
       aria-label={`${hora} ${parada.clienteNombre} ${estadoLabel}`}
       className={cn(
         "group block w-full rounded-tarjeta text-left",
+        "transition-transform duration-control ease-out active:scale-[0.995]",
         "focus-visible:outline-none focus-visible:shadow-foco",
       )}
     >
       <Card
         className={cn(
           "gap-3 border-l-[4px] p-4",
-          "transition-shadow duration-control ease-out group-hover:shadow-[var(--shadow-md)]",
+          "transition-[box-shadow,border-color] duration-control ease-out",
+          "group-hover:border-[var(--border-strong)] group-hover:shadow-[var(--shadow-md)]",
           hecho ? RAIL_HECHO : RAIL_PENDIENTE,
         )}
       >
@@ -80,44 +82,67 @@ export function ParadaCard({
           <ChevronRight
             size={22}
             aria-hidden
-            className="mt-1 shrink-0 text-tinta-500"
+            className="mt-1 shrink-0 text-tinta-400 transition-[transform,color] duration-control ease-out group-hover:translate-x-0.5 group-hover:text-marca"
           />
         </Card.Header>
 
-        <Card.Content
-          className={cn(
-            "mt-auto grid grid-cols-2 gap-2 rounded-[calc(var(--radius-card)-6px)] px-3 py-2.5",
-            porCobrar ? "bg-[var(--amber-100)]" : "bg-[var(--ink-50)]",
-          )}
-        >
-          <Cifra
-            etiqueta="Pedido"
-            valor={
-              <Money
-                centavos={parada.totalEstimadoCentavos}
-                className="text-[15px]"
+        <Card.Content className="mt-auto grid gap-2">
+          <div
+            className={cn(
+              "grid gap-2 rounded-[calc(var(--radius-card)-6px)] bg-[var(--ink-50)] px-3 py-2.5",
+              porCobrar ? "grid-cols-1" : "grid-cols-2",
+            )}
+          >
+            <Cifra
+              etiqueta="Pedido"
+              valor={
+                <Money
+                  centavos={parada.totalEstimadoCentavos}
+                  className="text-[15px]"
+                />
+              }
+            />
+            {!porCobrar && (
+              <Cifra
+                etiqueta="Saldo anterior"
+                valor={
+                  <Money centavos={0} tone="muted" className="text-[15px]" />
+                }
               />
-            }
-          />
-          <Cifra
-            etiqueta="Saldo anterior"
-            valor={
-              porCobrar ? (
-                <span className="inline-flex flex-wrap items-center gap-1.5">
-                  <Money
-                    centavos={parada.saldoAnteriorCentavos}
-                    tone="pendiente"
-                    className="text-[15px]"
-                  />
-                  <Chip color="warning" size="sm" variant="soft">
+            )}
+          </div>
+          {porCobrar && (
+            <div
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-[calc(var(--radius-card)-6px)]",
+                "border border-[color-mix(in_srgb,var(--amber-600)_28%,transparent)] bg-[var(--amber-100)] px-3 py-2.5",
+                "transition-[border-color,background-color] duration-control ease-out",
+                "group-hover:border-[color-mix(in_srgb,var(--amber-600)_45%,transparent)] group-hover:bg-[var(--yellow-100)]",
+              )}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--yellow-200)] text-aviso-700">
+                  <Banknote size={16} aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <Chip
+                    className="font-semibold"
+                    color="warning"
+                    size="sm"
+                    variant="soft"
+                  >
                     Cobrar
                   </Chip>
-                </span>
-              ) : (
-                <Money centavos={0} tone="muted" className="text-[15px]" />
-              )
-            }
-          />
+                  <p className="mst-label mt-1 text-[11px]">Saldo anterior</p>
+                </div>
+              </div>
+              <Money
+                centavos={parada.saldoAnteriorCentavos}
+                tone="pendiente"
+                className="shrink-0 text-[17px] font-semibold"
+              />
+            </div>
+          )}
         </Card.Content>
       </Card>
     </button>

@@ -15,19 +15,17 @@ export type DiaEstadoCalendario = (typeof DIA_ESTADOS_CALENDARIO)[number];
 /**
  * ¿Se puede escribir en la operación de captura ahora mismo?
  *
- * Regla única para panel y portal. El reloj no manda solo: un día REABIERTO
- * acepta captura aunque su ventana ya venciera —eso es exactamente lo que
- * significa reabrirlo— y `exigirDiaNoCerrado` solo bloquea CERRADO. Cuando el
- * portal evaluaba `isVentanaAbierta` a secas, el cliente seguía viendo
- * «ventana cerrada» después de que el admin reabriera el día, contradiciendo
- * lo que el propio API le habría dejado guardar.
+ * Regla única para panel y portal. Si el reloj tiene la ventana viva, se
+ * puede pedir —aunque el día figure CERRADO (el seed cierra «hoy» para
+ * armar la ruta, y el navbar sigue en abierta). Un día REABIERTO acepta
+ * captura aunque el reloj ya hubiera vencido.
  */
 export function capturaAbierta(
   ventanaAbierta: boolean,
   estado: DiaEstadoCalendario,
 ): boolean {
   if (estado === "REABIERTO") return true;
-  return ventanaAbierta && estado !== "CERRADO";
+  return ventanaAbierta;
 }
 
 /**

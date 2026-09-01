@@ -92,6 +92,40 @@ function mensajeDeError(err: unknown, fallback?: unknown): string {
   return typeof fallback === "string" ? fallback : "Ocurrió un error inesperado";
 }
 
+/** Toast con estados loading → success/error para operaciones async. */
+export function toastPromise<T>(
+  promise: Promise<T> | (() => Promise<T>),
+  options: {
+    loading: string;
+    loadingDescription?: string;
+    success: string;
+    successDescription?: string;
+    error?: string;
+  },
+) {
+  const contenido = (titulo: string, descripcion?: string) =>
+    descripcion ? (
+      <span className="grid gap-0.5">
+        <span className="block font-semibold">{titulo}</span>
+        <span className="block text-sm font-medium text-tinta-600">
+          {descripcion}
+        </span>
+      </span>
+    ) : (
+      titulo
+    );
+
+  return toast.promise(promise, {
+    loading: contenido(options.loading, options.loadingDescription),
+    success: contenido(options.success, options.successDescription),
+    error: (err) =>
+      contenido(
+        mensajeDeError(err, options.error ?? "No se pudo completar"),
+        undefined,
+      ),
+  });
+}
+
 /** Extrae mensaje de ApiError/Error o usa el fallback. */
 export function toastFromError(err: unknown, fallback?: unknown) {
   toastError(mensajeDeError(err, fallback));

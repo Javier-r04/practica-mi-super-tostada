@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { PortalProducto, PortalSesion } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import { cantidadesDesdePedido } from "@/lib/portal-vista";
+import { intervaloRefetchVentana } from "@/lib/ventana-refetch";
 import { usePortalSse } from "@/hooks/use-portal-sse";
 import { Card } from "@heroui/react";
 import { Unlink } from "lucide-react";
@@ -24,6 +25,7 @@ type PortalSessionValue = {
   cantidades: Record<string, number>;
   setCantidad: (productoId: string, cantidad: number) => void;
   resetDesdePedido: () => void;
+  vaciarCantidades: () => void;
   assetPath: (assetId: string) => string;
 };
 
@@ -51,6 +53,16 @@ export function PortalSessionProvider({
   const sesion = useQuery({
     queryKey: ["portal", token],
     queryFn: () => api<PortalSesion>(`/p/${encodeURIComponent(token)}`),
+    // El navbar sondea el calendario; el portal tiene que hacer lo mismo.
+    // Sin esto, una pestaña abierta a las 10:00 sigue «cerrada» a las 15:00
+    // porque la apertura de reloj no emite SSE. Al volver al tab también:
+    // el default del QueryClient apaga refetchOnWindowFocus.
+    refetchInterval: (query) =>
+      intervaloRefetchVentana({
+        cierraAt: query.state.data?.ventana.cierraAt,
+        proximaAperturaAt: query.state.data?.ventana.proximaAperturaAt,
+      }),
+    refetchOnWindowFocus: true,
   });
 
   usePortalSse(token);
@@ -78,6 +90,10 @@ export function PortalSessionProvider({
     if (!pedidoAbierto) return;
     setEditadas(cantidadesDesdePedido(pedidoAbierto));
   }, [pedidoAbierto]);
+
+  const vaciarCantidades = useCallback(() => {
+    setEditadas({});
+  }, []);
 
   const assetPath = useCallback(
     (assetId: string) =>
@@ -111,6 +127,7 @@ export function PortalSessionProvider({
     cantidades,
     setCantidad,
     resetDesdePedido,
+    vaciarCantidades,
     assetPath,
   };
 

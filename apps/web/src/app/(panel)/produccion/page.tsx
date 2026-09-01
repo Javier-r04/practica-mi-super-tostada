@@ -18,7 +18,6 @@ import {
   type ActorPublico,
   type CalendarioAhora,
   type HojaPublica,
-  type OperacionResumen,
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import { PanelShell } from "@/components/layout/panel-shell";
@@ -26,7 +25,7 @@ import { PageToolbar } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CintaEje } from "@/components/domain/cinta-eje";
-import { copyEjeProduccion } from "@/lib/ejes-vista";
+import { copyEjeProduccion, fechaHojaProduccion } from "@/lib/ejes-vista";
 import { HojaGrupos } from "@/components/fulfillment/hoja-grupos";
 import { ConsolidadoPreview } from "@/components/fulfillment/consolidado-preview";
 import { lineasVisibles, totalesPorFamilia } from "@/lib/produccion-vista";
@@ -55,14 +54,10 @@ export default function ProduccionPage() {
   // madrugada lo que se reparte hoy. Con el foco, a las 15:01 la pantalla
   // saltaba a la ventana recién abierta —que no tiene hoja hasta cerrar— y
   // se vaciaba con «hoja no materializada» a media jornada.
-  const fechaEnCurso = calendario.data?.fechaOperacionEnCurso ?? "";
-  const operacion = useQuery({
-    queryKey: ["operacion", fechaEnCurso],
-    queryFn: () =>
-      api<OperacionResumen>(`/operacion?fechaOperacion=${fechaEnCurso}`),
-    enabled: Boolean(me.data) && Boolean(fechaEnCurso),
-  });
-  const fecha = operacion.data?.fechaOperacion ?? fechaEnCurso;
+  const fecha =
+    fechaHojaProduccion(calendario.data) ||
+    calendario.data?.fechaOperacionEnCurso ||
+    "";
   const hoja = useQuery({
     queryKey: ["hoja", fecha],
     queryFn: () => api<HojaPublica>(`/hojas/${fecha}`),

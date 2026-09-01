@@ -370,6 +370,127 @@ button.mst-control {
   block-size: 12px;
 }
 
+/* Stepper de cantidad: el foco vive en el contenedor, no en el input nativo. */
+.mst-quantity-stepper {
+  transition: var(--transition-control);
+}
+
+.mst-quantity-stepper[data-editing="true"] {
+  border-color: var(--border-focus);
+}
+
+.mst-quantity-stepper__value {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  min-width: 3.25rem;
+  --stepper-value-pad: 4px;
+  padding-inline: var(--stepper-value-pad);
+  border-inline: var(--border-width) solid var(--border-subtle);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    padding-inline var(--dur-fast) var(--ease-out);
+}
+
+.mst-quantity-stepper[data-editing="true"] .mst-quantity-stepper__value {
+  --stepper-value-pad: 9px; /* +5px por lado al editar */
+  background: var(--green-50);
+}
+
+.mst-quantity-stepper__trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+  min-height: 100%;
+  padding-block: 4px;
+  border: 0;
+  background: transparent;
+  cursor: text;
+  border-radius: 0;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.mst-quantity-stepper__trigger:hover:not(:disabled) {
+  background: var(--green-50);
+}
+
+.mst-quantity-stepper__trigger:focus-visible {
+  outline: none;
+  background: var(--green-50);
+}
+
+.mst-quantity-stepper__num {
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text-body);
+}
+
+.mst-quantity-stepper__unit {
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  text-transform: lowercase;
+  color: var(--text-muted);
+}
+
+.mst-quantity-stepper__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text-body);
+  caret-color: var(--green-600);
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mst-quantity-stepper__input:focus,
+.mst-quantity-stepper__input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mst-quantity-stepper__input::selection {
+  background: var(--green-200);
+  color: var(--green-900);
+}
+
+.mst-quantity-stepper--lg .mst-quantity-stepper__value {
+  min-width: 3.5rem;
+  --stepper-value-pad: 6px;
+}
+
+.mst-quantity-stepper--lg[data-editing="true"] .mst-quantity-stepper__value {
+  --stepper-value-pad: 11px; /* +5px por lado */
+}
+
+.mst-quantity-stepper--lg .mst-quantity-stepper__unit {
+  font-size: 11px;
+}
+
+.mst-quantity-stepper--lg .mst-quantity-stepper__num,
+.mst-quantity-stepper--lg .mst-quantity-stepper__input {
+  font-size: var(--text-base);
+}
+
+.mst-quantity-stepper--md .mst-quantity-stepper__num,
+.mst-quantity-stepper--md .mst-quantity-stepper__input {
+  font-size: var(--text-sm);
+}
+
 /* Segmentos en cápsulas: activo en amarillo legible (tablero, cartera, pedidos). */
 .mst-segmento-activo .toggle-button[data-selected="true"] {
   --toggle-button-bg-selected: var(--yellow-400);
@@ -377,4 +498,9 @@ button.mst-control {
   --toggle-button-bg-selected-pressed: var(--yellow-500);
   --toggle-button-fg-selected: var(--green-900);
   font-weight: var(--weight-semibold);
+}
+
+.mst-segmento-activo .toggle-button:not([data-selected="true"]):hover {
+  --toggle-button-bg-hover: var(--ink-100);
+  --toggle-button-fg-hover: var(--green-900);
 }

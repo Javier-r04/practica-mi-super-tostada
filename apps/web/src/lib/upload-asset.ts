@@ -36,13 +36,9 @@ export async function subirAsset(
     method: "POST",
     body: JSON.stringify(body),
   });
-  if (presign.alreadyUploaded) return presign.assetId;
-  await fetch(presign.url.startsWith("http") ? presign.url : `${apiBase()}${presign.url}`, {
-    method: "PUT",
-    body: file,
-    headers: presign.headers,
-    credentials: "include",
-  });
+  if (!presign.alreadyUploaded) {
+    await putPresigned(presign.url, file, presign.headers);
+  }
   const confirmed = await api<{ id: string }>("/assets/confirm", {
     method: "POST",
     body: JSON.stringify(body),
@@ -103,18 +99,32 @@ export async function subirComprobanteAbonoPortal(
     `/p/${encodeURIComponent(token)}/abonos/assets/presign`,
     { method: "POST", body: JSON.stringify(body) },
   );
-  if (presign.alreadyUploaded) return presign.assetId;
-  await fetch(presign.url.startsWith("http") ? presign.url : `${apiBase()}${presign.url}`, {
-    method: "PUT",
-    body: file,
-    headers: presign.headers,
-    credentials: "include",
-  });
+  if (!presign.alreadyUploaded) {
+    await putPresigned(presign.url, file, presign.headers);
+  }
   const confirmed = await api<{ id: string }>(
     `/p/${encodeURIComponent(token)}/abonos/assets/confirm`,
     { method: "POST", body: JSON.stringify(body) },
   );
   return confirmed.id;
+}
+
+async function putPresigned(
+  url: string,
+  file: File,
+  headers: Record<string, string>,
+): Promise<void> {
+  const external = url.startsWith("http");
+  const target = external ? url : `${apiBase()}${url}`;
+  const res = await fetch(target, {
+    method: "PUT",
+    body: file,
+    headers,
+    credentials: external ? "omit" : "include",
+  });
+  if (!res.ok) {
+    throw new Error(`No se pudo subir el archivo (${res.status})`);
+  }
 }
 
 function apiBase(): string {

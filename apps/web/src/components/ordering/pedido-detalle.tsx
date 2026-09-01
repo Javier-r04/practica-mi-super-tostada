@@ -37,6 +37,8 @@ import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
 import { etiquetaDiaSemanaCorto } from "@/lib/fecha-ui";
+import { DialogoCapturaDte } from "@/components/receivables/dialogo-captura-dte";
+import { BotonDte } from "@/components/receivables/boton-dte";
 
 const ACCION_TEXTO: Record<string, string> = {
   "portal.confirmar": "capturó el pedido desde el portal",
@@ -61,10 +63,12 @@ type ItemLocal = {
 export function PedidoDetalle({
   pedido,
   puedeEscribir,
+  puedeDte,
   fotoAssetId,
 }: {
   pedido: PedidoDetalleDto;
   puedeEscribir: boolean;
+  puedeDte: boolean;
   fotoAssetId?: string | null;
 }) {
   const qc = useQueryClient();
@@ -72,6 +76,7 @@ export function PedidoDetalle({
   const [items, setItems] = useState<ItemLocal[]>(() => mapItems(pedido));
   const [notas, setNotas] = useState(pedido.notasAdmin ?? "");
   const [anular, setAnular] = useState(false);
+  const [dteAbierto, setDteAbierto] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [agregarId, setAgregarId] = useState("");
@@ -194,6 +199,23 @@ export function PedidoDetalle({
       toastFromError(err, "No se pudo anular");
     },
   });
+
+  const dte = useMutation({
+    mutationFn: ({ id, numeroDte }: { id: string; numeroDte: string }) =>
+      api(`/facturas/${id}/dte`, {
+        method: "PATCH",
+        body: JSON.stringify({ numeroDte }),
+      }),
+    onSuccess: () => {
+      setDteAbierto(false);
+      void qc.invalidateQueries({ queryKey: ["pedidos"] });
+      void qc.invalidateQueries({ queryKey: ["cartera"] });
+      toastSuccess("DTE guardado");
+    },
+    onError: (err) => toastFromError(err, "No se pudo guardar el DTE"),
+  });
+
+  const hintDte = `Capturar DTE del pedido #${pedido.correlativo}`;
 
   const hora = horaEnZona(new Date(pedido.capturadoAt));
   const origenLabel = pedido.origen === "PORTAL" ? "Portal" : "Manual";
@@ -412,6 +434,57 @@ export function PedidoDetalle({
         </Card.Content>
       </Card>
 
+      {pedido.estado === "ENTREGADO" ? (
+        <Card className="p-5">
+          <Card.Header className="p-0 pb-3">
+            <Card.Title className="text-base text-tinta-900">Factura</Card.Title>
+            <Card.Description>
+              Número del DTE del sistema externo. Se captura después de entregar.
+            </Card.Description>
+          </Card.Header>
+          <Card.Content className="flex flex-wrap items-center gap-2 p-0">
+            {pedido.factura ? (
+              <>
+                <BotonDte
+                  hint={hintDte}
+                  numeroDte={pedido.factura.numeroDte}
+                  puedeEditar={puedeDte}
+                  presentacion={pedido.factura.numeroDte ? "inline" : "pill"}
+                  onPress={() => setDteAbierto(true)}
+                />
+                <EstadoBadge estado={pedido.factura.estado} size="sm" />
+                <Money
+                  centavos={pedido.factura.saldoCentavos}
+                  tone={
+                    pedido.factura.estado === "VENCIDO"
+                      ? "vencido"
+                      : pedido.factura.estado === "ABONO_PARCIAL"
+                        ? "pendiente"
+                        : pedido.factura.estado === "PAGADO"
+                          ? "pagado"
+                          : "default"
+                  }
+                />
+                <Link
+                  className="ml-auto text-sm"
+                  href={`/cartera?clienteId=${pedido.clienteId}`}
+                >
+                  Ver en cartera
+                </Link>
+              </>
+            ) : (
+              <p className="text-sm text-tinta-500">
+                Este pedido está entregado pero no tiene factura registrada.
+              </p>
+            )}
+          </Card.Content>
+        </Card>
+      ) : pedido.estado !== "ANULADO" ? (
+        <p className="px-1 text-xs text-tinta-500">
+          El DTE se captura cuando el pedido esté entregado.
+        </p>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
           <Card.Header className="p-0 pb-3">
@@ -532,6 +605,22 @@ export function PedidoDetalle({
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
+
+      {dteAbierto && pedido.factura ? (
+        <DialogoCapturaDte
+          clienteNombre={pedido.clienteNombre}
+          correlativo={pedido.correlativo}
+          facturaId={pedido.factura.id}
+          hintDte={hintDte}
+          loading={dte.isPending}
+          numeroDte={pedido.factura.numeroDte}
+          puedeDte={puedeDte}
+          onClose={() => setDteAbierto(false)}
+          onSave={(numeroDte) =>
+            dte.mutate({ id: pedido.factura!.id, numeroDte })
+          }
+        />
+      ) : null}
     </div>
   );
 }

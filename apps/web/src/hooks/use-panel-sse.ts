@@ -57,7 +57,8 @@ export function usePanelSse(activo: boolean): void {
         delayRef.current = 1000;
         const parsed = interpretarMensajeSse(msg.data);
         if (parsed === "heartbeat" || parsed === null) return;
-        encolar(clavesAInvalidar(parsed));
+        const claves = clavesAInvalidar(parsed);
+        if (claves) encolar(claves);
       };
       source.onerror = () => {
         if (!debeReconectarManual(source?.readyState ?? 0, stopped)) return;

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { eq } from "drizzle-orm";
-import { cliente } from "@misupertostada/db";
+import { and, eq } from "drizzle-orm";
+import { cliente, organizacion } from "@misupertostada/db";
 import {
   TIPO_OUTBOX_INVITACION,
   horaEnZona,
@@ -25,24 +25,30 @@ export class InvitacionJob {
   async tick(): Promise<number> {
     const now = this.clock.now();
     if (horaEnZona(now) !== "18:00") return 0;
-    const cal = await this.calendar.load();
-    if (!cal.isVentanaAbierta(now)) return 0;
-    const fechaOperacion = cal.getFechaOperacion(now);
-    const clientes = await this.db
-      .select()
-      .from(cliente)
-      .where(eq(cliente.activo, true));
+
+    const orgs = await this.db.select({ id: organizacion.id }).from(organizacion);
     let n = 0;
-    for (const cli of clientes) {
-      if (!cli.telefonoWa || !cli.tokenPortalCifrado) continue;
-      if (!this.crypto.decrypt(cli.tokenPortalCifrado)) continue;
-      const row = await this.outbox.insert({
-        tipo: TIPO_OUTBOX_INVITACION,
-        destinatarioId: cli.id,
-        fechaOperacion,
-        payload: { clienteId: cli.id, fechaOperacion },
-      });
-      if (row) n += 1;
+    for (const { id: organizacionId } of orgs) {
+      const cal = await this.calendar.load(organizacionId);
+      if (!cal.isVentanaAbierta(now)) continue;
+      const fechaOperacion = cal.getFechaOperacion(now);
+      const clientes = await this.db
+        .select()
+        .from(cliente)
+        .where(
+          and(eq(cliente.activo, true), eq(cliente.organizacionId, organizacionId)),
+        );
+      for (const cli of clientes) {
+        if (!cli.telefonoWa || !cli.tokenPortalCifrado) continue;
+        if (!this.crypto.decrypt(cli.tokenPortalCifrado)) continue;
+        const row = await this.outbox.insert({
+          tipo: TIPO_OUTBOX_INVITACION,
+          destinatarioId: cli.id,
+          fechaOperacion,
+          payload: { clienteId: cli.id, fechaOperacion },
+        });
+        if (row) n += 1;
+      }
     }
     return n;
   }

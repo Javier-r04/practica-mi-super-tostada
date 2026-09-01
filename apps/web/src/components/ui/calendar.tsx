@@ -149,6 +149,7 @@ function CalendarDayButton({
     <button
       ref={ref}
       type="button"
+      role="gridcell"
       {...props}
       data-day={day.date.toLocaleDateString(locale?.code ?? "es")}
       data-iso={iso}

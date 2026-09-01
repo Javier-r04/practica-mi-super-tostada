@@ -10,12 +10,13 @@ import {
   Spinner,
   Table,
 } from "@heroui/react";
-import { MessageCircle, Receipt } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import type { FacturaCartera } from "@misupertostada/shared";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
-import { CapturaDte } from "./captura-dte";
+import { DialogoCapturaDte } from "./dialogo-captura-dte";
+import { BotonDte } from "./boton-dte";
 
 export type VistaCartera = "factura" | "cliente";
 
@@ -57,9 +58,12 @@ export function TablaCartera({
 
   const modalDte = dteTarget ? (
     <DialogoCapturaDte
-      factura={dteTarget}
+      clienteNombre={dteTarget.clienteNombre}
+      correlativo={dteTarget.correlativo}
+      facturaId={dteTarget.id}
       hintDte={hintDte}
       loading={dteLoadingId === dteTarget.id}
+      numeroDte={dteTarget.numeroDte}
       puedeDte={puedeDte}
       onClose={() => setDteTarget(null)}
       onSave={(numeroDte) => {
@@ -100,6 +104,7 @@ export function TablaCartera({
             <FacturaCard
               factura={f}
               hintCobro={hintCobro}
+              hintDte={hintDte}
               puedeCobrar={puedeCobrar}
               puedeDte={puedeDte}
               puedeRecordar={puedeRecordar}
@@ -140,35 +145,18 @@ export function TablaCartera({
                       />
                     </Table.Cell>
                     <Table.Cell>
-                      {f.numeroDte ? (
-                        <Button
-                          aria-label={
-                            hintDte ??
-                            `Corregir DTE del pedido #${f.correlativo}`
-                          }
-                          className="h-auto min-h-0 border-0 bg-transparent p-0 font-mono text-xs tabular-nums text-tinta-900 shadow-none"
-                          isDisabled={!puedeDte}
-                          size="sm"
-                          variant="ghost"
-                          onPress={() => setDteTarget(f)}
-                        >
-                          {f.numeroDte}
-                        </Button>
-                      ) : (
-                        <Button
-                          aria-label={
-                            hintDte ?? `Capturar DTE del pedido #${f.correlativo}`
-                          }
-                          className="border-dashed border-aviso/50 text-aviso"
-                          isDisabled={!puedeDte}
-                          size="sm"
-                          variant="outline"
-                          onPress={() => setDteTarget(f)}
-                        >
-                          <Receipt size={14} aria-hidden />
-                          Sin DTE
-                        </Button>
-                      )}
+                      <BotonDte
+                        hint={
+                          hintDte ??
+                          (f.numeroDte
+                            ? `Corregir DTE del pedido #${f.correlativo}`
+                            : `Capturar DTE del pedido #${f.correlativo}`)
+                        }
+                        numeroDte={f.numeroDte}
+                        puedeEditar={puedeDte}
+                        presentacion={f.numeroDte ? "inline" : "pill"}
+                        onPress={() => setDteTarget(f)}
+                      />
                     </Table.Cell>
                     <Table.Cell className="font-mono text-xs tabular-nums text-tinta-500">
                       #{f.correlativo}
@@ -262,55 +250,6 @@ function BotonRecordar({
   );
 }
 
-function DialogoCapturaDte({
-  factura,
-  puedeDte,
-  hintDte,
-  loading,
-  onClose,
-  onSave,
-}: {
-  factura: FacturaCartera;
-  puedeDte: boolean;
-  hintDte?: string;
-  loading?: boolean;
-  onClose: () => void;
-  onSave: (numeroDte: string) => void;
-}) {
-  return (
-    <Modal.Backdrop
-      isOpen
-      onOpenChange={(abierto) => {
-        if (!abierto) onClose();
-      }}
-    >
-      <Modal.Container size="sm">
-        <Modal.Dialog>
-          <Modal.CloseTrigger />
-          <Modal.Header>
-            <Modal.Heading>
-              {factura.numeroDte ? "Corregir DTE" : "Capturar DTE"}
-            </Modal.Heading>
-            <p className="text-sm text-tinta-500">
-              {factura.clienteNombre} · pedido #{factura.correlativo}
-            </p>
-          </Modal.Header>
-          <Modal.Body>
-            <CapturaDte
-              disabled={!puedeDte}
-              hint={hintDte}
-              id={`dte-dialog-${factura.id}`}
-              loading={loading}
-              numeroDte={factura.numeroDte}
-              onSave={onSave}
-            />
-          </Modal.Body>
-        </Modal.Dialog>
-      </Modal.Container>
-    </Modal.Backdrop>
-  );
-}
-
 function ClienteCell({
   clienteId,
   nombre,
@@ -339,6 +278,7 @@ function FacturaCard({
   puedeCobrar,
   puedeRecordar,
   hintCobro,
+  hintDte,
   recordarLoading,
   onCobrar,
   onRecordar,
@@ -349,6 +289,7 @@ function FacturaCard({
   puedeCobrar: boolean;
   puedeRecordar: boolean;
   hintCobro?: string;
+  hintDte?: string;
   recordarLoading?: boolean;
   onCobrar: (fac: FacturaCartera) => void;
   onRecordar: (clienteId: string) => void;
@@ -371,9 +312,21 @@ function FacturaCard({
           </Link>
           <p className="mt-0.5 text-xs tabular-nums text-tinta-500">
             #{f.correlativo}
-            {f.numeroDte ? ` · ${f.numeroDte}` : ""}
             {f.antiguedadDias > 0 ? ` · ${f.antiguedadDias}d` : ""}
           </p>
+          {f.numeroDte ? (
+            <div className="mt-1">
+              <BotonDte
+                hint={
+                  hintDte ?? `Corregir DTE del pedido #${f.correlativo}`
+                }
+                numeroDte={f.numeroDte}
+                puedeEditar={puedeDte}
+                presentacion="inline"
+                onPress={() => onPedirDte(f)}
+              />
+            </div>
+          ) : null}
         </div>
         <EstadoBadge estado={f.estado} size="sm" />
       </div>
@@ -384,26 +337,13 @@ function FacturaCard({
       </div>
 
       {!f.numeroDte ? (
-        <Button
-          className="min-h-11 border-dashed border-aviso/50 text-aviso"
-          isDisabled={!puedeDte}
-          size="sm"
-          variant="outline"
+        <BotonDte
+          hint={hintDte ?? `Capturar DTE del pedido #${f.correlativo}`}
+          numeroDte={null}
+          puedeEditar={puedeDte}
+          presentacion="boton"
           onPress={() => onPedirDte(f)}
-        >
-          <Receipt size={14} aria-hidden />
-          Capturar DTE
-        </Button>
-      ) : puedeDte ? (
-        <Button
-          className="min-h-11"
-          size="sm"
-          variant="outline"
-          onPress={() => onPedirDte(f)}
-        >
-          <Receipt size={14} aria-hidden />
-          Corregir DTE
-        </Button>
+        />
       ) : null}
 
       {f.estado !== "PAGADO" ? (
@@ -544,26 +484,21 @@ function CarteraPorCliente({
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium tabular-nums text-tinta-900">
                             #{f.correlativo}
-                            {f.numeroDte ? (
-                              <span className="ml-2 font-mono text-xs text-tinta-500">
-                                {f.numeroDte}
-                              </span>
-                            ) : (
-                              <Button
-                                aria-label={
-                                  hintDte ??
-                                  `Capturar DTE del pedido #${f.correlativo}`
-                                }
-                                className="ml-2 text-aviso"
-                                isDisabled={!puedeDte}
-                                size="sm"
-                                variant="ghost"
-                                onPress={() => onPedirDte(f)}
-                              >
-                                Sin DTE
-                              </Button>
-                            )}
                           </p>
+                          <div className="mt-0.5">
+                            <BotonDte
+                              hint={
+                                hintDte ??
+                                (f.numeroDte
+                                  ? `Corregir DTE del pedido #${f.correlativo}`
+                                  : `Capturar DTE del pedido #${f.correlativo}`)
+                              }
+                              numeroDte={f.numeroDte}
+                              puedeEditar={puedeDte}
+                              presentacion={f.numeroDte ? "inline" : "pill"}
+                              onPress={() => onPedirDte(f)}
+                            />
+                          </div>
                           <div className="mt-1 flex items-center gap-2">
                             <EstadoBadge estado={f.estado} size="sm" />
                             {dteLoadingId === f.id ? (

@@ -220,6 +220,7 @@ function HoyInner() {
   // capturando mientras la ventana está abierta, repartiendo cuando cerró.
   const fechaSel = fechaLocal || fechaDefectoHoy(calendario.data);
   const foco = focoDeFecha(fechaSel, calendario.data);
+  const fechaCaptura = calendario.data?.fechaOperacionCaptura ?? "";
   const operacion = useQuery({
     queryKey: ["operacion", fechaSel],
     queryFn: () =>
@@ -228,6 +229,12 @@ function HoyInner() {
       ),
     enabled: Boolean(me.data) && Boolean(fechaSel),
     placeholderData: keepPreviousData,
+  });
+  const operacionCaptura = useQuery({
+    queryKey: ["operacion", fechaCaptura],
+    queryFn: () =>
+      api<OperacionResumen>(`/operacion?fechaOperacion=${fechaCaptura}`),
+    enabled: Boolean(me.data) && Boolean(fechaCaptura),
   });
   const fecha = operacion.isPlaceholderData
     ? fechaSel
@@ -284,7 +291,7 @@ function HoyInner() {
       api<CierreResultado>("/operacion/cerrar", {
         method: "POST",
         body: JSON.stringify({
-          fechaOperacion: operacion.data?.fechaOperacion,
+          fechaOperacion: fechaCaptura || operacionCaptura.data?.fechaOperacion,
         }),
       }),
     onSuccess: () => {
@@ -293,6 +300,8 @@ function HoyInner() {
       void qc.invalidateQueries({ queryKey: ["hoja"] });
       void qc.invalidateQueries({ queryKey: ["pedidos"] });
       void qc.invalidateQueries({ queryKey: ["calendario"] });
+      void qc.invalidateQueries({ queryKey: ["ruta"] });
+      void qc.invalidateQueries({ queryKey: ["tablero"] });
     },
     onError: (err) => toastFromError(err, "No se pudo cerrar la ventana"),
   });
@@ -303,7 +312,7 @@ function HoyInner() {
         method: "POST",
         body: JSON.stringify({
           motivo,
-          fechaOperacion: operacion.data?.fechaOperacion,
+          fechaOperacion: fechaCaptura || operacionCaptura.data?.fechaOperacion,
         }),
       }),
     onSuccess: () => {
@@ -313,6 +322,8 @@ function HoyInner() {
       void qc.invalidateQueries({ queryKey: ["hoja"] });
       void qc.invalidateQueries({ queryKey: ["pedidos"] });
       void qc.invalidateQueries({ queryKey: ["calendario"] });
+      void qc.invalidateQueries({ queryKey: ["ruta"] });
+      void qc.invalidateQueries({ queryKey: ["tablero"] });
     },
     onError: (err) => {
       setErrorReabrir(err instanceof ApiError ? err.message : "No se pudo reabrir");
@@ -341,6 +352,8 @@ function HoyInner() {
   const pedidosDelDia = data ? data.pedidosPortal + data.pedidosManual : 0;
   const cerrado = data?.diaEstado === "CERRADO";
   const reabierto = data?.diaEstado === "REABIERTO";
+  const capturaCerrada = calendario.data?.diaEstado === "CERRADO";
+  const capturaReabierta = calendario.data?.diaEstado === "REABIERTO";
   const actualizando = operacion.isFetching && Boolean(data);
   const ejesSeparados = Boolean(
     calendario.data && !calendario.data.mismaOperacion,
@@ -373,6 +386,7 @@ function HoyInner() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <ToggleButtonGroup
               aria-label="Operación que se está viendo"
+              className="mst-segmento-activo"
               disallowEmptySelection
               selectedKeys={new Set([foco])}
               selectionMode="single"
@@ -690,28 +704,24 @@ function HoyInner() {
                     ) : null}
                     <div className="flex flex-wrap items-center gap-2">
                       <VentanaBadge
-                        abierta={Boolean(calendario.data?.ventanaAbierta)}
-                        reabierta={reabierto}
+                        abierta={Boolean(calendario.data?.capturaAbierta)}
+                        reabierta={capturaReabierta}
+                        diaCerrado={capturaCerrada}
                         cierraAt={calendario.data?.cierraAt}
                         proximaAperturaAt={calendario.data?.proximaAperturaAt}
                       />
-                      {reabierto && (
+                      {capturaReabierta && (
                         <Chip color="warning" size="sm" variant="soft">
                           Reabierto
                         </Chip>
                       )}
-                      {cerrado && (
-                        <Chip color="default" size="sm" variant="soft">
-                          Día cerrado
-                        </Chip>
-                      )}
                     </div>
                     <p className="text-sm leading-relaxed text-pretty text-[var(--green-100)]">
-                      {reabierto
+                      {capturaReabierta
                         ? "La hoja que ya imprimieron quedó vieja. Al cerrar de nuevo sale la hoja corregida, con los cambios resaltados."
                         : "Al cerrar se materializa la hoja de producción. El consolidado queda listo para descargar y enviar por WhatsApp. Un solo paso."}
                     </p>
-                    {reabierto && (
+                    {capturaReabierta && (
                       <p className="flex gap-2 rounded-campo border border-[var(--yellow-400)]/35 bg-[var(--yellow-100)]/90 px-3 py-2.5 text-sm leading-relaxed text-pretty text-[var(--amber-700)]">
                         <TriangleAlert
                           size={16}
@@ -730,22 +740,22 @@ function HoyInner() {
                       </p>
                     )}
                     <Button
-                      variant="primary"
+                      variant="secondary"
                       size="lg"
                       className="w-full"
-                      isDisabled={cerrado || !puedeCerrar}
+                      isDisabled={capturaCerrada || !puedeCerrar}
                       aria-label={
                         !puedeCerrar
                           ? "Solo quien tiene ventana.cerrar puede cerrar"
-                          : cerrado
+                          : capturaCerrada
                             ? "El día ya está cerrado"
                             : undefined
                       }
                       onPress={() => setCerrando(true)}
                     >
-                      {cerrado
+                      {capturaCerrada
                         ? "Día cerrado · hoja generada"
-                        : reabierto
+                        : capturaReabierta
                           ? "Volver a cerrar y corregir la hoja"
                           : "Cerrar ventana y generar hoja"}
                     </Button>
@@ -754,7 +764,7 @@ function HoyInner() {
                         Solo ADMIN o ADMIN_JEFE cierra la ventana.
                       </p>
                     )}
-                    {cerrado && (
+                    {capturaCerrada && (
                       <Button
                         variant="secondary"
                         className="w-full"
@@ -769,12 +779,12 @@ function HoyInner() {
                         Reabrir día
                       </Button>
                     )}
-                    {cerrado && !puedeReabrir && (
+                    {capturaCerrada && !puedeReabrir && (
                       <p className="text-xs text-[var(--green-200)]">
                         Solo ADMIN_JEFE puede reabrir un día cerrado.
                       </p>
                     )}
-                    {cerrado && (
+                    {capturaCerrada && (
                       <Link
                         href="/produccion"
                         className="text-center text-sm font-semibold text-acento no-underline hover:text-[var(--yellow-300)] hover:no-underline"
@@ -827,10 +837,11 @@ function HoyInner() {
                         {transferenciasPendientes === 1 ? "" : "s"} de confirmación.
                       </p>
                       <Button
-                        as={Link}
-                        href="/cartera?panel=transferencias"
-                        variant="flat"
+                        variant="tertiary"
                         className="self-start"
+                        onPress={() =>
+                          router.push("/cartera?panel=transferencias")
+                        }
                       >
                         Revisar en cartera
                       </Button>
@@ -845,7 +856,7 @@ function HoyInner() {
 
       <DialogoCierre
         open={cerrando}
-        resumen={data}
+        resumen={operacionCaptura.data}
         loading={cerrar.isPending}
         onClose={() => setCerrando(false)}
         onConfirm={() => cerrar.mutate()}

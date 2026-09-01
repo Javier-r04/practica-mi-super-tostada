@@ -212,7 +212,10 @@ async function catalogo(
     },
     f.actor,
   );
-  await f.cierre.cerrar({}, f.actor);
+  await f.cierre.cerrar(
+    { fechaOperacion: pedidoCreado.fechaOperacion },
+    f.actor,
+  );
   return { prod, cli, pedido: pedidoCreado };
 }
 

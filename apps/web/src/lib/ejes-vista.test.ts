@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  capturaCerradaAnticipada,
   copyEjeCartera,
   copyEjePedidos,
   copyEjeProduccion,
   copyEjeReparto,
   copyRangoPedidos,
   ejeDeFecha,
+  fechaHojaProduccion,
   type EjesUi,
 } from "./ejes-vista";
 
@@ -37,6 +39,46 @@ describe("copyEjeProduccion", () => {
   test("avisa que la ventana abierta no entra en esta hoja", () => {
     expect(copyEjeProduccion(SEPARADOS).detalle).toContain("Ma 25 ago");
     expect(copyEjeProduccion(JUNTOS).detalle).not.toContain("ventana");
+  });
+
+  test("con cierre anticipado de la captura, muestra esa hoja", () => {
+    const copy = copyEjeProduccion({
+      ...SEPARADOS,
+      diaEstado: "CERRADO",
+      versionHoja: 1,
+      fechaEntregaCaptura: "2026-08-26",
+    });
+    expect(copy.titulo).toContain("Ma 25 ago");
+    expect(copy.detalle).toContain("Mi 26 ago");
+  });
+});
+
+describe("fechaHojaProduccion", () => {
+  test("con captura cerrada anticipadamente, apunta a la captura", () => {
+    expect(
+      fechaHojaProduccion({
+        ...SEPARADOS,
+        diaEstado: "CERRADO",
+        versionHoja: 1,
+      }),
+    ).toBe("2026-08-25");
+  });
+
+  test("sin cierre anticipado, sigue en curso", () => {
+    expect(fechaHojaProduccion(SEPARADOS)).toBe("2026-08-24");
+  });
+});
+
+describe("capturaCerradaAnticipada", () => {
+  test("true solo con ejes separados, día cerrado y hoja", () => {
+    expect(
+      capturaCerradaAnticipada({
+        ...SEPARADOS,
+        diaEstado: "CERRADO",
+        versionHoja: 1,
+      }),
+    ).toBe(true);
+    expect(capturaCerradaAnticipada(SEPARADOS)).toBe(false);
   });
 });
 

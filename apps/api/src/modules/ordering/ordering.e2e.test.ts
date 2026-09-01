@@ -22,6 +22,7 @@ import {
   WEEKDAYS_ISO,
   ZONA_NEGOCIO,
   fixedClock,
+  instanteAIso,
   permisosEfectivos,
   type Clock,
 } from "@misupertostada/shared";
@@ -681,6 +682,31 @@ describe.skipIf(!listo)("portal E2", () => {
       expect(editado.correlativo).toBe(confirmado.correlativo);
       expect(editado.totalCentavos).toBe(40 * 1250 + 8 * 1500);
 
+      await f.pedidos.anularPortal(clienteRow, meta);
+      const sesionTrasAnular = await f.portal.abrirSesion(clienteRow, meta);
+      expect(sesionTrasAnular.pedidoAbierto).toBeNull();
+
+      const auditsAnular = await f.db
+        .select()
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.entidadId, confirmado.id),
+            eq(auditLog.accion, "portal.anular"),
+          ),
+        );
+      expect(auditsAnular).toHaveLength(1);
+
+      const [pedidoAnulado] = await f.db
+        .select()
+        .from(pedido)
+        .where(eq(pedido.id, confirmado.id));
+      expect(pedidoAnulado?.estado).toBe("ANULADO");
+
+      await expect(f.pedidos.anularPortal(clienteRow, meta)).rejects.toMatchObject(
+        { code: "NO_ENCONTRADO", httpStatus: 404 },
+      );
+
       const pedidosFilas = await f.db
         .select()
         .from(pedido)
@@ -722,11 +748,23 @@ describe.skipIf(!listo)("portal E2", () => {
         true,
       );
 
+      const reconfirmado = await f.pedidos.upsertPortal(
+        clienteRow,
+        { items: [{ productoId: tortilla.id, cantidad: 10 }] },
+        meta,
+      );
+      expect(reconfirmado.correlativo).toBeGreaterThan(confirmado.correlativo);
+
       // A medianoche la ventana del jueves sigue viva (cierra a las 03:00);
       // hay que pasarse del cierre real para verla cerrada.
       clock.set(instanteGT("2026-08-21T03:00:00"));
       const sesionCerrada = await f.portal.abrirSesion(clienteRow, meta);
       expect(sesionCerrada.ventana.abierta).toBe(false);
+
+      await expect(f.pedidos.anularPortal(clienteRow, meta)).rejects.toMatchObject(
+        { code: "VENTANA_CERRADA", httpStatus: 409 },
+      );
+
       await expect(
         f.pedidos.upsertPortal(
           clienteRow,
@@ -865,7 +903,9 @@ describe.skipIf(!listo)("portal E2", () => {
     }
   });
 
-  test("portal 409 DIA_CERRADO aunque la ventana reloj siga abierta", async () => {
+  test("portal sigue abierto si el reloj corre aunque el día esté CERRADO", async () => {
+    // El seed (y un cierre que no apagó el reloj) marcan CERRADO mientras la
+    // ventana 15:00–03:00 sigue viva. El navbar dice abierta: el portal también.
     const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
     const f = await fixture(clock);
     try {
@@ -892,14 +932,13 @@ describe.skipIf(!listo)("portal E2", () => {
       const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
       const clienteRow = await f.tokens.resolver(token);
       const sesion = await f.portal.abrirSesion(clienteRow, meta);
-      expect(sesion.ventana.abierta).toBe(false);
-      await expect(
-        f.pedidos.upsertPortal(
-          clienteRow,
-          { items: [{ productoId: prod.id, cantidad: 10 }] },
-          meta,
-        ),
-      ).rejects.toMatchObject({ code: "DIA_CERRADO", httpStatus: 409 });
+      expect(sesion.ventana.abierta).toBe(true);
+      const creado = await f.pedidos.upsertPortal(
+        clienteRow,
+        { items: [{ productoId: prod.id, cantidad: 10 }] },
+        meta,
+      );
+      expect(creado.fechaOperacion).toBe("2026-08-20");
     } finally {
       await f.client.end({ timeout: 1 });
     }
@@ -941,10 +980,14 @@ describe.skipIf(!listo)("portal E2", () => {
 
       expect(sesion.ventana.abierta).toBe(true);
       expect(sesion.ventana.fechaOperacion).toBe("2026-08-20");
-      // Sin ventana de reloj no hay cuenta atrás ni próxima apertura que
-      // prometer: cierra el admin a mano.
+      // Sin ventana de reloj no hay cuenta atrás de cierre: lo cierra el
+      // admin a mano. La próxima apertura sí se manda para que el portal
+      // refresque a las 15:00 —el copy de «abre de nuevo» solo se muestra
+      // si `abierta` es false.
       expect(sesion.ventana.cierraAt).toBeNull();
-      expect(sesion.ventana.proximaAperturaAt).toBeNull();
+      expect(sesion.ventana.proximaAperturaAt).toBe(
+        instanteAIso(instanteGT("2026-08-21T15:00:00")),
+      );
 
       const creado = await f.pedidos.upsertPortal(
         clienteRow,
@@ -959,6 +1002,16 @@ describe.skipIf(!listo)("portal E2", () => {
         .where(eq(pedido.id, creado.id));
       expect(fila?.fechaOperacion).toBe("2026-08-20");
       expect(fila?.origen).toBe("PORTAL");
+
+      // Llega la hora programada: el navbar pasa a «ventana abierta» del
+      // viernes. El portal tiene que decir lo mismo —no quedarse en el
+      // jueves reabierto ni rotular «cerrada».
+      clock.set(instanteGT("2026-08-21T15:00:00"));
+      const ejes = await f.calendar.ejes(f.orgId);
+      const aLasTres = await f.portal.abrirSesion(clienteRow, meta);
+      expect(ejes.ventanaAbierta).toBe(true);
+      expect(aLasTres.ventana.abierta).toBe(true);
+      expect(aLasTres.ventana.fechaOperacion).toBe("2026-08-21");
     } finally {
       await f.client.end({ timeout: 1 });
     }

@@ -1,22 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Card,
-  Modal,
-  Spinner,
-  TextField,
-  Label,
-  Input,
-  TextArea,
-} from "@heroui/react";
+import { Button, Modal, TextField, Label, TextArea } from "@heroui/react";
 import { Check, X } from "lucide-react";
 import type { AbonoLista, AbonoPublico } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import { toastFromError, toastSuccess } from "@/lib/toast";
 import { Money } from "@/components/domain/money";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
+import { ComprobanteAssetPreview } from "@/components/receivables/comprobante-asset-preview";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
@@ -102,14 +94,10 @@ export function BandejaTransferencias({
               <Money centavos={a.montoCentavos} tone="pendiente" />
             </div>
             {a.comprobanteAssetId ? (
-              <a
-                className="text-sm text-marca underline"
-                href={`/assets/${a.comprobanteAssetId}`}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                Ver comprobante
-              </a>
+              <ComprobanteAssetPreview
+                assetId={a.comprobanteAssetId}
+                alt={`Comprobante de ${a.clienteNombre ?? "cliente"}`}
+              />
             ) : null}
             {puedeConfirmar ? (
               <div className="flex flex-wrap gap-2">

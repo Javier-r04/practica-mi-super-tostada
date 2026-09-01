@@ -37,7 +37,7 @@ import {
 import { DialogoPago } from "@/components/receivables/dialogo-pago";
 import { ChipInstalar } from "@/components/feedback/chip-instalar";
 import { CintaEje } from "@/components/domain/cinta-eje";
-import { copyEjeReparto } from "@/lib/ejes-vista";
+import { copyEjeReparto, capturaCerradaAnticipada } from "@/lib/ejes-vista";
 import { avisoReabierto } from "@/lib/reabierto-vista";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { toastFromError, toastSuccess } from "@/lib/toast";
@@ -118,6 +118,7 @@ export default function RepartoPage() {
     "cobranza.registrar_pago",
   );
   const aviso = avisoReabierto(calendario.data);
+  const cierreAnticipado = capturaCerradaAnticipada(calendario.data);
   const parada = ruta.data?.paradas.find((p) => p.pedidoId === sel) ?? null;
 
   const entregados =
@@ -245,7 +246,7 @@ export default function RepartoPage() {
           />
 
           {total > 4 && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="mst-segmento-activo flex flex-wrap items-center justify-between gap-2">
               <ToggleButtonGroup
                 aria-label="Filtrar paradas"
                 className="w-full sm:w-auto"
@@ -266,7 +267,11 @@ export default function RepartoPage() {
                     { id: "entregados", label: "Entregados", count: entregados },
                   ] as const
                 ).map((f, i) => (
-                  <ToggleButton key={f.id} id={f.id} className="min-h-12">
+                  <ToggleButton
+                    key={f.id}
+                    id={f.id}
+                    className="min-h-12 transition-colors duration-control ease-out"
+                  >
                     {i > 0 && <ToggleButtonGroup.Separator />}
                     {f.label}
                     <span className="tabular-nums text-tinta-500">
@@ -300,7 +305,9 @@ export default function RepartoPage() {
               title={
                 aviso?.bloqueaOperacion
                   ? "La operación de esta ruta está reabierta"
-                  : "No hay ruta hasta que se cierre la ventana"
+                  : cierreAnticipado
+                    ? "La ruta aparece el día de entrega"
+                    : "No hay ruta hasta que se cierre la ventana"
               }
               description={
                 // Con el día reabierto los pedidos existen y están confirmados,
@@ -308,7 +315,9 @@ export default function RepartoPage() {
                 // apunta a la de esta noche, que no es la que hay que cerrar.
                 aviso?.bloqueaOperacion
                   ? aviso.detalle
-                  : "Al cerrar se pasan los pedidos a producción y aparecen aquí, ordenados por horario de entrega."
+                  : cierreAnticipado && calendario.data?.fechaEntregaCaptura
+                    ? `El cierre de esta noche ya generó la hoja. La ruta se arma el ${etiquetaDiaSemanaCorto(calendario.data.fechaEntregaCaptura)}.`
+                    : "Al cerrar se pasan los pedidos a producción y aparecen aquí, ordenados por horario de entrega."
               }
               icon={<Truck size={22} aria-hidden />}
             />

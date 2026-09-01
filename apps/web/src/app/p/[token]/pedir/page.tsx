@@ -50,12 +50,14 @@ export default function PortalPedirPage() {
     cantidades,
     setCantidad,
     resetDesdePedido,
+    vaciarCantidades,
     assetPath,
   } = usePortalSession();
   const [confirmado, setConfirmado] = useState(
     () => sesion.pedidoAbierto != null,
   );
   const [revisando, setRevisando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
@@ -125,6 +127,37 @@ export default function PortalPedirPage() {
     },
   });
 
+  const cancelar = useMutation({
+    mutationFn: () =>
+      api<null>(`/p/${encodeURIComponent(token)}/pedido`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      setErrorAccion(null);
+      setCancelando(false);
+      setConfirmado(false);
+      vaciarCantidades();
+      qc.setQueryData<PortalSesion>(["portal", token], (actual) =>
+        actual ? { ...actual, pedidoAbierto: null } : actual,
+      );
+    },
+    onError: (err) => {
+      setErrorAccion(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo cancelar el pedido",
+      );
+    },
+  });
+
+  const fotoPorProducto = useMemo(
+    () =>
+      Object.fromEntries(
+        sesion.catalogo.map((p) => [p.productoId, p.fotoAssetId]),
+      ),
+    [sesion.catalogo],
+  );
+
   if (confirmado && pedido) {
     return (
       <PortalShell clienteNombre={sesion.cliente.nombre}>
@@ -156,30 +189,58 @@ export default function PortalPedirPage() {
             />
           ) : null}
 
-          <Card className="gap-3 p-5">
-            <Card.Header className="gap-1">
-              <Card.Title>Le confirmamos por WhatsApp</Card.Title>
-              <Card.Description>Así llega el mensaje</Card.Description>
-            </Card.Header>
-            <Card.Content>
-              <p className="rounded-campo bg-[var(--cream-100)] p-3 text-sm leading-relaxed text-pretty text-tinta-800">
-                {pedido.textoConfirmacion}
-              </p>
-            </Card.Content>
-          </Card>
+          <section className="grid gap-2">
+            <h2 className="px-1 mst-label">Lo que pidió</h2>
+            <Card className="gap-0 overflow-hidden p-0">
+              {pedido.items.map((item) => {
+                const fotoAssetId = fotoPorProducto[item.productoId] ?? null;
+                return (
+                  <PedidoItemRow
+                    key={item.productoId}
+                    nombreMostrado={item.nombreMostrado}
+                    unidadMedida={item.unidadMedida}
+                    cantidad={item.cantidad}
+                    precioUnitarioCentavos={item.precioUnitarioCentavos}
+                    fotoAssetId={fotoAssetId}
+                    fotoSrcPath={
+                      fotoAssetId ? assetPath(fotoAssetId) : undefined
+                    }
+                  />
+                );
+              })}
+              <div className="flex items-baseline justify-between bg-[var(--ink-50)] px-4 py-3">
+                <span className="mst-label">Total</span>
+                <Money centavos={pedido.totalCentavos} className="text-[17px]" />
+              </div>
+            </Card>
+          </section>
 
           {abierta ? (
-            <Button
-              fullWidth
-              size="lg"
-              variant="secondary"
-              onPress={() => {
-                resetDesdePedido();
-                setConfirmado(false);
-              }}
-            >
-              Editar mi pedido
-            </Button>
+            <div className="grid gap-2">
+              <Button
+                fullWidth
+                size="lg"
+                variant="secondary"
+                onPress={() => {
+                  resetDesdePedido();
+                  setConfirmado(false);
+                }}
+              >
+                Editar mi pedido
+              </Button>
+              <Button
+                fullWidth
+                size="lg"
+                variant="tertiary"
+                className="text-peligro"
+                onPress={() => {
+                  setErrorAccion(null);
+                  setCancelando(true);
+                }}
+              >
+                Cancelar mi pedido
+              </Button>
+            </div>
           ) : null}
 
           <p className="text-center text-xs text-tinta-500">
@@ -187,7 +248,66 @@ export default function PortalPedirPage() {
               ? copyEdicionHasta(sesion.ventana.cierraAt)
               : "La ventana ya cerró. Para anular, llame a la fábrica."}
           </p>
+
+          {errorAccion ? (
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>No se completó la acción</Alert.Title>
+                <Alert.Description>{errorAccion}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
         </div>
+
+        <Modal.Backdrop
+          isOpen={cancelando}
+          onOpenChange={(open) => {
+            if (!open) setCancelando(false);
+          }}
+        >
+          <Modal.Container size="md">
+            <Modal.Dialog>
+              <Modal.CloseTrigger />
+              <Modal.Header>
+                <Modal.Heading>¿Cancelar su pedido?</Modal.Heading>
+              </Modal.Header>
+              <Modal.Body className="grid gap-4">
+                <Alert status="warning">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>Esta acción no se puede deshacer</Alert.Title>
+                    <Alert.Description>
+                      Se anulará el pedido #{pedido.correlativo} de hoy. Ya no
+                      entrará a producción ni a reparto.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+                <p className="text-sm leading-relaxed text-tinta-600">
+                  Solo puede cancelarlo usted mientras la ventana esté abierta.
+                  Cuando cierre, la fábrica tendrá que anularlo por teléfono.
+                </p>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button variant="tertiary" onPress={() => setCancelando(false)}>
+                  Volver
+                </Button>
+                <Button
+                  isPending={cancelar.isPending}
+                  variant="danger"
+                  onPress={() => cancelar.mutate()}
+                >
+                  {({ isPending }) => (
+                    <>
+                      {isPending && <Spinner color="current" size="sm" />}
+                      Sí, cancelar mi pedido
+                    </>
+                  )}
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
       </PortalShell>
     );
   }

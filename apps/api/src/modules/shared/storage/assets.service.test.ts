@@ -113,4 +113,43 @@ describe.skipIf(!listo)("AssetsService", () => {
       await client.end({ timeout: 1 });
     }
   });
+
+  test("confirmPortal re-vincula comprobante huérfano a un abono nuevo", async () => {
+    const { client, db } = openTestDb();
+    const storage = new FakeStorageAdapter();
+    const variants = new AssetVariantsJob(db, storage);
+    const assets = new AssetsService(db, storage, variants);
+    const png = await sharp({
+      create: { width: 4, height: 4, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .png()
+      .toBuffer();
+    const sha256 = createHash("sha256").update(png).digest("hex");
+    const abonoViejo = crypto.randomUUID();
+    const abonoNuevo = crypto.randomUUID();
+
+    try {
+      await storage.put(sha256, png, "image/png");
+      const primero = await assets.confirmPortal({
+        ownerType: "abono",
+        ownerId: abonoViejo,
+        mime: "image/png",
+        size: png.length,
+        sha256,
+      });
+      expect(primero.ownerId).toBe(abonoViejo);
+
+      const segundo = await assets.confirmPortal({
+        ownerType: "abono",
+        ownerId: abonoNuevo,
+        mime: "image/png",
+        size: png.length,
+        sha256,
+      });
+      expect(segundo.id).toBe(primero.id);
+      expect(segundo.ownerId).toBe(abonoNuevo);
+    } finally {
+      await client.end({ timeout: 1 });
+    }
+  });
 });

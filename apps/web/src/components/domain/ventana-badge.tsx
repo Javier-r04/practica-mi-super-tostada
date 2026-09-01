@@ -17,6 +17,7 @@ export function VentanaBadge({
   size = "md",
   tipo = "pedido",
   reabierta = false,
+  diaCerrado = false,
   expiraAt,
   cierraAt,
   proximaAperturaAt,
@@ -30,6 +31,11 @@ export function VentanaBadge({
    * cerrada» ahí es mentir sobre lo que el sistema deja hacer.
    */
   reabierta?: boolean;
+  /**
+   * La operación de captura ya se cerró manualmente o por cron, pero el reloj
+   * de la ventana sigue vivo y el portal aún acepta pedidos tardíos.
+   */
+  diaCerrado?: boolean;
   expiraAt?: string | null;
   cierraAt?: string | null;
   proximaAperturaAt?: string | null;
@@ -38,29 +44,54 @@ export function VentanaBadge({
 
   const tieneTimer =
     (tipo === "whatsapp" && Boolean(expiraAt)) ||
-    (tipo === "pedido" && (Boolean(cierraAt) || Boolean(proximaAperturaAt)));
+    (tipo === "pedido" &&
+      (Boolean(cierraAt) ||
+        Boolean(proximaAperturaAt) ||
+        (diaCerrado && abierta)));
 
   useEffect(() => {
     if (!tieneTimer) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [tieneTimer, tipo, expiraAt, cierraAt, proximaAperturaAt]);
+  }, [tieneTimer, tipo, expiraAt, cierraAt, proximaAperturaAt, diaCerrado, abierta]);
+
+  const cierreAnticipado =
+    tipo === "pedido" && diaCerrado && abierta && !reabierta;
 
   const targetIso =
     tipo === "whatsapp"
       ? expiraAt
-      : abierta
-        ? cierraAt
-        : proximaAperturaAt;
+      : cierreAnticipado
+        ? proximaAperturaAt
+        : abierta
+          ? cierraAt
+          : proximaAperturaAt;
 
   const restante = targetIso ? Math.max(0, new Date(targetIso).getTime() - now) : 0;
-  const reabiertaPedido = tipo === "pedido" && reabierta && !abierta;
-  const viva = tipo === "whatsapp" && expiraAt ? restante > 0 : abierta;
-  const Icon = reabiertaPedido ? LockOpen : viva ? Clock : Lock;
+  // `reabierta` manda aunque `abierta` sea true: capturaAbierta es true en un
+  // día REABIERTO, y si exigimos `!abierta` el chip verde «Ventana abierta»
+  // contradice al portal cuando el reloj corre sobre un día CERRADO.
+  const reabiertaPedido = tipo === "pedido" && reabierta;
+  const viva =
+    tipo === "whatsapp" && expiraAt
+      ? restante > 0
+      : abierta && !cierreAnticipado;
+  const Icon = reabiertaPedido
+    ? LockOpen
+    : cierreAnticipado
+      ? Lock
+      : viva
+        ? Clock
+        : Lock;
 
   let etiqueta = viva ? "Ventana abierta" : "Ventana cerrada";
   if (reabiertaPedido) {
     etiqueta = "Ventana reabierta";
+  } else if (cierreAnticipado) {
+    etiqueta =
+      proximaAperturaAt && restante > 0
+        ? `Día cerrado · Abre en ${formatearRestante(restante)}`
+        : "Día cerrado";
   } else if (tipo === "whatsapp") {
     etiqueta = viva ? `24 h · ${formatearRestante(restante)}` : "24 h cerrada";
   } else if (!reabiertaPedido && viva && cierraAt && restante > 0) {
@@ -74,7 +105,7 @@ export function VentanaBadge({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-pill font-semibold tabular-nums",
         size === "sm" ? "h-[22px] px-2 text-[12px]" : "h-7 px-3 text-xs",
-        reabiertaPedido
+        reabiertaPedido || cierreAnticipado
           ? "bg-[var(--amber-100)] text-[var(--amber-700)]"
           : viva
             ? "bg-[var(--green-100)] text-[var(--green-700)]"

@@ -560,7 +560,7 @@ ambos campos en la respuesta.
 
 **Lógica:** Carla registra el número del sistema externo de facturación; es el puente pedido ↔ cartera.
 
-**Manual:** `/cartera` o detalle de factura → Capturar DTE.
+**Manual:** `/pedidos` (pedido entregado) o `/cartera` → Capturar DTE.
 
 #### Pagos y abonos (F-503) — `/cartera`, `/reparto`
 

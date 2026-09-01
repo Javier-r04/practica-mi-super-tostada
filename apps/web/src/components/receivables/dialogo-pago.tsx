@@ -20,7 +20,7 @@ import {
   MENSAJE_GUARDAR_TELEFONO,
   type PagoMetodo,
 } from "@misupertostada/shared";
-import { Camera } from "lucide-react";
+import { ComprobantePicker } from "@/components/receivables/comprobante-picker";
 import { Money } from "@/components/domain/money";
 import { subirComprobanteAbono } from "@/lib/upload-asset";
 import { avisoSinSenal } from "@/hooks/use-online";
@@ -48,10 +48,12 @@ type PropsPago = {
   }) => void;
 };
 
-const METODOS = [
+const METODOS_OPCIONES = [
   { id: "EFECTIVO", label: "Efectivo" },
   { id: "TRANSFERENCIA", label: "Transferencia" },
 ] as const;
+
+const METODOS_DEFAULT: readonly PagoMetodo[] = ["EFECTIVO", "TRANSFERENCIA"];
 
 /**
  * El formulario vive en un componente aparte que solo se monta con el diálogo
@@ -72,11 +74,11 @@ function FormularioPago({
   loading,
   error,
   permitirOffline = false,
-  metodos = METODOS,
+  metodos = METODOS_DEFAULT,
   onClose,
   onConfirm,
 }: PropsPago) {
-  const metodosVisibles = METODOS.filter((m) =>
+  const metodosVisibles = METODOS_OPCIONES.filter((m) =>
     metodos.some((x) => x === m.id),
   );
   const [monto, setMonto] = useState(() =>
@@ -190,50 +192,47 @@ function FormularioPago({
                 </Description>
               </TextField>
 
-              <div className="grid gap-1.5">
-                <span className="text-sm font-medium text-tinta-900" id="metodo-pago-label">
-                  Método
-                </span>
-                <ToggleButtonGroup
-                  aria-labelledby="metodo-pago-label"
-                  disallowEmptySelection
-                  fullWidth
-                  selectedKeys={new Set([metodo])}
-                  selectionMode="single"
-                  onSelectionChange={(keys) => {
-                    const next = [...keys][0];
-                    if (typeof next === "string") setMetodo(next as PagoMetodo);
-                  }}
-                >
-                  {metodosVisibles.map((m, i) => (
-                    <ToggleButton key={m.id} id={m.id}>
-                      {i > 0 && <ToggleButtonGroup.Separator />}
-                      {m.label}
-                    </ToggleButton>
-                  ))}
-                </ToggleButtonGroup>
-              </div>
+              {metodosVisibles.length > 1 && (
+                <div className="grid gap-1.5">
+                  <span
+                    className="text-sm font-medium text-tinta-900"
+                    id="metodo-pago-label"
+                  >
+                    Método
+                  </span>
+                  <ToggleButtonGroup
+                    aria-labelledby="metodo-pago-label"
+                    disallowEmptySelection
+                    fullWidth
+                    selectedKeys={new Set([metodo])}
+                    selectionMode="single"
+                    onSelectionChange={(keys) => {
+                      const next = [...keys][0];
+                      if (typeof next === "string")
+                        setMetodo(next as PagoMetodo);
+                    }}
+                  >
+                    {metodosVisibles.map((m, i) => (
+                      <ToggleButton key={m.id} id={m.id}>
+                        {i > 0 && <ToggleButtonGroup.Separator />}
+                        {m.label}
+                      </ToggleButton>
+                    ))}
+                  </ToggleButtonGroup>
+                </div>
+              )}
 
-              <div className="grid gap-1.5">
-                <span className="text-sm font-medium text-tinta-900">
-                  Comprobante
-                </span>
-                <label className="flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-campo border border-dashed border-[var(--border-default)] px-3 text-xs text-tinta-500 transition-colors duration-control hover:border-[var(--border-accent)]">
-                  <Camera size={16} aria-hidden />
-                  {archivo ? archivo.name : "Tomar foto del recibo"}
-                  <input
-                    accept="image/jpeg,image/png,image/webp"
-                    className="sr-only"
-                    type="file"
-                    onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                  />
-                </label>
-                <p className="text-xs text-tinta-500">
-                  {metodo === "TRANSFERENCIA"
+              <ComprobantePicker
+                label="Comprobante"
+                placeholder="Toque para tomar foto del recibo"
+                hint={
+                  metodo === "TRANSFERENCIA"
                     ? "Obligatorio en transferencia."
-                    : "Opcional en efectivo."}
-                </p>
-              </div>
+                    : "Opcional en efectivo."
+                }
+                value={archivo}
+                onChange={setArchivo}
+              />
 
               {mensajeError && (
                 <Alert status="danger">

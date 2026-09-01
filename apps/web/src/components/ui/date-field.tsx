@@ -293,6 +293,7 @@ export function DateField({
             <button
               id={id}
               type="button"
+              role="combobox"
               disabled={disabled}
               aria-haspopup="dialog"
               aria-expanded={open}

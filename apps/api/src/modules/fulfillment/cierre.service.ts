@@ -318,8 +318,12 @@ export class CierreService {
       for (const fecha of fechas) {
         const fin = cal.getFinVentanaDeOperacion(fecha);
         // Sin ventana ese día no hay nada que cerrar; con la ventana todavía
-        // corriendo se sigue capturando.
-        if (!fin || now < fin) continue;
+        // corriendo se sigue capturando — salvo un día ya CERRADO con
+        // CONFIRMADO huérfanos (portal o manual tras cierre anticipado / seed).
+        if (!fin || now < fin) {
+          const { diaEstado } = await leerEstadoDia(this.db, orgId, fecha);
+          if (diaEstado !== "CERRADO") continue;
+        }
         await this.ejecutarCierre({
           organizacionId: orgId,
           fechaOperacion: fecha,
@@ -337,9 +341,13 @@ export class CierreService {
    * - la ventana que acaba de cerrar, aunque no tenga pedidos (mantiene el día
    *   marcado CERRADO y la hoja materializada, aunque salga vacía),
    * - toda operación pasada con pedidos vivos cuyo día no está CERRADO: el
-   *   atrasado que el barrido viejo no recuperaba nunca, y
+   *   atrasado que el barrido viejo no recuperaba nunca,
    * - todo `dia_operacion` pasado que no esté CERRADO, tenga pedidos o no: es
-   *   lo que devuelve al redil un día REABIERTO y olvidado.
+   *   lo que devuelve al redil un día REABIERTO y olvidado, y
+   * - todo día ya CERRADO con pedidos CONFIRMADO vivos: captura tardía del
+   *   portal o del panel después de un cierre anticipado (o del seed, que
+   *   cierra «hoy» para armar la ruta y deja la ventana viva). Sin esto esos
+   *   pedidos se quedan fuera de producción y de la ruta para siempre.
    *
    * Que un día REABIERTO entre en la lista no significa que se cierre ya:
    * `ejecutarCierre` respeta la reapertura hasta que vence.
@@ -391,7 +399,31 @@ export class CierreService {
       );
 
     const porOrg = new Map<string, Set<string>>();
-    for (const fila of [...conPedidos, ...diasAbiertos]) {
+    const tardios = await this.db
+      .selectDistinct({
+        organizacionId: pedido.organizacionId,
+        fechaOperacion: pedido.fechaOperacion,
+      })
+      .from(pedido)
+      .innerJoin(
+        diaOperacion,
+        and(
+          eq(diaOperacion.organizacionId, pedido.organizacionId),
+          eq(diaOperacion.fechaOperacion, pedido.fechaOperacion),
+        ),
+      )
+      .where(
+        and(
+          organizacionId
+            ? eq(pedido.organizacionId, organizacionId)
+            : undefined,
+          eq(pedido.estado, "CONFIRMADO"),
+          isNull(pedido.anuladoAt),
+          eq(diaOperacion.estado, "CERRADO"),
+        ),
+      );
+
+    for (const fila of [...conPedidos, ...diasAbiertos, ...tardios]) {
       const set = porOrg.get(fila.organizacionId) ?? new Set<string>();
       set.add(fila.fechaOperacion);
       porOrg.set(fila.organizacionId, set);
@@ -465,6 +497,7 @@ export class CierreService {
     const cal = await this.calendar.load(opts.organizacionId);
     let version = 1;
     let idempotente = false;
+    let absorbiendoTardios = false;
 
     await this.db.transaction(async (tx) => {
       await bloquearDiaOperacion(tx, opts.organizacionId, opts.fechaOperacion);
@@ -481,20 +514,38 @@ export class CierreService {
         .for("update");
 
       if (dia?.estado === "CERRADO") {
-        const [hoja] = await tx
-          .select({ version: hojaProduccion.version })
-          .from(hojaProduccion)
+        const [huerfano] = await tx
+          .select({ id: pedido.id })
+          .from(pedido)
           .where(
             and(
-              eq(hojaProduccion.organizacionId, opts.organizacionId),
-              eq(hojaProduccion.fechaOperacion, opts.fechaOperacion),
+              eq(pedido.organizacionId, opts.organizacionId),
+              eq(pedido.fechaOperacion, opts.fechaOperacion),
+              eq(pedido.estado, "CONFIRMADO"),
+              isNull(pedido.anuladoAt),
             ),
           )
-          .orderBy(sql`${hojaProduccion.version} desc`)
           .limit(1);
-        version = hoja?.version ?? 1;
-        idempotente = true;
-        return;
+        if (!huerfano) {
+          const [hoja] = await tx
+            .select({ version: hojaProduccion.version })
+            .from(hojaProduccion)
+            .where(
+              and(
+                eq(hojaProduccion.organizacionId, opts.organizacionId),
+                eq(hojaProduccion.fechaOperacion, opts.fechaOperacion),
+              ),
+            )
+            .orderBy(sql`${hojaProduccion.version} desc`)
+            .limit(1);
+          version = hoja?.version ?? 1;
+          idempotente = true;
+          return;
+        }
+        // Día cerrado con CONFIRMADO que llegaron después (ventana viva o
+        // seed). Se rematerializa vN+1 y se promocionan; no se reenvía el
+        // consolidado — el unique del outbox lo impediría igual.
+        absorbiendoTardios = true;
       }
 
       // Un día reabierto no se cierra por debajo mientras alguien lo esté
@@ -552,48 +603,50 @@ export class CierreService {
         );
 
       const now = this.calendar.now();
-      if (!dia) {
-        await tx.insert(diaOperacion).values({
-          organizacionId: opts.organizacionId,
-          fechaOperacion: opts.fechaOperacion,
-          estado: "CERRADO",
-          cerradoAt: now,
-          cerradoPor: generadoPor,
-        });
-      } else {
-        await tx
-          .update(diaOperacion)
-          .set({
+      if (!absorbiendoTardios) {
+        if (!dia) {
+          await tx.insert(diaOperacion).values({
+            organizacionId: opts.organizacionId,
+            fechaOperacion: opts.fechaOperacion,
             estado: "CERRADO",
             cerradoAt: now,
             cerradoPor: generadoPor,
-          })
-          .where(eq(diaOperacion.id, dia.id));
-      }
+          });
+        } else {
+          await tx
+            .update(diaOperacion)
+            .set({
+              estado: "CERRADO",
+              cerradoAt: now,
+              cerradoPor: generadoPor,
+            })
+            .where(eq(diaOperacion.id, dia.id));
+        }
 
-      await this.events.insert(
-        TIPO_EVENTO_VENTANA_CERRADA,
-        {
-          organizacionId: opts.organizacionId,
-          fechaOperacion: opts.fechaOperacion,
-          version,
-        },
-        tx,
-      );
-
-      await this.outbox.insert(
-        {
-          tipo: TIPO_EVENTO_VENTANA_CERRADA,
-          destinatarioId: opts.organizacionId,
-          fechaOperacion: opts.fechaOperacion,
-          payload: {
+        await this.events.insert(
+          TIPO_EVENTO_VENTANA_CERRADA,
+          {
             organizacionId: opts.organizacionId,
             fechaOperacion: opts.fechaOperacion,
             version,
           },
-        },
-        tx,
-      );
+          tx,
+        );
+
+        await this.outbox.insert(
+          {
+            tipo: TIPO_EVENTO_VENTANA_CERRADA,
+            destinatarioId: opts.organizacionId,
+            fechaOperacion: opts.fechaOperacion,
+            payload: {
+              organizacionId: opts.organizacionId,
+              fechaOperacion: opts.fechaOperacion,
+              version,
+            },
+          },
+          tx,
+        );
+      }
 
       await this.audit.insert(
         {
@@ -607,6 +660,7 @@ export class CierreService {
             estado: "CERRADO",
             version,
             fechaOperacion: opts.fechaOperacion,
+            tardios: absorbiendoTardios || undefined,
           },
           ip: opts.ip,
           userAgent: opts.userAgent,

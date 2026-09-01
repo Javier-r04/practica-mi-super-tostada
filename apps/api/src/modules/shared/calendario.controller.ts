@@ -29,7 +29,14 @@ export class CalendarioController {
     const now = this.calendar.now();
     const horario = cal.getHorarioReferencia(now);
     const cierraDate = cal.getCierreVentana(now);
-    const proximaDate = cal.getProximaApertura(now);
+    const capturaCerrada = ejes.estadoCaptura === "CERRADO";
+    // Con el día cerrado antes de las 03:00 el reloj de ventana sigue vivo, pero
+    // el timer del panel debe contar hacia la *siguiente* apertura, no hacia el
+    // cierre de esta madrugada ni decir «ventana abierta».
+    const proximaDate =
+      capturaCerrada && ejes.ventanaAbierta && cierraDate
+        ? cal.getProximaApertura(cierraDate)
+        : cal.getProximaApertura(now);
 
     const payload: CalendarioAhora = calendarioAhoraSchema.parse({
       fechaOperacionCaptura: ejes.captura,
@@ -40,9 +47,8 @@ export class CalendarioController {
       mismaOperacion: ejes.mismaOperacion,
       ventanaAbierta: ejes.ventanaAbierta,
       // Un día REABIERTO acepta captura desde el panel aunque el reloj diga
-      // cerrado: `exigirDiaNoCerrado` solo bloquea CERRADO. Antes esto decía
-      // `false` ahí, contradiciendo lo que el propio API deja escribir. La
-      // regla vive en `capturaAbierta` para que el portal no la reinvente.
+      // cerrado. La regla vive en `capturaAbierta` para que el portal no la
+      // reinvente: navbar y portal leen el mismo bit.
       capturaAbierta: capturaAbierta(ejes.ventanaAbierta, ejes.estadoCaptura),
       diaEstado: ejes.estadoCaptura,
       diaEstadoEnCurso: ejes.estadoEnCurso,
@@ -51,11 +57,13 @@ export class CalendarioController {
       horarioApertura: horario?.apertura ?? null,
       horarioCierre: horario?.cierre ?? null,
       cierraAt:
-        ejes.ventanaAbierta && cierraDate ? instanteAIso(cierraDate) : null,
-      proximaAperturaAt:
-        !ejes.ventanaAbierta && proximaDate
-          ? instanteAIso(proximaDate)
+        ejes.ventanaAbierta && cierraDate && !capturaCerrada
+          ? instanteAIso(cierraDate)
           : null,
+      proximaAperturaAt:
+        ((!ejes.ventanaAbierta || capturaCerrada) && proximaDate
+          ? instanteAIso(proximaDate)
+          : null),
     });
     return envelopeOk(payload);
   }

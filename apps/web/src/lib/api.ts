@@ -21,7 +21,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
-    credentials: "include",
+    credentials: init?.credentials ?? "include",
     headers,
     signal: init?.signal ?? AbortSignal.timeout(15_000),
   });

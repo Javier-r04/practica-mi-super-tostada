@@ -530,8 +530,8 @@ describe("capturaAbierta", () => {
     expect(capturaAbierta(true, "REABIERTO")).toBe(true);
   });
 
-  test("un día CERRADO no acepta captura ni con la ventana corriendo", () => {
-    expect(capturaAbierta(true, "CERRADO")).toBe(false);
+  test("un día CERRADO no tapa una ventana de reloj viva", () => {
+    expect(capturaAbierta(true, "CERRADO")).toBe(true);
     expect(capturaAbierta(false, "CERRADO")).toBe(false);
   });
 

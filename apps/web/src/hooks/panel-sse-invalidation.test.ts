@@ -22,7 +22,7 @@ function incluye(claves: string[][], raiz: string): boolean {
 }
 
 describe("clavesAInvalidar", () => {
-  test("pedido creado/editado/anulado no toca hoja ni cartera", () => {
+  test("pedido creado/editado/anulado refresca operación sin tocar hoja ni cartera", () => {
     const evento: PanelSseEvent = {
       tipo: "pedido.creado",
       pedidoId: PEDIDO,
@@ -30,13 +30,30 @@ describe("clavesAInvalidar", () => {
     };
     const claves = clavesAInvalidar(evento);
     expect(incluye(claves, "pedidos")).toBe(true);
+    expect(incluye(claves, "operacion")).toBe(true);
     expect(incluye(claves, "tablero")).toBe(true);
     expect(incluye(claves, "hoja")).toBe(false);
     expect(incluye(claves, "cartera")).toBe(false);
     expect(incluye(claves, "conversaciones")).toBe(false);
   });
 
-  test("cierre de día refresca operación y hoja, no conversaciones", () => {
+  test("pedido entregado refresca operación y ruta sin tocar hoja", () => {
+    const claves = clavesAInvalidar({
+      tipo: "pedido.entregado",
+      pedidoId: PEDIDO,
+      fechaOperacion: FECHA,
+    });
+    expect(incluye(claves, "pedidos")).toBe(true);
+    expect(incluye(claves, "operacion")).toBe(true);
+    expect(incluye(claves, "ruta")).toBe(true);
+    expect(incluye(claves, "cartera")).toBe(true);
+    expect(incluye(claves, "cuadre")).toBe(true);
+    expect(incluye(claves, "tablero")).toBe(true);
+    expect(incluye(claves, "hoja")).toBe(false);
+    expect(incluye(claves, "calendario")).toBe(false);
+  });
+
+  test("cierre de día refresca operación, hoja y ruta, no conversaciones", () => {
     const claves = clavesAInvalidar({
       tipo: "dia.cerrado",
       fechaOperacion: FECHA,
@@ -46,21 +63,43 @@ describe("clavesAInvalidar", () => {
     expect(incluye(claves, "hoja")).toBe(true);
     expect(incluye(claves, "pedidos")).toBe(true);
     expect(incluye(claves, "calendario")).toBe(true);
+    expect(incluye(claves, "ruta")).toBe(true);
     expect(incluye(claves, "conversaciones")).toBe(false);
   });
 
-  test("pago no refetch-ea la hoja de producción", () => {
+  test("factura actualizada invalida cartera, pedidos y tablero", () => {
     const claves = clavesAInvalidar({
-      tipo: "pago.registrado",
+      tipo: "factura.actualizada",
       fechaOperacion: FECHA,
       facturaId: FACTURA,
       clienteId: CLIENTE,
     });
     expect(incluye(claves, "cartera")).toBe(true);
-    expect(incluye(claves, "cuadre")).toBe(true);
-    expect(incluye(claves, "ruta")).toBe(true);
+    expect(incluye(claves, "pedidos")).toBe(true);
+    expect(incluye(claves, "tablero")).toBe(true);
     expect(incluye(claves, "hoja")).toBe(false);
-    expect(incluye(claves, "calendario")).toBe(false);
+  });
+
+  test("pago y abonos no refetch-ean la hoja de producción", () => {
+    const clavesPago = clavesAInvalidar({
+      tipo: "pago.registrado",
+      fechaOperacion: FECHA,
+      facturaId: FACTURA,
+      clienteId: CLIENTE,
+    });
+    expect(incluye(clavesPago, "cartera")).toBe(true);
+    expect(incluye(clavesPago, "cuadre")).toBe(true);
+    expect(incluye(clavesPago, "ruta")).toBe(true);
+    expect(incluye(clavesPago, "hoja")).toBe(false);
+    expect(incluye(clavesPago, "calendario")).toBe(false);
+
+    const clavesAbono = clavesAInvalidar({
+      tipo: "abono.confirmado",
+      fechaOperacion: FECHA,
+      clienteId: CLIENTE,
+      abonoId: "00000000-0000-4000-a000-000000000055",
+    });
+    expect(clavesAbono).toEqual(clavesPago);
   });
 
   test("mensaje de WhatsApp solo invalida conversaciones", () => {

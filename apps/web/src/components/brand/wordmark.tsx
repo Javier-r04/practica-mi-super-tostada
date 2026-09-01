@@ -2,11 +2,11 @@ import { cn } from "@/lib/utils";
 
 export function Wordmark({
   compact = false,
-  onBrand: _onBrand = false,
+  onBrand = false,
   className,
 }: {
   compact?: boolean;
-  /** Indica uso sobre fondo de marca; el SVG se renderiza intacto. */
+  /** Indica uso sobre fondo de marca; el SVG se renderiza intacto (tiene su propio badge). */
   onBrand?: boolean;
   className?: string;
 }) {

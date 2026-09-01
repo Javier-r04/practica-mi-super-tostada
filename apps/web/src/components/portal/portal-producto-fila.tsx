@@ -13,47 +13,56 @@ import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { AssetImage } from "@/components/ui/asset-image";
 import { cn } from "@/lib/utils";
 
-/* El stepper de ±: en teléfono se pide de un toque por unidad y no abre teclado
-   numérico encima de la lista. Es compartido con captura interna; se usa tal
-   cual, sin editarlo. */
+/* El stepper de ±: en teléfono se pide de un toque por unidad; tocar el
+   número abre teclado numérico para cantidades grandes. Es compartido con
+   captura interna. */
 
-function ProductoIdentidad({
-  producto,
-  unidad,
-}: {
-  producto: PortalProducto;
-  unidad: string;
-}) {
+function ProductoNombres({ producto }: { producto: PortalProducto }) {
   return (
     <>
-      <div className="flex items-center gap-1.5">
-        <span className="truncate text-[15px] font-semibold capitalize text-tinta-900">
+      <div className="flex items-start gap-1.5">
+        <span className="text-pretty text-[15px] font-semibold capitalize leading-snug text-tinta-900">
           {producto.alias}
         </span>
         {producto.favorito ? (
           <Star
             size={14}
-            className="shrink-0 text-[var(--gold-500)]"
+            className="mt-0.5 shrink-0 text-[var(--gold-500)]"
             fill="currentColor"
             aria-label="De los que pide siempre"
           />
         ) : null}
       </div>
       {producto.alias !== producto.nombreCanonico ? (
-        <p className="truncate text-[12px] text-tinta-500">
+        <p className="mt-0.5 text-pretty text-[12px] leading-snug text-tinta-500">
           {producto.nombreCanonico}
         </p>
       ) : null}
-      {producto.pedible ? (
-        <p className="mt-0.5 text-[13px] text-tinta-600">
-          <Money centavos={producto.precioCentavos} tone="muted" /> / {unidad}
-        </p>
-      ) : (
-        <Chip className="mt-1" color="warning" size="sm" variant="soft">
-          Sin precio — avise a la fábrica
-        </Chip>
-      )}
     </>
+  );
+}
+
+function ProductoPrecio({
+  producto,
+  unidad,
+  className,
+}: {
+  producto: PortalProducto;
+  unidad: string;
+  className?: string;
+}) {
+  if (!producto.pedible) {
+    return (
+      <Chip className={className} color="warning" size="sm" variant="soft">
+        Sin precio — avise a la fábrica
+      </Chip>
+    );
+  }
+
+  return (
+    <p className={cn("text-[13px] tabular-nums text-tinta-600", className)}>
+      <Money centavos={producto.precioCentavos} tone="muted" /> / {unidad}
+    </p>
   );
 }
 
@@ -141,7 +150,7 @@ export function PortalProductoFila({
             ) : null}
             {producto.pedible ? (
               <p className="mt-1 text-[14px] font-bold text-tinta-900">
-                <Money centavos={producto.precioCentavos} tone="base" /> <span className="font-normal text-tinta-500">/ {unidad}</span>
+                <Money centavos={producto.precioCentavos} /> <span className="font-normal text-tinta-500">/ {unidad}</span>
               </p>
             ) : (
               <Chip className="mt-1" color="warning" size="sm" variant="soft">
@@ -163,8 +172,7 @@ export function PortalProductoFila({
             {elegido ? (
               <Button
                 isIconOnly
-                variant="flat"
-                color="danger"
+                variant="tertiary"
                 size="lg"
                 className="shrink-0 rounded-campo bg-peligro/10 text-peligro"
                 onPress={() => onChange(0)}
@@ -182,29 +190,39 @@ export function PortalProductoFila({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 border-b border-[var(--border-subtle)] py-3 pr-3 last:border-b-0",
+        "grid gap-2.5 border-b border-[var(--border-subtle)] py-3 pr-3 last:border-b-0",
         "border-l-[3px] pl-3 transition-colors duration-control ease-out",
         elegido
           ? "border-l-[var(--green-600)] bg-[var(--green-50)]"
           : "border-l-transparent",
       )}
     >
-      <ProductoThumb
-        nombre={producto.alias}
-        fotoAssetId={producto.fotoAssetId}
-        srcPath={srcPath}
-        size="md"
-      />
-      <div className="min-w-0 flex-1">
-        <ProductoIdentidad producto={producto} unidad={unidad} />
+      <div className="flex min-w-0 gap-3">
+        <ProductoThumb
+          nombre={producto.alias}
+          fotoAssetId={producto.fotoAssetId}
+          srcPath={srcPath}
+          size="md"
+        />
+        <div className="min-w-0 flex-1">
+          <ProductoNombres producto={producto} />
+        </div>
       </div>
-      <QuantityStepper
-        value={cantidad}
-        onChange={onChange}
-        unidad={unidad}
-        disabled={disabled}
-        size="lg"
-      />
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <ProductoPrecio
+          producto={producto}
+          unidad={unidad}
+          className="min-w-0 shrink truncate"
+        />
+        <QuantityStepper
+          value={cantidad}
+          onChange={onChange}
+          unidad={unidad}
+          disabled={disabled}
+          size="md"
+          className="shrink-0"
+        />
+      </div>
     </div>
   );
 }

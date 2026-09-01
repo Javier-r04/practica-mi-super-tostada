@@ -19,6 +19,10 @@ export class FakeStorageAdapter implements StoragePort {
     };
   }
 
+  async presignGet(): Promise<string | null> {
+    return null;
+  }
+
   async put(key: string, bytes: Buffer, mime: string): Promise<void> {
     this.objects.set(key, { bytes, mime });
   }

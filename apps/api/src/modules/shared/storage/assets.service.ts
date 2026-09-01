@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import { asset } from "@misupertostada/db";
+import { asset, abono } from "@misupertostada/db";
 import {
   confirmAssetRequestSchema,
   presignRequestSchema,
@@ -49,6 +49,9 @@ export class AssetsService {
     const input = parseBody(confirmAssetRequestSchema, body);
     const existing = await this.byKey(input.sha256);
     if (existing) {
+      if (input.ownerType === "abono") {
+        return this.reconciliarAssetAbonoPortal(existing, input.ownerId);
+      }
       return existing;
     }
 
@@ -108,7 +111,9 @@ export class AssetsService {
       );
     }
     const existing = await this.byKey(input.sha256);
-    if (existing) return existing;
+    if (existing) {
+      return this.reconciliarAssetAbonoPortal(existing, input.ownerId);
+    }
 
     const head = await this.storage.head(input.sha256);
     if (!head) {
@@ -159,18 +164,43 @@ export class AssetsService {
     return this.presign(body);
   }
 
+  private async reconciliarAssetAbonoPortal(
+    existing: typeof asset.$inferSelect,
+    ownerId: string,
+  ) {
+    if (existing.ownerId === ownerId) return existing;
+    const [abonoViejo] = await this.db
+      .select({ id: abono.id })
+      .from(abono)
+      .where(eq(abono.id, existing.ownerId))
+      .limit(1);
+    if (abonoViejo) {
+      throw new DomainException(
+        "COMPROBANTE_EN_USO",
+        "Este comprobante ya está ligado a otro reporte",
+        409,
+      );
+    }
+    const [actualizado] = await this.db
+      .update(asset)
+      .set({ ownerId })
+      .where(eq(asset.id, existing.id))
+      .returning();
+    return actualizado ?? existing;
+  }
+
+  async getViewUrl(id: string, apiBaseUrl: string): Promise<string> {
+    const row = await this.findById(id);
+    const direct = await this.storage.presignGet(row.key);
+    if (direct) return direct;
+    return `${apiBaseUrl.replace(/\/$/, "")}/assets/${id}`;
+  }
+
   async getContent(
     id: string,
     variante?: "thumb" | "card",
   ): Promise<{ bytes: Buffer; mime: string }> {
-    const [row] = await this.db
-      .select()
-      .from(asset)
-      .where(eq(asset.id, id))
-      .limit(1);
-    if (!row) {
-      throw new DomainException("ASSET_NO_ENCONTRADO", "Archivo no encontrado", 404);
-    }
+    const row = await this.findById(id);
 
     let key = row.key;
     let mime = row.mime;
@@ -194,6 +224,18 @@ export class AssetsService {
       );
     }
     return { bytes: obj.bytes, mime: obj.mime || mime };
+  }
+
+  private async findById(id: string) {
+    const [row] = await this.db
+      .select()
+      .from(asset)
+      .where(eq(asset.id, id))
+      .limit(1);
+    if (!row) {
+      throw new DomainException("ASSET_NO_ENCONTRADO", "Archivo no encontrado", 404);
+    }
+    return row;
   }
 
   private async byKey(key: string) {

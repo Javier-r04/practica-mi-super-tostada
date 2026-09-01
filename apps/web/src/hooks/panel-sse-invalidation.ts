@@ -4,22 +4,24 @@ export const SSE_CONNECTING = 0;
 export const SSE_OPEN = 1;
 export const SSE_CLOSED = 2;
 
-const CLAVES_PEDIDO: string[][] = [["pedidos"], ["tablero"]];
+const CLAVES_PEDIDO: string[][] = [["pedidos"], ["operacion"], ["tablero"]];
 const CLAVES_OPERACION: string[][] = [
   ["operacion"],
   ["hoja"],
   ["pedidos"],
   ["calendario"],
+  ["ruta"],
   ["tablero"],
 ];
 const CLAVES_ENTREGA: string[][] = [
   ["pedidos"],
+  ["operacion"],
   ["ruta"],
   ["cartera"],
   ["cuadre"],
   ["tablero"],
 ];
-const CLAVES_FACTURA: string[][] = [["cartera"], ["tablero"]];
+const CLAVES_FACTURA: string[][] = [["cartera"], ["pedidos"], ["tablero"]];
 const CLAVES_PAGO: string[][] = [["cartera"], ["cuadre"], ["ruta"], ["tablero"]];
 const CLAVES_MENSAJE: string[][] = [["conversaciones"]];
 
@@ -50,6 +52,9 @@ export function clavesAInvalidar(evento: PanelSseEvent): string[][] {
     case "factura.actualizada":
       return CLAVES_FACTURA;
     case "pago.registrado":
+    case "abono.reportado":
+    case "abono.confirmado":
+    case "abono.rechazado":
       return CLAVES_PAGO;
     case "mensaje.nuevo":
     case "mensaje.estado":

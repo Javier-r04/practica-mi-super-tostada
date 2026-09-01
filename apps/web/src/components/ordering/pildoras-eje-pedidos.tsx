@@ -48,8 +48,9 @@ export function PildorasEjePedidos({
           </>
         ) : null}
         <VentanaBadge
-          abierta={cal.ventanaAbierta}
+          abierta={cal.capturaAbierta}
           reabierta={reabierto}
+          diaCerrado={cal.diaEstado === "CERRADO"}
           cierraAt={cal.cierraAt}
           proximaAperturaAt={cal.proximaAperturaAt}
         />

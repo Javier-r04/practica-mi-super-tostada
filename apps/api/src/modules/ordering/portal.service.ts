@@ -102,14 +102,20 @@ export class PortalService {
         abierta,
         fechaOperacion,
         fechaEntrega: ejes.entregaCaptura,
-        // La cuenta atrás solo existe mientras corre la ventana del reloj. En
-        // un día reabierto no hay cierre que prometer (lo cierra el admin a
-        // mano), y `getCierreVentana` habría devuelto el de la ventana
+        // La cuenta atrás de cierre solo existe mientras corre la ventana del
+        // reloj. En un día reabierto no hay cierre que prometer (lo cierra el
+        // admin a mano), y `getCierreVentana` habría devuelto el de la ventana
         // siguiente: un contador a mañana sobre una ventana abierta hoy.
+        //
+        // `proximaAperturaAt` sí se manda aunque la captura esté abierta por
+        // reapertura: el portal lo usa para refrescar a las 15:00, cuando el
+        // reloj abre la operación nueva. El copy de «abre de nuevo…» solo se
+        // muestra si `abierta` es false, así que no le promete una hora al
+        // cliente que ya puede pedir.
         cierraAt: ejes.ventanaAbierta
           ? isoOpcional(cal.getCierreVentana(now))
           : null,
-        proximaAperturaAt: abierta
+        proximaAperturaAt: ejes.ventanaAbierta
           ? null
           : isoOpcional(cal.getProximaApertura(now)),
         horarioEntregaFijo: horario,
@@ -285,6 +291,18 @@ export class PortalService {
       throw new DomainException("NO_ENCONTRADO", "Archivo no encontrado", 404);
     }
     return this.assets.getContent(assetId, variante);
+  }
+
+  async assetViewUrl(
+    clienteRow: ClientePortal,
+    assetId: string,
+    apiBaseUrl: string,
+  ): Promise<string> {
+    const permitido = await this.assetPermitido(clienteRow, assetId);
+    if (!permitido) {
+      throw new DomainException("NO_ENCONTRADO", "Archivo no encontrado", 404);
+    }
+    return this.assets.getViewUrl(assetId, apiBaseUrl);
   }
 
   private async assetPermitido(

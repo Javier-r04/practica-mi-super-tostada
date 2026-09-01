@@ -88,6 +88,10 @@ function PedidosInner() {
     me.data?.usuario.permisos ?? [],
     "pedidos.capturar_manual",
   );
+  const puedeDte = tienePermiso(
+    me.data?.usuario.permisos ?? [],
+    "cobranza.capturar_dte",
+  );
 
   // Tres fechas distintas, tres papeles distintos (ver `USAGE.md` §4):
   // «Hoy» es la operación EN CURSO —la que se reparte—, «Esta noche» la de
@@ -526,6 +530,7 @@ function PedidosInner() {
                 ) : (
                   <PedidoDetalle
                     pedido={detalle.data}
+                    puedeDte={puedeDte}
                     puedeEscribir={puedeEscribir}
                     fotoAssetId={
                       clientePorId.get(detalle.data.clienteId)?.fotoAssetId

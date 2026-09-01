@@ -11,9 +11,14 @@ import type { StoragePort } from "./storage.port";
 export class R2StorageAdapter implements StoragePort {
   readonly bucket: string;
   private readonly client: S3Client;
+  /** En dev el bucket suele no tener CORS para localhost; la API hace de proxy. */
+  private readonly proxyUploads: boolean;
+  private readonly publicBaseUrl: string | undefined;
 
   constructor(env: Env) {
     this.bucket = env.R2_BUCKET!;
+    this.publicBaseUrl = env.R2_PUBLIC_BASE_URL;
+    this.proxyUploads = env.NODE_ENV !== "production";
     this.client = new S3Client({
       region: "auto",
       endpoint: env.R2_ENDPOINT,
@@ -29,6 +34,13 @@ export class R2StorageAdapter implements StoragePort {
     mime: string,
     size: number,
   ): Promise<{ url: string; headers: Record<string, string>; method: "PUT" }> {
+    if (this.proxyUploads) {
+      return {
+        url: `/internal/storage/${encodeURIComponent(key)}`,
+        headers: { "content-type": mime },
+        method: "PUT",
+      };
+    }
     const url = await getSignedUrl(
       this.client,
       new PutObjectCommand({
@@ -44,6 +56,18 @@ export class R2StorageAdapter implements StoragePort {
       headers: { "content-type": mime, "content-length": String(size) },
       method: "PUT",
     };
+  }
+
+  async presignGet(key: string, expiresInSeconds = 3600): Promise<string | null> {
+    if (this.publicBaseUrl) {
+      return `${this.publicBaseUrl.replace(/\/$/, "")}/${key}`;
+    }
+    const url = await getSignedUrl(
+      this.client,
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      { expiresIn: expiresInSeconds },
+    );
+    return url;
   }
 
   async put(key: string, bytes: Buffer, mime: string): Promise<void> {

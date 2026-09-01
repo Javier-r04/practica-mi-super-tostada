@@ -4,4 +4,5 @@ export {
   toastWarning,
   toastInfo,
   toastFromError,
+  toastPromise,
 } from "@/components/ui/toaster";

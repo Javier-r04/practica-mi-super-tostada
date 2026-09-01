@@ -42,8 +42,13 @@ export async function presentarFactura(
   calendar: BusinessCalendarService,
   fac: typeof factura.$inferSelect,
 ): Promise<FacturaPublica> {
+  const [ped] = await db
+    .select({ organizacionId: pedido.organizacionId })
+    .from(pedido)
+    .where(eq(pedido.id, fac.pedidoId))
+    .limit(1);
   const abonadoCentavos = await abonadoDeFactura(db, fac.id);
-  const cal = await calendar.load();
+  const cal = await calendar.load(ped?.organizacionId);
   const now = calendar.now();
   const emitida = fac.emitidaAt ?? fac.createdAt;
   const antiguedadDias = antiguedadDiasDe(cal, emitida, now);

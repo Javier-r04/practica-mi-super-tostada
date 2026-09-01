@@ -17,6 +17,7 @@ import { PortalShell } from "@/components/portal/portal-shell";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
+import { NumeroDtePortal } from "@/components/portal/numero-dte";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PortalPedidoDetallePage({
@@ -129,10 +130,9 @@ function DetalleBody({
           <Card.Header className="gap-1">
             <Card.Title>Factura</Card.Title>
           </Card.Header>
-          <Card.Content className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm text-tinta-500">
-              {data.factura.numeroDte ?? "Sin DTE"}
-            </span>
+          <Card.Content className="grid gap-2">
+            <NumeroDtePortal numeroDte={data.factura.numeroDte} />
+            <div className="flex flex-wrap items-center gap-2">
             <EstadoBadge estado={data.factura.estado} size="sm" />
             <Money
               centavos={data.factura.saldoCentavos}
@@ -144,6 +144,7 @@ function DetalleBody({
                     : "default"
               }
             />
+            </div>
           </Card.Content>
           <Card.Footer>
             <Button

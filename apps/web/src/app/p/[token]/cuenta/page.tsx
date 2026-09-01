@@ -8,13 +8,16 @@ import {
   Label,
   TextArea,
 } from "@heroui/react";
-import { Camera, Receipt } from "lucide-react";
+import { Receipt } from "lucide-react";
+import { ComprobantePicker } from "@/components/receivables/comprobante-picker";
 import {
   MENSAJE_ABONO_PENDIENTE,
+  MENSAJE_DESCRIPCION_REQUERIDA,
   quetzalesTextoACentavos,
   type PortalCuenta,
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
+import { toastError, toastPromise } from "@/lib/toast";
 import { avisoLimiteCredito } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
 import { PortalShell } from "@/components/portal/portal-shell";
@@ -23,6 +26,7 @@ import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NumeroDtePortal } from "@/components/portal/numero-dte";
 import { subirComprobanteAbonoPortal } from "@/lib/upload-asset";
 import { useState } from "react";
 
@@ -32,7 +36,7 @@ export default function PortalCuentaPage() {
   const [monto, setMonto] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
-  const [errorLocal, setErrorLocal] = useState<string>();
+  const [abonoId, setAbonoId] = useState<string | null>(null);
 
   const cuenta = useQuery({
     queryKey: ["portal", token, "cuenta"],
@@ -43,9 +47,10 @@ export default function PortalCuentaPage() {
 
   const reportar = useMutation({
     mutationFn: async () => {
-      const abonoId = crypto.randomUUID();
+      if (!archivo || !abonoId) {
+        throw new Error("Adjunte la foto de la transferencia");
+      }
       const montoCentavos = quetzalesTextoACentavos(monto);
-      if (!archivo) throw new Error("Adjunte la foto de la transferencia");
       const comprobanteAssetId = await subirComprobanteAbonoPortal(
         token,
         archivo,
@@ -66,13 +71,35 @@ export default function PortalCuentaPage() {
       setMonto("");
       setDescripcion("");
       setArchivo(null);
-      setErrorLocal(undefined);
+      setAbonoId(null);
       void qc.invalidateQueries({ queryKey: ["portal", token, "cuenta"] });
     },
-    onError: (err) => {
-      setErrorLocal(err instanceof Error ? err.message : "No se pudo enviar");
-    },
   });
+
+  function enviarComprobante() {
+    if (!archivo || !abonoId) {
+      toastError("Adjunte la foto de la transferencia");
+      return;
+    }
+    if (!descripcion.trim()) {
+      toastError(MENSAJE_DESCRIPCION_REQUERIDA);
+      return;
+    }
+    try {
+      quetzalesTextoACentavos(monto);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Monto inválido");
+      return;
+    }
+
+    void toastPromise(reportar.mutateAsync(), {
+      loading: "Enviando comprobante",
+      loadingDescription: "Subiendo la imagen y registrando su transferencia…",
+      success: "Comprobante recibido",
+      successDescription: MENSAJE_ABONO_PENDIENTE,
+      error: "No se pudo enviar el comprobante",
+    });
+  }
 
   const data = cuenta.data ?? sesion.cuenta;
   const aviso = avisoLimiteCredito(data);
@@ -140,9 +167,7 @@ export default function PortalCuentaPage() {
                         className="flex min-h-fila flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="font-mono text-[13px] text-tinta-900">
-                            {f.numeroDte ?? "Sin DTE"}
-                          </p>
+                          <NumeroDtePortal numeroDte={f.numeroDte} />
                           <p className="text-xs tabular-nums text-tinta-500">
                             {f.antiguedadDias}{" "}
                             {f.antiguedadDias === 1 ? "día" : "días"}
@@ -264,29 +289,21 @@ export default function PortalCuentaPage() {
                   onChange={(e) => setDescripcion(e.target.value)}
                 />
               </div>
-              <label className="flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-campo border border-dashed border-[var(--border-default)] px-3 text-xs text-tinta-500">
-                <Camera size={16} aria-hidden />
-                {archivo ? archivo.name : "Foto del comprobante"}
-                <input
-                  accept="image/jpeg,image/png,image/webp"
-                  className="sr-only"
-                  type="file"
-                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              {errorLocal ? (
-                <Alert status="danger">
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Description>{errorLocal}</Alert.Description>
-                  </Alert.Content>
-                </Alert>
-              ) : null}
+              <ComprobantePicker
+                label="Comprobante de transferencia"
+                hint="JPEG, PNG o WebP. Obligatorio."
+                selectorOrigen
+                value={archivo}
+                onChange={(file) => {
+                  setArchivo(file);
+                  setAbonoId(file ? crypto.randomUUID() : null);
+                }}
+              />
               <Button
                 className="min-h-11"
                 isPending={reportar.isPending}
                 variant="primary"
-                onPress={() => reportar.mutate()}
+                onPress={enviarComprobante}
               >
                 Enviar comprobante
               </Button>

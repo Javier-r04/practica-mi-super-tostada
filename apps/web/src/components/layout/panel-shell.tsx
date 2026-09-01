@@ -32,11 +32,11 @@ import {
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { etiquetaDiaCorto, etiquetaDiaSemanaCorto } from "@/lib/fecha-ui";
 import { Avatar, Button, Drawer, ScrollShadow } from "@heroui/react";
 import { Wordmark } from "@/components/brand/wordmark";
 import { VentanaBadge } from "@/components/domain/ventana-badge";
 import { avisoReabierto } from "@/lib/reabierto-vista";
+import { intervaloRefetchVentana } from "@/lib/ventana-refetch";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ReactNode } from "react";
 import { useEffect, useId, useState } from "react";
@@ -153,7 +153,12 @@ export function PanelShell({
     queryKey: ["calendario", "ahora"],
     queryFn: () => api<CalendarioAhora>("/calendario/ahora"),
     enabled: Boolean(me.data),
-    refetchInterval: 60_000,
+    refetchInterval: (query) =>
+      intervaloRefetchVentana({
+        cierraAt: query.state.data?.cierraAt,
+        proximaAperturaAt: query.state.data?.proximaAperturaAt,
+      }),
+    refetchOnWindowFocus: true,
   });
   const carteraResumen = useQuery({
     queryKey: ["cartera", "resumen"],
@@ -304,8 +309,9 @@ export function PanelShell({
             ) : null}
             {calendario.data && (
               <VentanaBadge
-                abierta={calendario.data.ventanaAbierta}
+                abierta={calendario.data.capturaAbierta}
                 reabierta={calendario.data.diaEstado === "REABIERTO"}
+                diaCerrado={calendario.data.diaEstado === "CERRADO"}
                 cierraAt={calendario.data.cierraAt}
                 proximaAperturaAt={calendario.data.proximaAperturaAt}
               />

@@ -19,6 +19,44 @@ export type EjesUi = {
   ventanaAbierta: boolean;
 };
 
+/** Campos de `CalendarioAhora` que producción usa para cierre anticipado. */
+export type EjesProduccion = EjesUi & {
+  diaEstado?: "SIN_CIERRE" | "CERRADO" | "REABIERTO";
+  versionHoja?: number | null;
+  fechaEntregaCaptura?: string;
+};
+
+/**
+ * Operación cuya hoja muestra `/produccion`.
+ *
+ * Por defecto es el eje en curso (lo que Alex produce de madrugada para el
+ * reparto de hoy). Si la captura de esta noche ya se cerró antes de las 03:00,
+ * la hoja existe en ese eje y hay que mostrarla aunque el reloj siga en
+ * «ventana abierta».
+ */
+export function fechaHojaProduccion(cal: EjesProduccion | undefined): string {
+  if (!cal) return "";
+  if (
+    !cal.mismaOperacion &&
+    cal.diaEstado === "CERRADO" &&
+    cal.versionHoja != null
+  ) {
+    return cal.fechaOperacionCaptura;
+  }
+  return cal.fechaOperacionEnCurso;
+}
+
+export function capturaCerradaAnticipada(
+  cal: EjesProduccion | undefined,
+): boolean {
+  if (!cal) return false;
+  return (
+    !cal.mismaOperacion &&
+    cal.diaEstado === "CERRADO" &&
+    cal.versionHoja != null
+  );
+}
+
 /**
  * Operación que abre una pantalla de operación sin filtro en la URL.
  *
@@ -56,7 +94,15 @@ const dia = etiquetaDiaSemanaCorto;
  * que se cierre, así que anclarla al foco hacía que a las 15:01 la pantalla
  * se vaciara con «hoja no materializada».
  */
-export function copyEjeProduccion(cal: EjesUi): CopyEje {
+export function copyEjeProduccion(cal: EjesProduccion): CopyEje {
+  if (capturaCerradaAnticipada(cal)) {
+    return {
+      titulo: `Hoja de la operación ${dia(cal.fechaOperacionCaptura)}`,
+      detalle: cal.fechaEntregaCaptura
+        ? `Cerrada antes de horario. Se entrega ${dia(cal.fechaEntregaCaptura)}.`
+        : "Cerrada antes de horario. Producción anticipada de la captura de esta noche.",
+    };
+  }
   return {
     titulo: `Hoja de la operación ${dia(cal.fechaOperacionEnCurso)}`,
     detalle: cal.mismaOperacion

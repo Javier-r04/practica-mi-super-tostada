@@ -4,6 +4,8 @@ import {
   auditLog,
   cliente,
   clienteProducto,
+  factura,
+  pago,
   pedido,
   pedidoItem,
   producto,
@@ -28,10 +30,12 @@ import {
   type PedidoSseEvent,
   type PortalPedido,
   capturaAbierta,
+  estadoFactura,
   type BusinessCalendar,
 } from "@misupertostada/shared";
 import { DRIZZLE } from "../shared/tokens";
 import type { AppDatabase } from "../shared/database.module";
+import { antiguedadDiasDe } from "../receivables/factura-presentacion";
 import { AuditWriter } from "../shared/audit.writer";
 import { OutboxWriter } from "../shared/outbox.writer";
 import {
@@ -118,6 +122,7 @@ export class PedidoService {
             tx,
             clienteRow.organizacionId,
             fechaOperacion,
+            ejes.ventanaAbierta,
           );
           await tx
             .select({ id: cliente.id })
@@ -216,6 +221,83 @@ export class PedidoService {
       }
     }
     throw new DomainException("VALIDACION", "No se pudo crear el pedido", 500);
+  }
+
+  async anularPortal(
+    clienteRow: ClientePortal,
+    meta: PortalMeta,
+  ): Promise<void> {
+    const cal = await this.calendar.load(clienteRow.organizacionId);
+    const now = this.calendar.now();
+    const ejes = await this.calendar.ejes(clienteRow.organizacionId);
+    const fechaOperacion = ejes.captura;
+    this.exigirVentanaPortal(cal, now, ejes);
+
+    const [row] = await this.db
+      .select()
+      .from(pedido)
+      .where(
+        and(
+          eq(pedido.clienteId, clienteRow.id),
+          eq(pedido.fechaOperacion, fechaOperacion),
+          eq(pedido.origen, "PORTAL"),
+          isNull(pedido.anuladoAt),
+        ),
+      )
+      .limit(1);
+
+    if (!row) {
+      throw new DomainException(
+        "NO_ENCONTRADO",
+        "No tiene un pedido para cancelar",
+        404,
+      );
+    }
+
+    exigirAnulable(row.estado);
+    const motivo = "Cancelado por el cliente desde el portal";
+    const anuladoAt = this.calendar.now();
+
+    await this.db.transaction(async (tx) => {
+      await this.exigirDiaNoCerrado(
+        tx,
+        clienteRow.organizacionId,
+        fechaOperacion,
+        ejes.ventanaAbierta,
+      );
+      await tx
+        .update(pedido)
+        .set({
+          estado: "ANULADO",
+          anuladoAt,
+          motivoAnulacion: motivo,
+        })
+        .where(eq(pedido.id, row.id));
+      await this.audit.insert(
+        {
+          actorTipo: "cliente",
+          actorId: clienteRow.id,
+          accion: "portal.anular",
+          entidad: "pedido",
+          entidadId: row.id,
+          antes: { estado: row.estado, anuladoAt: null },
+          despues: {
+            estado: "ANULADO",
+            motivo,
+            anuladoAt: instanteAIso(anuladoAt),
+          },
+          ip: meta.ip,
+          userAgent: meta.userAgent,
+        },
+        tx,
+      );
+    });
+
+    this.emitir(clienteRow.organizacionId, {
+      tipo: "pedido.anulado",
+      pedidoId: row.id,
+      fechaOperacion: row.fechaOperacion,
+    });
   }
 
   async portalAbierto(
@@ -338,6 +420,10 @@ export class PedidoService {
     const input = parseBody(crearPedidoManualRequestSchema, body);
     const fechas = await this.fechaCapturaPanel(actor.organizacionId);
     const fechaOperacion = fechas.operacion;
+    const relojVivo = await this.relojVivoSobre(
+      actor.organizacionId,
+      fechaOperacion,
+    );
     const clienteRow = await this.clienteDe(
       input.clienteId,
       actor.organizacionId,
@@ -352,6 +438,7 @@ export class PedidoService {
             tx,
             actor.organizacionId,
             fechaOperacion,
+            relojVivo,
           );
           await tx
             .select({ id: cliente.id })
@@ -416,11 +503,16 @@ export class PedidoService {
     const row = await this.pedidoDe(id, actor.organizacionId);
     exigirConfirmado(row.estado);
     const notasAdmin = input.notasAdmin.trim();
+    const relojVivo = await this.relojVivoSobre(
+      actor.organizacionId,
+      row.fechaOperacion,
+    );
     await this.db.transaction(async (tx) => {
       await this.exigirDiaNoCerrado(
         tx,
         actor.organizacionId,
         row.fechaOperacion,
+        relojVivo,
       );
       await tx
         .update(pedido)
@@ -464,12 +556,17 @@ export class PedidoService {
       input.items,
       itemsPrevios,
     );
+    const relojVivoItems = await this.relojVivoSobre(
+      actor.organizacionId,
+      row.fechaOperacion,
+    );
 
     await this.db.transaction(async (tx) => {
       await this.exigirDiaNoCerrado(
         tx,
         actor.organizacionId,
         row.fechaOperacion,
+        relojVivoItems,
       );
       const itemsAntes = await this.itemsDe(row.id, tx);
       const congelados = congelarSnapshots(snapshots, itemsAntes);
@@ -504,11 +601,16 @@ export class PedidoService {
     const row = await this.pedidoDe(id, actor.organizacionId);
     exigirAnulable(row.estado);
     const anuladoAt = this.calendar.now();
+    const relojVivoAnular = await this.relojVivoSobre(
+      actor.organizacionId,
+      row.fechaOperacion,
+    );
     await this.db.transaction(async (tx) => {
       await this.exigirDiaNoCerrado(
         tx,
         actor.organizacionId,
         row.fechaOperacion,
+        relojVivoAnular,
       );
       await tx
         .update(pedido)
@@ -670,6 +772,8 @@ export class PedidoService {
       ? (nombres.get(row.capturadoPor) ?? null)
       : null;
 
+    const facturaInfo = await this.facturaDePedido(pedidoId, organizacionId);
+
     return pedidoDetalleSchema.parse({
       id: row.id,
       correlativo: row.correlativo,
@@ -691,6 +795,7 @@ export class PedidoService {
       motivoAnulacion: row.motivoAnulacion ?? null,
       items,
       totalCentavos,
+      factura: facturaInfo,
       historial: logs.map((l) => ({
         accion: l.accion,
         actorTipo: l.actorTipo,
@@ -705,6 +810,41 @@ export class PedidoService {
         despues: l.despues ?? null,
       })),
     });
+  }
+
+  private async facturaDePedido(pedidoId: string, organizacionId: string) {
+    const [fac] = await this.db
+      .select()
+      .from(factura)
+      .innerJoin(pedido, eq(pedido.id, factura.pedidoId))
+      .where(
+        and(eq(factura.pedidoId, pedidoId), eq(pedido.organizacionId, organizacionId)),
+      )
+      .limit(1);
+    if (!fac) return null;
+
+    const pagos = await this.db
+      .select()
+      .from(pago)
+      .where(eq(pago.facturaId, fac.factura.id));
+    const abonado = pagos.reduce((acc, p) => acc + p.montoCentavos, 0);
+    const saldo = Math.max(0, fac.factura.montoCentavos - abonado);
+    const cal = await this.calendar.load(organizacionId);
+    const now = this.calendar.now();
+    const emitida = fac.factura.emitidaAt ?? fac.factura.createdAt;
+    const antiguedadDias = antiguedadDiasDe(cal, emitida, now);
+    const estado = estadoFactura({
+      montoCentavos: fac.factura.montoCentavos,
+      abonadoCentavos: abonado,
+      antiguedadDias,
+    });
+
+    return {
+      id: fac.factura.id,
+      numeroDte: fac.factura.numeroDte ?? null,
+      saldoCentavos: saldo,
+      estado,
+    };
   }
 
   private async tasarItems(
@@ -777,19 +917,30 @@ export class PedidoService {
     return { operacion: ejes.captura, entrega: ejes.entregaCaptura };
   }
 
+  private async relojVivoSobre(
+    organizacionId: string,
+    fechaOperacion: string,
+  ): Promise<boolean> {
+    const ejes = await this.calendar.ejes(organizacionId);
+    return ejes.ventanaAbierta && ejes.captura === fechaOperacion;
+  }
+
   private async exigirDiaNoCerrado(
     tx: AppDatabase,
     organizacionId: string,
     fechaOperacion: string,
+    relojVivoSobreEstaFecha: boolean,
   ): Promise<void> {
     await bloquearDiaOperacion(tx, organizacionId, fechaOperacion);
     const { diaEstado } = await leerEstadoDia(tx, organizacionId, fechaOperacion);
-    if (diaEstado === "CERRADO") throw diaCerrado();
+    if (diaEstado !== "CERRADO") return;
+    if (relojVivoSobreEstaFecha) return;
+    throw diaCerrado();
   }
 
   /**
    * Un día REABIERTO acepta pedidos del portal aunque el reloj diga que la
-   * ventana venció: es lo mismo que ya permite el panel, y `exigirDiaNoCerrado`
+   * ventana venció: es lo mismo que ya permite el panel. `exigirDiaNoCerrado`
    * cierra la carrera dentro de la transacción.
    */
   private exigirVentanaPortal(
@@ -798,10 +949,6 @@ export class PedidoService {
     ejes: EjesOperacion,
   ): void {
     if (capturaAbierta(ejes.ventanaAbierta, ejes.estadoCaptura)) return;
-    // Un día CERRADO con el reloj todavía corriendo lo rechaza
-    // `exigirDiaNoCerrado` dentro de la transacción: su mensaje dice lo que
-    // pasó de verdad, en vez de prometer una apertura que no es la causa.
-    if (ejes.ventanaAbierta) return;
     throw ventanaCerrada(cal.getProximaApertura(now));
   }
 

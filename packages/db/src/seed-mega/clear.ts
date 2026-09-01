@@ -84,6 +84,19 @@ export async function clearMegaSeed(db: Db): Promise<{
           .delete(schema.conversacion)
           .where(inArray(schema.conversacion.id, conversacionIds));
       }
+      const abonos = await tx
+        .select({ id: schema.abono.id })
+        .from(schema.abono)
+        .where(inArray(schema.abono.clienteId, clienteIds));
+      const abonoIds = abonos.map((a) => a.id);
+      if (abonoIds.length > 0) {
+        await tx
+          .delete(schema.pago)
+          .where(inArray(schema.pago.abonoId, abonoIds));
+        await tx
+          .delete(schema.abono)
+          .where(inArray(schema.abono.id, abonoIds));
+      }
       await tx
         .delete(schema.clienteProducto)
         .where(inArray(schema.clienteProducto.clienteId, clienteIds));

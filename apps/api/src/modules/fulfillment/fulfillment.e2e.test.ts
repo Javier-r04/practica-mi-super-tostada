@@ -372,7 +372,7 @@ describe.skipIf(!listo)("E4 operación diaria", () => {
     }
   });
 
-  test("F-401 portal PUT tras cierre anticipado → 409 DIA_CERRADO", async () => {
+  test("F-401 portal PUT tras cierre anticipado sigue abierto mientras corre el reloj", async () => {
     const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
     const f = await fixture(clock);
     try {
@@ -385,19 +385,132 @@ describe.skipIf(!listo)("E4 operación diaria", () => {
         { ip: "10.0.0.2", userAgent: "portal" },
       );
       await f.cierre.cerrar({}, f.actor);
-      await expect(
-        f.pedidos.upsertPortal(
-          clienteRow,
-          { items: [{ productoId: t16.id, cantidad: 41 }] },
-          { ip: "10.0.0.2", userAgent: "portal" },
-        ),
-      ).rejects.toMatchObject({ code: "DIA_CERRADO", httpStatus: 409 });
+      const otra = await f.pedidos.upsertPortal(
+        clienteRow,
+        { items: [{ productoId: t16.id, cantidad: 41 }] },
+        { ip: "10.0.0.2", userAgent: "portal" },
+      );
+      expect(otra.fechaOperacion).toBe("2026-08-20");
     } finally {
       await f.client.end({ timeout: 1 });
     }
   });
 
-  test("F-401 manual POST tras cierre → 409 DIA_CERRADO", async () => {
+  test("F-401 pedido de portal tras cierre entra a producción en el siguiente barrido", async () => {
+    // El seed (y un cierre anticipado) marcan CERRADO mientras la ventana
+    // sigue viva. El portal acepta el pedido, pero si se queda en CONFIRMADO
+    // para siempre, producción y reparto no lo ven: solo los del cierre.
+    const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
+    const f = await fixture(clock);
+    try {
+      const { t16, tabasco } = await catalogoBasico(f);
+      await f.pedidos.crearManual(
+        { clienteId: tabasco.id, items: [{ productoId: t16.id, cantidad: 50 }] },
+        f.actor,
+      );
+      await f.cierre.cerrar({}, f.actor);
+
+      const tardio = await f.clientes.crear(
+        { nombre: `Portal tardío ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(
+        tardio.id,
+        t16.id,
+        { precioCentavos: 1250 },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(tardio.id, f.actor);
+      const clienteRow = await new PortalTokenService(f.db).resolver(token);
+      const creado = await f.pedidos.upsertPortal(
+        clienteRow,
+        { items: [{ productoId: t16.id, cantidad: 12 }] },
+        { ip: "10.0.0.2", userAgent: "portal" },
+      );
+
+      const [antes] = await f.db
+        .select({ estado: pedido.estado })
+        .from(pedido)
+        .where(eq(pedido.id, creado.id));
+      expect(antes?.estado).toBe("CONFIRMADO");
+
+      await f.cierre.cerrarSiToca(f.orgId);
+
+      const [despues] = await f.db
+        .select({ estado: pedido.estado })
+        .from(pedido)
+        .where(eq(pedido.id, creado.id));
+      expect(despues?.estado).toBe("EN_PRODUCCION");
+
+      const hoja = await f.hoja.obtener(f.orgId, "2026-08-20");
+      expect(hoja.version).toBe(2);
+      expect(hoja.snapshot.clientes.some((c) => c.clienteId === tardio.id)).toBe(
+        true,
+      );
+      expect(hoja.snapshot.productos[0]?.cantidad).toBe(62);
+
+      const obs = await f.db
+        .select()
+        .from(outbox)
+        .where(
+          and(
+            eq(outbox.tipo, TIPO_EVENTO_VENTANA_CERRADA),
+            eq(outbox.destinatarioId, f.orgId),
+          ),
+        );
+      expect(obs).toHaveLength(1);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-401 cerrarSiToca recupera CONFIRMADO de un día CERRADO con la ventana ya vencida", async () => {
+    // Martes 14:00: la ventana del lunes ya cerró a las 03:00. El pedido
+    // tardío (portal o seed) quedó CONFIRMADO en un día CERRADO y el barrido
+    // viejo lo ignoraba porque el día ya figuraba cerrado.
+    const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
+    const f = await fixture(clock);
+    try {
+      const { t16, tabasco } = await catalogoBasico(f);
+      await f.pedidos.crearManual(
+        { clienteId: tabasco.id, items: [{ productoId: t16.id, cantidad: 20 }] },
+        f.actor,
+      );
+      await f.cierre.cerrar({}, f.actor);
+
+      const tardio = await f.clientes.crear(
+        { nombre: `Huérfano ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(
+        tardio.id,
+        t16.id,
+        { precioCentavos: 1250 },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(tardio.id, f.actor);
+      const clienteRow = await new PortalTokenService(f.db).resolver(token);
+      const creado = await f.pedidos.upsertPortal(
+        clienteRow,
+        { items: [{ productoId: t16.id, cantidad: 8 }] },
+        { ip: "10.0.0.2", userAgent: "portal" },
+      );
+
+      clock.set(instanteGT("2026-08-21T14:00:00"));
+      await f.cierre.cerrarSiToca(f.orgId);
+
+      const [row] = await f.db
+        .select({ estado: pedido.estado, fechaEntrega: pedido.fechaEntrega })
+        .from(pedido)
+        .where(eq(pedido.id, creado.id));
+      expect(row?.estado).toBe("EN_PRODUCCION");
+      expect(row?.fechaEntrega).toBe("2026-08-21");
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-401 manual POST tras cierre anticipado sigue abierto mientras corre el reloj", async () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { t16, tabasco } = await catalogoBasico(f);
@@ -406,12 +519,11 @@ describe.skipIf(!listo)("E4 operación diaria", () => {
         f.actor,
       );
       await f.cierre.cerrar({}, f.actor);
-      await expect(
-        f.pedidos.crearManual(
-          { clienteId: tabasco.id, items: [{ productoId: t16.id, cantidad: 5 }] },
-          f.actor,
-        ),
-      ).rejects.toMatchObject({ code: "DIA_CERRADO", httpStatus: 409 });
+      const extra = await f.pedidos.crearManual(
+        { clienteId: tabasco.id, items: [{ productoId: t16.id, cantidad: 5 }] },
+        f.actor,
+      );
+      expect(extra.fechaOperacion).toBe("2026-08-20");
     } finally {
       await f.client.end({ timeout: 1 });
     }

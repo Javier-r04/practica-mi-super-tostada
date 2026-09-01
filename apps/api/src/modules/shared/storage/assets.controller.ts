@@ -19,8 +19,6 @@ import { AssetsService } from "./assets.service";
 import { CurrentActor } from "../../identity/current-actor";
 import type { Actor } from "../../identity/actor";
 import { STORAGE_PORT, type StoragePort } from "./storage.port";
-import { FakeStorageAdapter } from "./fake.storage";
-import { DomainException } from "../domain.exception";
 
 @Controller()
 export class AssetsController {
@@ -37,6 +35,16 @@ export class AssetsController {
   @Post("assets/confirm")
   async confirm(@Body() body: unknown, @CurrentActor() actor: Actor) {
     return envelopeOk(await this.assets.confirm(body, actor));
+  }
+
+  @Get("assets/:id/url")
+  async getViewUrl(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Req() req: Request,
+    @CurrentActor() _actor: Actor,
+  ) {
+    const apiBase = `${req.protocol}://${req.get("host")}`;
+    return envelopeOk({ url: await this.assets.getViewUrl(id, apiBase) });
   }
 
   @Get("assets/:id")
@@ -56,17 +64,10 @@ export class AssetsController {
   }
 
   @Put("internal/storage/:key")
-  async fakePut(
+  async storagePut(
     @Param("key") key: string,
     @Req() req: RawBodyRequest<Request>,
   ) {
-    if (!(this.storage instanceof FakeStorageAdapter)) {
-      throw new DomainException(
-        "NO_DISPONIBLE",
-        "Storage local no está activo",
-        404,
-      );
-    }
     const mime = req.headers["content-type"] ?? "application/octet-stream";
     const bytes = req.rawBody
       ? Buffer.from(req.rawBody)

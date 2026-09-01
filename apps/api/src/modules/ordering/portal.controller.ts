@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Param,
@@ -96,6 +97,18 @@ export class PortalController {
     );
   }
 
+  @Get(":token/assets/:id/url")
+  async assetUrl(
+    @Req() req: Request,
+    @CurrentPortalCliente() clienteRow: ClientePortal,
+    @Param("id", ParseUUIDPipe) id: string,
+  ) {
+    const apiBase = `${req.protocol}://${req.get("host")}`;
+    return envelopeOk(
+      await this.portal.assetViewUrl(clienteRow, id, apiBase),
+    );
+  }
+
   @Get(":token/assets/:id")
   @Header("Cache-Control", "private, max-age=86400, immutable")
   async asset(
@@ -124,6 +137,15 @@ export class PortalController {
     return envelopeOk(
       await this.pedidos.upsertPortal(clienteRow, req.body, meta(req)),
     );
+  }
+
+  @Delete(":token/pedido")
+  async anularPedido(
+    @Req() req: Request,
+    @CurrentPortalCliente() clienteRow: ClientePortal,
+  ) {
+    await this.pedidos.anularPortal(clienteRow, meta(req));
+    return envelopeOk(null);
   }
 
   @Get(":token")
