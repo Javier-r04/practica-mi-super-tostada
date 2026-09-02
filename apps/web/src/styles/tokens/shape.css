@@ -1,7 +1,7 @@
 :root{
 /* Radios: contenedores suaves, controles suaves, badges cápsula. Nada de esquinas rectas
    salvo en tablas y encabezados a sangre. */
---radius-none:0;--radius-xs:4px;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-pill:999px;--radius-card:var(--radius-lg);--radius-field:var(--radius-sm);--radius-button:var(--radius-pill);
+--radius-none:0;--radius-xs:calc(4px * var(--ui-scale));--radius-sm:calc(6px * var(--ui-scale));--radius-md:calc(10px * var(--ui-scale));--radius-lg:calc(14px * var(--ui-scale));--radius-xl:calc(20px * var(--ui-scale));--radius-pill:999px;--radius-card:var(--radius-lg);--radius-field:var(--radius-sm);--radius-button:var(--radius-pill);
 
 --border-width:1px;--border-width-strong:2px;--border-width-accent:3px;
 

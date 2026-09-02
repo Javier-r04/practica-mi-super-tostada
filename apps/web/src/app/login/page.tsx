@@ -27,11 +27,11 @@ export default function LoginPage() {
   });
 
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-[var(--surface-paper)] px-4 py-8 sm:px-6 relative overflow-hidden">
+    <main className="grid min-h-[100dvh] place-items-center bg-[var(--surface-paper)] px-4 py-10 sm:px-6 relative">
       {/* Decorative background blurs */}
       <div className="pointer-events-none absolute left-1/2 top-0 -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-marca/10 opacity-60 blur-3xl w-[800px] h-[400px]" aria-hidden />
 
-      <Card className="mx-auto w-full max-w-[22rem] overflow-hidden border border-[var(--border-subtle)] bg-blanco shadow-xl sm:max-w-[24rem]">
+      <Card className="mx-auto w-full max-w-[26rem] border border-[var(--border-subtle)] bg-blanco shadow-xl sm:max-w-[28rem]">
         <Card.Header className="flex flex-col items-center justify-center gap-2 pt-8 sm:pt-10 pb-0">
           <Wordmark className="mx-auto h-60 w-auto max-w-full object-contain object-center sm:h-72 mb-4" />
           <Card.Title className="text-xl font-bold text-tinta-900">
@@ -42,7 +42,7 @@ export default function LoginPage() {
           </Card.Description>
         </Card.Header>
 
-        <Card.Content className="px-6 py-6 sm:px-8 sm:py-8">
+        <Card.Content className="px-6 pt-6 pb-8 sm:px-8 sm:pt-8 sm:pb-10">
           <form
             noValidate
             onSubmit={form.handleSubmit(async (values) => {

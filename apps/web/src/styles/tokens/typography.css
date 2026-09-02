@@ -1,6 +1,6 @@
 :root{
-/* Escala operativa. Base 14px. Nunca bajar de 13px en texto interactivo; rótulos 13px en mayúsculas/minúsculas normales. */
---text-3xs:11px;--text-2xs:12px;--text-xs:13px;--text-sm:14px;--text-base:14px;--text-md:16px;--text-lg:18px;--text-xl:20px;--text-2xl:24px;--text-3xl:28px;--text-4xl:36px;
+/* Escala operativa. Base 14px × ui-scale. Rótulos e interactivo escalan con el resto. */
+--text-3xs:calc(11px * var(--ui-scale));--text-2xs:calc(12px * var(--ui-scale));--text-xs:calc(13px * var(--ui-scale));--text-sm:calc(14px * var(--ui-scale));--text-base:calc(14px * var(--ui-scale));--text-md:calc(16px * var(--ui-scale));--text-lg:calc(18px * var(--ui-scale));--text-xl:calc(20px * var(--ui-scale));--text-2xl:calc(24px * var(--ui-scale));--text-3xl:calc(28px * var(--ui-scale));--text-4xl:calc(36px * var(--ui-scale));
 
 --leading-tight:1;--leading-snug:1.25;--leading-normal:1.4;--leading-relaxed:1.5;--leading-loose:1.65;
 --weight-regular:400;--weight-medium:500;--weight-semibold:600;--weight-bold:600;

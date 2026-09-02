@@ -464,32 +464,89 @@ async function crearPedidoCompleto(
 
   let pagos = 0;
   const mode = opts.pagoMode ?? "completo";
+  const metodo = metodoPago(opts.perfil);
+  const pagoAt = new Date(opts.createdAt.getTime() + 12 * 3600_000);
   if (mode === "completo" && fac) {
-    await db.insert(schema.pago).values({
+    await insertarPagoMega(db, {
+      clienteId: opts.cliente.id,
       facturaId: fac.id,
+      pedidoId: ped.id,
       montoCentavos: monto,
-      metodo: metodoPago(opts.perfil),
+      metodo,
       fecha: opts.fechaOperacion,
       registradoPor: opts.registradoPor ?? null,
-      idempotencyKey: `mega-pago-${ped.id}-full`,
-      createdAt: new Date(opts.createdAt.getTime() + 12 * 3600_000),
+      suffix: "full",
+      createdAt: pagoAt,
+      origen: opts.registradoPor ? "REPARTO" : "MANUAL",
     });
     pagos = 1;
   } else if (mode === "parcial" && fac && monto > 200) {
-    const abono = Math.floor(monto * randInt(25, 60) / 100);
-    await db.insert(schema.pago).values({
+    const abonoMonto = Math.floor((monto * randInt(25, 60)) / 100);
+    await insertarPagoMega(db, {
+      clienteId: opts.cliente.id,
       facturaId: fac.id,
-      montoCentavos: abono,
-      metodo: metodoPago(opts.perfil),
+      pedidoId: ped.id,
+      montoCentavos: abonoMonto,
+      metodo,
       fecha: opts.fechaOperacion,
       registradoPor: opts.registradoPor ?? null,
-      idempotencyKey: `mega-pago-${ped.id}-parcial`,
-      createdAt: new Date(opts.createdAt.getTime() + 12 * 3600_000),
+      suffix: "parcial",
+      createdAt: pagoAt,
+      origen: opts.registradoPor ? "REPARTO" : "MANUAL",
     });
     pagos = 1;
   }
 
   return { estado: ped.estado, factura: true, pagos };
+}
+
+async function insertarPagoMega(
+  db: Db,
+  opts: {
+    clienteId: string;
+    facturaId: string;
+    pedidoId: string;
+    montoCentavos: number;
+    metodo: "EFECTIVO" | "TRANSFERENCIA";
+    fecha: string;
+    registradoPor: string | null;
+    suffix: "full" | "parcial";
+    createdAt: Date;
+    origen: "REPARTO" | "MANUAL";
+  },
+): Promise<void> {
+  const [abonoRow] = await db
+    .insert(schema.abono)
+    .values({
+      clienteId: opts.clienteId,
+      montoCentavos: opts.montoCentavos,
+      metodo: opts.metodo,
+      estado: "CONFIRMADO",
+      descripcion: conMarcador("Cobro de prueba"),
+      origen: opts.origen,
+      registradoPor: opts.registradoPor,
+      confirmadoPor: opts.registradoPor,
+      confirmadoAt: opts.createdAt,
+      fecha: opts.fecha,
+      idempotencyKey: `mega-abono-${opts.pedidoId}-${opts.suffix}`,
+      createdAt: opts.createdAt,
+    })
+    .returning();
+
+  if (!abonoRow) {
+    throw new Error("No se pudo insertar abono mega");
+  }
+
+  await db.insert(schema.pago).values({
+    abonoId: abonoRow.id,
+    facturaId: opts.facturaId,
+    montoCentavos: opts.montoCentavos,
+    metodo: opts.metodo,
+    fecha: opts.fecha,
+    registradoPor: opts.registradoPor,
+    idempotencyKey: `mega-pago-${opts.pedidoId}-${opts.suffix}`,
+    createdAt: opts.createdAt,
+  });
 }
 
 async function elegirItems(

@@ -56,9 +56,21 @@ export async function clearMegaSeed(db: Db): Promise<{
         .where(inArray(schema.factura.pedidoId, pedidoIds));
       const facturaIds = facturas.map((f) => f.id);
       if (facturaIds.length > 0) {
+        const pagosMega = await tx
+          .select({ abonoId: schema.pago.abonoId })
+          .from(schema.pago)
+          .where(inArray(schema.pago.facturaId, facturaIds));
+        const abonoIds = [
+          ...new Set(pagosMega.map((p) => p.abonoId)),
+        ];
         await tx
           .delete(schema.pago)
           .where(inArray(schema.pago.facturaId, facturaIds));
+        if (abonoIds.length > 0) {
+          await tx
+            .delete(schema.abono)
+            .where(inArray(schema.abono.id, abonoIds));
+        }
       }
       await tx
         .delete(schema.factura)
@@ -142,6 +154,21 @@ export async function clearMegaSeed(db: Db): Promise<{
       .where(
         like(schema.diaOperacion.motivoReapertura, `%${MEGA_SEED_MARKER}%`),
       );
+
+    // Abonos huérfanos de corridas fallidas (p. ej. sin pago por constraint).
+    const abonosMega = await tx
+      .select({ id: schema.abono.id })
+      .from(schema.abono)
+      .where(like(schema.abono.idempotencyKey, "mega-abono-%"));
+    const abonoMegaIds = abonosMega.map((a) => a.id);
+    if (abonoMegaIds.length > 0) {
+      await tx
+        .delete(schema.pago)
+        .where(inArray(schema.pago.abonoId, abonoMegaIds));
+      await tx
+        .delete(schema.abono)
+        .where(inArray(schema.abono.id, abonoMegaIds));
+    }
 
     // Días que quedaron sin pedidos tras borrar el mega-seed.
     for (const fecha of fechasMega) {
