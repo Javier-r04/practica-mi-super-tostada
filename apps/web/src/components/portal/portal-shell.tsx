@@ -28,7 +28,7 @@ export function PortalShell({
   return (
     <div className="flex min-h-[100dvh] w-full flex-col bg-[var(--surface-page)]">
       <header className="sticky top-0 z-[var(--z-sticky)] flex h-14 shrink-0 items-center justify-between gap-2 bg-[var(--surface-brand)] px-4 sm:gap-3 lg:px-6">
-        <Wordmark compact onBrand className="shrink-0" />
+        <Wordmark compact onBrand />
         <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
           {/* En móvil el nombre va en el hero de inicio o en el contexto de la
               pantalla; aquí solo compite con el badge de ventana. */}

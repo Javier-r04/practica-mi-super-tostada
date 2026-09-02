@@ -34,7 +34,7 @@ import {
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Avatar, Button, Drawer, ScrollShadow } from "@heroui/react";
+import { Avatar, Button, ScrollShadow } from "@heroui/react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MovilNav, type MovilNavItem } from "@/components/layout/movil-nav";
 import { Wordmark } from "@/components/brand/wordmark";
@@ -164,16 +164,31 @@ export function PanelShell({
   useEffect(() => {
     setMasAbierto(false);
     setCuentaAbierta(false);
+    setEstadoAbierto(false);
   }, [pathname]);
 
   const abrirMas = (open: boolean) => {
     setMasAbierto(open);
-    if (open) setCuentaAbierta(false);
+    if (open) {
+      setCuentaAbierta(false);
+      setEstadoAbierto(false);
+    }
   };
 
   const abrirCuenta = (open: boolean) => {
     setCuentaAbierta(open);
-    if (open) setMasAbierto(false);
+    if (open) {
+      setMasAbierto(false);
+      setEstadoAbierto(false);
+    }
+  };
+
+  const abrirEstado = (open: boolean) => {
+    setEstadoAbierto(open);
+    if (open) {
+      setMasAbierto(false);
+      setCuentaAbierta(false);
+    }
   };
 
   const logout = useMutation({
@@ -209,6 +224,14 @@ export function PanelShell({
   const iniciales = usuario.username.slice(0, 2).toUpperCase();
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-[var(--surface-page)]">
+      {estadoAbierto ? (
+        <button
+          type="button"
+          aria-label="Cerrar estado operativo"
+          className="fixed inset-0 z-[calc(var(--z-popover)-1)] bg-tinta-900/30 backdrop-blur-[2px] transition-opacity duration-control lg:hidden"
+          onClick={() => setEstadoAbierto(false)}
+        />
+      ) : null}
       <a
         href={`#${mainId}`}
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[var(--z-toast)] focus:rounded-campo focus:bg-blanco focus:px-3 focus:py-2 focus:shadow-modal"
@@ -345,28 +368,101 @@ export function PanelShell({
                   proximaAperturaAt={calendario.data.proximaAperturaAt}
                   className="hidden lg:inline-flex"
                 />
-                <button
-                  type="button"
-                  className="inline-flex shrink-0 items-center gap-0.5 rounded-pill pr-1.5 focus-visible:outline-none focus-visible:shadow-foco lg:hidden"
-                  aria-haspopup="dialog"
-                  aria-expanded={estadoAbierto}
-                  aria-label="Ver estado del día y fechas de operación"
-                  onClick={() => {
-                    setMasAbierto(false);
-                    setCuentaAbierta(false);
-                    setEstadoAbierto(true);
-                  }}
-                >
-                  <VentanaBadge
-                    size="sm"
-                    abierta={calendario.data.capturaAbierta}
-                    reabierta={calendario.data.diaEstado === "REABIERTO"}
-                    diaCerrado={calendario.data.diaEstado === "CERRADO"}
-                    cierraAt={calendario.data.cierraAt}
-                    proximaAperturaAt={calendario.data.proximaAperturaAt}
-                  />
-                  <ChevronDown size={14} className="shrink-0 text-tinta-500" aria-hidden />
-                </button>
+                <Popover open={estadoAbierto} onOpenChange={abrirEstado} modal>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded-pill pr-1.5 focus-visible:outline-none focus-visible:shadow-foco lg:hidden"
+                      aria-haspopup="dialog"
+                      aria-expanded={estadoAbierto}
+                      aria-label="Ver estado del día y fechas de operación"
+                    >
+                      <VentanaBadge
+                        size="sm"
+                        abierta={calendario.data.capturaAbierta}
+                        reabierta={calendario.data.diaEstado === "REABIERTO"}
+                        diaCerrado={calendario.data.diaEstado === "CERRADO"}
+                        cierraAt={calendario.data.cierraAt}
+                        proximaAperturaAt={calendario.data.proximaAperturaAt}
+                      />
+                      <ChevronDown
+                        size={14}
+                        className={cn(
+                          "shrink-0 text-tinta-500 transition-transform duration-control",
+                          estadoAbierto && "rotate-180",
+                        )}
+                        aria-hidden
+                      />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="end"
+                    side="bottom"
+                    sideOffset={8}
+                    collisionPadding={16}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    className={cn(
+                      "border-0 bg-transparent p-0 shadow-none outline-none",
+                      "w-[min(calc(100vw-1.25rem),360px)]",
+                      "origin-top-right",
+                      "transition-[opacity,transform] duration-control ease-out",
+                      "data-[state=closed]:scale-95 data-[state=closed]:opacity-0",
+                      "data-[state=open]:scale-100 data-[state=open]:opacity-100",
+                    )}
+                  >
+                    <div className="relative rounded-2xl border border-[var(--border-subtle)] bg-blanco p-3 shadow-[0_12px_40px_rgba(23,25,15,0.16)]">
+                      <span
+                        aria-hidden
+                        className="absolute -top-[5px] right-5 size-2.5 rotate-45 border-l border-t border-[var(--border-subtle)] bg-blanco"
+                      />
+                      <p className="mb-2.5 px-1 text-[10px] font-bold uppercase tracking-wider text-tinta-500">
+                        Estado operativo
+                      </p>
+                      <div className="grid gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <VentanaBadge
+                            size="md"
+                            abierta={calendario.data.capturaAbierta}
+                            reabierta={calendario.data.diaEstado === "REABIERTO"}
+                            diaCerrado={calendario.data.diaEstado === "CERRADO"}
+                            cierraAt={calendario.data.cierraAt}
+                            proximaAperturaAt={calendario.data.proximaAperturaAt}
+                          />
+                          {soloLectura ? (
+                            <span
+                              className="mst-label rounded-full bg-tinta-100 px-2 py-0.5 text-tinta-600"
+                              title="Puede consultar esta sección, pero no registrar acciones en ella."
+                            >
+                              Solo lectura
+                            </span>
+                          ) : null}
+                        </div>
+                        <EjesFecha cal={calendario.data} layout="stacked" />
+                        {aviso ? (
+                          <div className="rounded-xl border border-[var(--amber-200)] bg-[var(--amber-100)] px-3 py-2">
+                            <p className="text-sm font-semibold text-[var(--amber-800)]">
+                              {aviso.chip}
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--amber-700)]">{aviso.detalle}</p>
+                          </div>
+                        ) : null}
+                        {transferenciasPendientes > 0 ? (
+                          <Link
+                            href="/cartera?panel=transferencias"
+                            onClick={() => setEstadoAbierto(false)}
+                            className="flex min-h-tap items-center justify-between rounded-xl border border-[var(--amber-200)] bg-[var(--amber-100)] px-3 py-2 text-sm font-semibold text-[var(--amber-800)] no-underline hover:text-[var(--amber-900)]"
+                          >
+                            <span>
+                              {transferenciasPendientes} transferencia
+                              {transferenciasPendientes === 1 ? "" : "s"} pendientes
+                            </span>
+                            <span className="text-xs font-medium">Ver →</span>
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </>
             ) : null}
             <Popover open={cuentaAbierta} onOpenChange={abrirCuenta}>
@@ -506,70 +602,6 @@ export function PanelShell({
         abierto={masAbierto}
         onAbiertoChange={abrirMas}
       />
-
-      <Drawer isOpen={estadoAbierto} onOpenChange={setEstadoAbierto}>
-        <Drawer.Backdrop>
-          <Drawer.Content placement="bottom" className="max-h-[85dvh] rounded-t-2xl bg-blanco">
-            <Drawer.Dialog className="p-4">
-              <Drawer.Handle />
-              <Drawer.Header className="flex items-center justify-between pb-2">
-                <Drawer.Heading className="text-base font-semibold text-tinta-900">
-                  Estado operativo
-                </Drawer.Heading>
-                <Drawer.CloseTrigger />
-              </Drawer.Header>
-              <Drawer.Body className="grid gap-4 p-0">
-                {calendario.data ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <VentanaBadge
-                        size="md"
-                        abierta={calendario.data.capturaAbierta}
-                        reabierta={calendario.data.diaEstado === "REABIERTO"}
-                        diaCerrado={calendario.data.diaEstado === "CERRADO"}
-                        cierraAt={calendario.data.cierraAt}
-                        proximaAperturaAt={calendario.data.proximaAperturaAt}
-                      />
-                      {soloLectura ? (
-                        <span
-                          className="mst-label rounded-full bg-tinta-100 px-2 py-0.5 text-tinta-600"
-                          title="Puede consultar esta sección, pero no registrar acciones en ella."
-                        >
-                          Solo lectura
-                        </span>
-                      ) : null}
-                    </div>
-                    <EjesFecha cal={calendario.data} layout="stacked" />
-                    {aviso ? (
-                      <div className="rounded-campo border border-[var(--amber-200)] bg-[var(--amber-100)] px-3 py-2">
-                        <p className="text-sm font-semibold text-[var(--amber-800)]">
-                          {aviso.chip}
-                        </p>
-                        <p className="mt-1 text-xs text-[var(--amber-700)]">{aviso.detalle}</p>
-                      </div>
-                    ) : null}
-                    {transferenciasPendientes > 0 ? (
-                      <Link
-                        href="/cartera?panel=transferencias"
-                        onClick={() => setEstadoAbierto(false)}
-                        className="flex min-h-tap items-center justify-between rounded-campo border border-[var(--amber-200)] bg-[var(--amber-100)] px-3 py-2 text-sm font-semibold text-[var(--amber-800)] no-underline hover:text-[var(--amber-900)]"
-                      >
-                        <span>
-                          {transferenciasPendientes} transferencia
-                          {transferenciasPendientes === 1 ? "" : "s"} pendientes
-                        </span>
-                        <span className="text-xs font-medium">Ver en cartera →</span>
-                      </Link>
-                    ) : null}
-                  </>
-                ) : (
-                  <p className="text-sm text-tinta-500">Cargando calendario…</p>
-                )}
-              </Drawer.Body>
-            </Drawer.Dialog>
-          </Drawer.Content>
-        </Drawer.Backdrop>
-      </Drawer>
     </div>
   );
 }
