@@ -1,21 +1,20 @@
 # Producción (Openship). No es el loop local: `bun run dev:all` sigue
 # usando Postgres nativo. Este archivo solo lo consume el VPS.
 #
-# Contexto de build = raíz del repo (`..` respecto a este archivo).
+# Secretos: el panel de Openship (Environment de cada servicio) los inyecta.
+# No uses ${VAR:?} ni ${VAR:-} aquí: Openship interpola vacío y pisa el panel.
 name: misupertostada
 
 services:
   postgres:
-    image: postgres:18-alpine
+    image: postgres:17-alpine
     platform: linux/amd64
     restart: unless-stopped
     environment:
       POSTGRES_USER: tostada
       POSTGRES_DB: misupertostada
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
-      # Postgres 18: el mount es /var/lib/postgresql, no .../data.
-      - pgdata:/var/lib/postgresql
+      - pgdata17:/var/lib/postgresql/data
     command:
       - postgres
       - -c
@@ -40,7 +39,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
-    # Sin ports: solo la red interna. Openship no debe publicarlo.
 
   api:
     platform: linux/amd64
@@ -58,16 +56,7 @@ services:
       SESSION_COOKIE_NAME: session
       SESSION_TTL_SECONDS: "604800"
       BOOTSTRAP_ADMIN_USERNAME: cristian
-      SEED_ON_BOOT: ${SEED_ON_BOOT:-true}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
-      DATABASE_URL: ${DATABASE_URL:-}
-      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
-      R2_BUCKET: ${R2_BUCKET:-}
-      R2_ENDPOINT: ${R2_ENDPOINT:-}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      SEED_ON_BOOT: "true"
     ports:
       - "3001:3001"
     healthcheck:
@@ -129,4 +118,4 @@ services:
         condition: service_started
 
 volumes:
-  pgdata:
+  pgdata17:
