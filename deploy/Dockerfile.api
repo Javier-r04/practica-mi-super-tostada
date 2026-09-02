@@ -35,7 +35,7 @@ RUN chmod +x /app/deploy/entrypoint-api.sh \
   && ARGON2_DIR="$(cd /app/apps/api && node -p "require('path').dirname(require.resolve('argon2/package.json'))")" \
   && (cd "$ARGON2_DIR" && npm run install)
 ENV NODE_ENV=production
-ENV NODE_OPTIONS=--max-old-space-size=512
+ENV NODE_OPTIONS=--max-old-space-size=640
 WORKDIR /app
 EXPOSE 3001
 HEALTHCHECK --interval=15s --timeout=10s --start-period=180s --retries=12 \

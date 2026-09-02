@@ -176,13 +176,13 @@ Si cambias `WEB_ORIGIN` en Openship después del deploy, vuelve a correr `bun ru
 
 ## Recursos (Cloud VPS Plus 4, 8 GB)
 
-Tope del compose (~2 GB de RAM, ~3.5 vCPU). El resto queda para el kernel, Docker y OpenResty.
+Tope del compose (~2.7 GB de RAM, ~3.5 vCPU). El resto queda para el kernel, Docker y OpenResty.
 
 | Servicio | RAM | CPU | Heap Node |
 |---|---|---|---|
-| postgres | 768 MB | 1.0 | `shared_buffers=256MB`, máx. 50 conexiones |
-| api | 768 MB | 1.5 | `--max-old-space-size=512` (PDF en proceso) |
-| web | 512 MB | 1.0 | `--max-old-space-size=384` (standalone) |
+| postgres | 1024 MB | 1.0 | `shared_buffers=256MB`, máx. 50 conexiones |
+| api | 1024 MB | 1.5 | `--max-old-space-size=640` (PDF en proceso) |
+| web | 640 MB | 1.0 | `--max-old-space-size=448` (standalone) |
 
 Postgres **no** publica `:5432`. Sin Redis (pg-boss usa Postgres). Sin Puppeteer.
 

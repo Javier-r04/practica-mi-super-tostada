@@ -29,7 +29,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
-ENV NODE_OPTIONS=--max-old-space-size=384
+ENV NODE_OPTIONS=--max-old-space-size=448
 COPY --from=build /app/apps/web/.next/standalone ./
 # Bun isolated deja rutas .bun/ en el standalone; copiamos el store para Node.
 COPY --from=build /app/node_modules ./node_modules

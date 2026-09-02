@@ -5,6 +5,6 @@
   "runtime": "docker",
   "resources": {
     "cpuCores": 3.5,
-    "memoryMb": 2048
+    "memoryMb": 2688
   }
 }

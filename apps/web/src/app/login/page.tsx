@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff, Lock, User } from "lucide-react";
@@ -9,6 +9,7 @@ import { Button, Card } from "@heroui/react";
 import { toastError, toastFromError } from "@/components/ui/toaster";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Field } from "@/components/ui/field";
+import { detectarEsMobile } from "@/lib/dispositivo";
 import { api } from "@/lib/api";
 
 type LoginValues = { username: string; password: string };
@@ -17,7 +18,7 @@ const pillFieldClassName =
   "flex h-campo w-full items-center gap-3 rounded-pill border border-[var(--border-default)] bg-blanco px-4 shadow-[var(--shadow-inset-field)] transition-[border-color,box-shadow] duration-control ease-out hover:border-[var(--border-strong)] focus-within:border-[var(--border-focus)] focus-within:shadow-foco";
 
 const pillInputClassName =
-  "mst-search__input min-w-0 flex-1 appearance-none bg-transparent border-0 p-0 text-sm text-tinta-800 shadow-none outline-none ring-0 placeholder:text-tinta-500 focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none";
+  "mst-search__input min-w-0 flex-1 appearance-none bg-transparent border-0 p-0 text-[16px] leading-normal text-tinta-800 shadow-none outline-none ring-0 placeholder:text-tinta-500 focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none sm:text-sm";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,8 +27,13 @@ export default function LoginPage() {
     defaultValues: { username: "", password: "" },
   });
 
+  useEffect(() => {
+    if (detectarEsMobile()) return;
+    document.getElementById("username")?.focus({ preventScroll: true });
+  }, []);
+
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-[var(--surface-paper)] px-4 py-10 sm:px-6 relative">
+    <main className="relative flex min-h-[100svh] w-full items-center justify-center bg-[var(--surface-paper)] px-4 py-10 sm:min-h-[100dvh] sm:px-6">
       {/* Decorative background blurs */}
       <div className="pointer-events-none absolute left-1/2 top-0 -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-marca/10 opacity-60 blur-3xl w-[800px] h-[400px]" aria-hidden />
 
@@ -73,7 +79,6 @@ export default function LoginPage() {
                   <input
                     id="username"
                     autoComplete="username"
-                    autoFocus
                     required
                     placeholder="Tu usuario"
                     className={pillInputClassName}
