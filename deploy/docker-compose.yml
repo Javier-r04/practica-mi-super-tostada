@@ -5,16 +5,25 @@
 # No uses ${VAR:?} ni ${VAR:-} aquí: Openship interpola vacío y pisa el panel.
 name: misupertostada
 
+networks:
+  interno:
+    driver: bridge
+
 services:
   postgres:
     image: postgres:17-alpine
     platform: linux/amd64
     restart: unless-stopped
+    hostname: postgres
     environment:
       POSTGRES_USER: tostada
       POSTGRES_DB: misupertostada
     volumes:
       - pgdata17:/var/lib/postgresql/data
+    # Openship no levanta (ni registra DNS) un servicio sin ports.
+    # El firewall del VPS no debe abrir 5432; no le asignes dominio.
+    ports:
+      - "5432:5432"
     command:
       - postgres
       - -c
@@ -27,6 +36,8 @@ services:
       - effective_cache_size=1GB
       - -c
       - max_connections=50
+      - -c
+      - listen_addresses=*
     mem_limit: 768m
     cpus: "1.0"
     deploy:
@@ -39,6 +50,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    networks:
+      interno:
+        aliases:
+          - postgres
+          - pg
 
   api:
     platform: linux/amd64
@@ -80,7 +96,9 @@ services:
           cpus: "1.5"
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
+    networks:
+      - interno
 
   web:
     platform: linux/amd64
@@ -116,6 +134,8 @@ services:
     depends_on:
       api:
         condition: service_started
+    networks:
+      - interno
 
 volumes:
   pgdata17:
