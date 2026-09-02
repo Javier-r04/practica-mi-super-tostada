@@ -7,7 +7,8 @@ type Db = PostgresJsDatabase<typeof schema>;
 
 /**
  * Borra solo datos del mega-seed (marcados con [MEGA_SEED]).
- * No toca org, usuarios, productos ni clientes del seed base.
+ * No toca org, usuarios, productos ni clientes del catálogo base.
+ * Si quedaron clientes ficticios de versiones anteriores del mega-seed, también los elimina.
  */
 export async function clearMegaSeed(db: Db): Promise<{
   pedidos: number;

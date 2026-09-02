@@ -1,11 +1,13 @@
 /**
- * Mega-seed de desarrollo: clientes, pedidos, cartera, ruta, WA, hojas.
+ * Mega-seed: pedidos, cartera, ruta, producción, WA e historial sobre
+ * clientes y productos **ya existentes**. No crea org, clientes ni ligas nuevas.
  *
  * Uso:
  *   bun packages/db/src/seed-mega.ts           # clear + seed
  *   bun packages/db/src/seed-mega.ts --clear    # solo borrar
+ *   bun packages/db/src/seed-mega.ts --skip-base  # sin re-correr seed base
  *
- * Requiere el seed base (`bun run db:seed`) para org, productos y usuarios.
+ * Requiere catálogo y clientes (p. ej. `bun run db:seed` o datos reales en panel).
  */
 import { resolve } from "node:path";
 import { config } from "dotenv";
@@ -52,16 +54,13 @@ async function main() {
     const stats = await runMegaSeed(db);
     console.log("[mega-seed] Listo:");
     console.log(`  fecha_operacion (hoy): ${stats.fechaOperacionHoy}`);
-    console.log(`  clientes nuevos:      ${stats.clientesNuevos}`);
+    console.log(`  clientes usados:      ${stats.clientesUsados}`);
     console.log(`  pedidos:              ${stats.pedidos}`);
     console.log(`  facturas:             ${stats.facturas}`);
     console.log(`  pagos:                ${stats.pagos}`);
     console.log(`  conversaciones WA:    ${stats.conversaciones}`);
     console.log(`  mensajes:             ${stats.mensajes}`);
     console.log(`  hojas producción:     ${stats.hojas}`);
-    console.log(
-      "  Portal ejemplo: http://localhost:3000/p/mega-portal-el-portal-de-antigua",
-    );
   } finally {
     await client.end();
   }

@@ -1,4 +1,3 @@
-import { createHash, createCipheriv, randomBytes } from "node:crypto";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import {
@@ -17,7 +16,6 @@ import * as schema from "../schema";
 import {
   ALIAS_DEMO,
   CLIENTES_MEGA,
-  CONTACTOS_BASE_ENRICH,
   PRECIOS_DEMO_CENTAVOS,
   type PerfilCliente,
 } from "./catalog";
@@ -34,8 +32,14 @@ const ORG_ID = "00000000-0000-4000-a000-000000000001";
 /** Cuántos días hábiles hacia atrás generar (incluye hoy). */
 const DIAS_HABILES = 45;
 
+type LigaCliente = {
+  producto: ProductoRow;
+  alias: string | null;
+  precioCentavos: number | null;
+};
+
 export type MegaSeedStats = {
-  clientesNuevos: number;
+  clientesUsados: number;
   pedidos: number;
   facturas: number;
   pagos: number;
@@ -72,20 +76,27 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
   const cristian = usuarios.find((u) => u.username === "cristian");
   const carla = usuarios.find((u) => u.username === "carla");
   const tony = usuarios.find((u) => u.username === "tony");
-  if (!cristian || !carla || !tony) {
+  const admin =
+    cristian ??
+    usuarios.find((u) => u.rol === "ADMIN_JEFE") ??
+    usuarios[0];
+  if (!admin) {
     throw new Error(
-      "Faltan usuarios seed (cristian/carla/tony). Corré `bun run db:seed`.",
+      "No hay usuarios en la organización. Creá al menos un ADMIN_JEFE (bootstrap).",
     );
   }
+  const capturadoPor = carla?.id ?? admin.id;
+  const repartoPor = tony?.id ?? admin.id;
 
   const fechasHabiles = listarDiasHabilesPasados(cal, DIAS_HABILES, now);
   const fechaHoy = fechasHabiles[0]!;
 
-  const clientesMega = await insertarClientesMega(db, productos);
-  const clientesBase = await cargarClientesBaseEnrich(db);
-  const todosClientes = [...clientesMega, ...clientesBase];
-
-  await asegurarCatalogoClientes(db, todosClientes, productos);
+  const todosClientes = await cargarClientesActivos(db);
+  if (todosClientes.length < 3) {
+    throw new Error(
+      `Solo hay ${todosClientes.length} cliente(s) activo(s). Corré primero el seed base o cargá clientes en el panel.`,
+    );
+  }
 
   const [agg] = await db
     .select({
@@ -96,7 +107,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
   let correlativo = Number(agg?.max ?? 0);
 
   const stats: MegaSeedStats = {
-    clientesNuevos: clientesMega.length,
+    clientesUsados: todosClientes.length,
     pedidos: 0,
     facturas: 0,
     pagos: 0,
@@ -124,7 +135,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cal,
       estado: "EN_PRODUCCION",
       origen: chance(0.35) ? "PORTAL" : "MANUAL",
-      capturadoPor: carla.id,
+      capturadoPor,
       createdAt: instanteCaptura(fechaHoy, cal, 0),
       perfil: perfilDe(c),
     });
@@ -142,7 +153,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cal,
       estado: "CONFIRMADO",
       origen: chance(0.5) ? "PORTAL" : "MANUAL",
-      capturadoPor: carla.id,
+      capturadoPor,
       createdAt: instanteCaptura(fechaHoy, cal, 0),
       perfil: perfilDe(c),
     });
@@ -159,7 +170,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cal,
       estado: "BORRADOR",
       origen: "MANUAL",
-      capturadoPor: carla.id,
+      capturadoPor,
       createdAt: new Date(now.getTime() - randInt(10, 120) * 60_000),
       perfil: perfilDe(c),
     });
@@ -176,11 +187,11 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cal,
       estado: "ENTREGADO",
       origen: chance(0.4) ? "PORTAL" : "MANUAL",
-      capturadoPor: carla.id,
+      capturadoPor,
       createdAt: instanteCaptura(fechaHoy, cal, 0),
       perfil: perfilDe(c),
       pagoMode: chance(0.5) ? "completo" : "ninguno",
-      registradoPor: tony.id,
+      registradoPor: repartoPor,
     });
     stats.pedidos += 1;
     if (r.factura) stats.facturas += 1;
@@ -198,11 +209,11 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       cal,
       estado: "ANULADO",
       origen: "MANUAL",
-      capturadoPor: carla.id,
+      capturadoPor,
       createdAt: instanteCaptura(fechaHoy, cal, 0),
       perfil: perfilDe(shuffleHoy[26]),
       anulado: true,
-      anuladoPor: cristian.id,
+      anuladoPor: admin.id,
     });
     stats.pedidos += 1;
   }
@@ -210,13 +221,13 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
   await upsertDiaOperacion(db, {
     fechaOperacion: fechaHoy,
     estado: "CERRADO",
-    cerradoPor: cristian.id,
+    cerradoPor: admin.id,
     cerradoAt: instanteCaptura(fechaHoy, cal, 0),
   });
   await insertarHoja(db, {
     fechaOperacion: fechaHoy,
     version: 1,
-    generadoPor: cristian.id,
+    generadoPor: admin.id,
     cal,
   });
   stats.hojas += 1;
@@ -239,13 +250,13 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
         cal,
         estado: chance(0.04) ? "ANULADO" : "ENTREGADO",
         origen: chance(0.45) ? "PORTAL" : "MANUAL",
-        capturadoPor: carla.id,
+        capturadoPor,
         createdAt: instanteCaptura(fecha, cal, 0),
         perfil: perfilDe(c),
         pagoMode: chance(0.04) ? undefined : pagoMode,
-        registradoPor: chance(0.6) ? tony.id : carla.id,
+        registradoPor: chance(0.6) ? repartoPor : capturadoPor,
         anulado: chance(0.04),
-        anuladoPor: cristian.id,
+        anuladoPor: admin.id,
       });
       stats.pedidos += 1;
       if (r.factura) stats.facturas += 1;
@@ -257,14 +268,14 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       await upsertDiaOperacion(db, {
         fechaOperacion: fecha,
         estado: "CERRADO",
-        cerradoPor: cristian.id,
+        cerradoPor: admin.id,
         cerradoAt: instanteCaptura(fecha, cal, 0),
       });
       if (chance(0.55)) {
         await insertarHoja(db, {
           fechaOperacion: fecha,
           version: 1,
-          generadoPor: cristian.id,
+          generadoPor: admin.id,
           cal,
         });
         stats.hojas += 1;
@@ -275,7 +286,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
   // —— WhatsApp / conversaciones ——
   const sampleWa = shuffle(clientesActivos).slice(0, 20);
   for (const c of sampleWa) {
-    const conv = await seedConversacion(db, c, cristian, fechaHoy, now);
+    const conv = await seedConversacion(db, c, admin, fechaHoy, now);
     stats.conversaciones += 1;
     stats.mensajes += conv.mensajes;
   }
@@ -287,7 +298,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
       marker: MEGA_SEED_MARKER,
       fechaOperacionHoy: fechaHoy,
       pedidos: stats.pedidos,
-      clientesNuevos: stats.clientesNuevos,
+      clientesUsados: stats.clientesUsados,
     },
     ocurridoAt: now,
     procesadoAt: now,
@@ -295,7 +306,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
 
   await db.insert(schema.auditLog).values({
     actorTipo: "usuario",
-    actorId: cristian.id,
+    actorId: admin.id,
     accion: `${MEGA_SEED_MARKER} seed_mega`,
     entidad: "sistema",
     entidadId: ORG_ID,
@@ -309,111 +320,44 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
   return stats;
 }
 
-async function insertarClientesMega(
-  db: Db,
-  _productos: ProductoRow[],
-): Promise<ClienteRow[]> {
-  const inserted: ClienteRow[] = [];
-  let tel = 55552000;
-
-  for (const def of CLIENTES_MEGA) {
-    const tokenPlain = `mega-portal-${slug(def.nombre)}`;
-    const [row] = await db
-      .insert(schema.cliente)
-      .values({
-        organizacionId: ORG_ID,
-        nombre: def.nombre,
-        contacto: def.contacto,
-        telefonoWa: `+502${tel++}`,
-        horarioEntregaFijo: def.horarioEntregaFijo,
-        notasPermanentes: conMarcador(def.notas),
-        limiteFacturasPendientes: def.limiteFacturasPendientes,
-        tokenPortalHash: createHash("sha256").update(tokenPlain).digest("hex"),
-        tokenPortalCifrado: encryptSeed(tokenPlain),
-        activo: def.perfil !== "inactivo",
-      })
-      .onConflictDoNothing()
-      .returning();
-
-    if (row) {
-      inserted.push(row);
-      continue;
-    }
-    // Ya existía (re-seed parcial): cargar
-    const [existing] = await db
-      .select()
-      .from(schema.cliente)
-      .where(
-        and(
-          eq(schema.cliente.organizacionId, ORG_ID),
-          eq(schema.cliente.nombre, def.nombre),
-        ),
-      );
-    if (existing) inserted.push(existing);
-  }
-  return inserted;
+async function cargarClientesActivos(db: Db): Promise<ClienteRow[]> {
+  return db
+    .select()
+    .from(schema.cliente)
+    .where(
+      and(
+        eq(schema.cliente.organizacionId, ORG_ID),
+        eq(schema.cliente.activo, true),
+      ),
+    )
+    .orderBy(asc(schema.cliente.nombre));
 }
 
-async function cargarClientesBaseEnrich(db: Db): Promise<ClienteRow[]> {
-  const rows: ClienteRow[] = [];
-  for (const nombre of CONTACTOS_BASE_ENRICH) {
-    const [c] = await db
-      .select()
-      .from(schema.cliente)
-      .where(
-        and(
-          eq(schema.cliente.organizacionId, ORG_ID),
-          eq(schema.cliente.nombre, nombre),
-        ),
-      );
-    if (c) rows.push(c);
-  }
-  return rows;
-}
+async function ligasCliente(db: Db, clienteId: string): Promise<LigaCliente[]> {
+  const filas = await db
+    .select({
+      producto: schema.producto,
+      alias: schema.clienteProducto.alias,
+      precioCentavos: schema.clienteProducto.precioCentavos,
+    })
+    .from(schema.clienteProducto)
+    .innerJoin(
+      schema.producto,
+      eq(schema.producto.id, schema.clienteProducto.productoId),
+    )
+    .where(
+      and(
+        eq(schema.clienteProducto.clienteId, clienteId),
+        eq(schema.producto.activo, true),
+      ),
+    )
+    .orderBy(asc(schema.clienteProducto.orden));
 
-async function asegurarCatalogoClientes(
-  db: Db,
-  clientes: ClienteRow[],
-  productos: ProductoRow[],
-): Promise<void> {
-  for (const c of clientes) {
-    const def = CLIENTES_MEGA.find((d) => d.nombre === c.nombre);
-    const skus =
-      def?.skusPreferidos ??
-      shuffle(productos.map((p) => p.sku)).slice(0, randInt(3, 7));
-    let orden = 1;
-    for (const sku of skus) {
-      const producto = productos.find((p) => p.sku === sku);
-      if (!producto) continue;
-      const precio = PRECIOS_DEMO_CENTAVOS[sku] ?? 1200;
-      await db
-        .insert(schema.clienteProducto)
-        .values({
-          clienteId: c.id,
-          productoId: producto.id,
-          alias: ALIAS_DEMO[sku] ?? producto.nombreCanonico,
-          precioCentavos: precio,
-          favorito: orden <= 3,
-          notaProduccion:
-            producto.familia === "TORTILLA" && chance(0.3) ? "GRUESA" : null,
-          orden: orden++,
-        })
-        .onConflictDoNothing();
-      await db
-        .update(schema.clienteProducto)
-        .set({
-          alias: ALIAS_DEMO[sku] ?? producto.nombreCanonico,
-          precioCentavos: precio,
-          favorito: orden <= 4,
-        })
-        .where(
-          and(
-            eq(schema.clienteProducto.clienteId, c.id),
-            eq(schema.clienteProducto.productoId, producto.id),
-          ),
-        );
-    }
-  }
+  return filas.map((f) => ({
+    producto: f.producto,
+    alias: f.alias,
+    precioCentavos: f.precioCentavos,
+  }));
 }
 
 type PagoMode = "completo" | "parcial" | "ninguno";
@@ -441,7 +385,12 @@ async function crearPedidoCompleto(
   factura: boolean;
   pagos: number;
 }> {
-  const itemsDefs = elegirItems(opts.cliente, opts.productos, opts.perfil);
+  const itemsDefs = await elegirItems(
+    db,
+    opts.cliente,
+    opts.productos,
+    opts.perfil,
+  );
   const anulado = opts.anulado || opts.estado === "ANULADO";
 
   const [ped] = await db
@@ -543,43 +492,51 @@ async function crearPedidoCompleto(
   return { estado: ped.estado, factura: true, pagos };
 }
 
-function elegirItems(
+async function elegirItems(
+  db: Db,
   cliente: ClienteRow,
   productos: ProductoRow[],
   perfil: PerfilCliente,
-): Array<{
-  producto: ProductoRow;
-  cantidad: number;
-  precio: number;
-  nombre: string;
-}> {
-  const def = CLIENTES_MEGA.find((d) => d.nombre === cliente.nombre);
-  const preferidos = (def?.skusPreferidos ?? [])
-    .map((sku) => productos.find((p) => p.sku === sku))
-    .filter(Boolean) as ProductoRow[];
-  const pool =
-    preferidos.length > 0
-      ? preferidos
-      : shuffle(productos).slice(0, randInt(2, 5));
+): Promise<
+  Array<{
+    producto: ProductoRow;
+    cantidad: number;
+    precio: number;
+    nombre: string;
+  }>
+> {
+  const ligas = await ligasCliente(db, cliente.id);
+  const pool: LigaCliente[] =
+    ligas.length > 0
+      ? ligas
+      : shuffle(productos.filter((p) => p.activo)).slice(0, randInt(2, 5)).map(
+          (producto) => ({
+            producto,
+            alias: null,
+            precioCentavos: null,
+          }),
+        );
+
   const n = Math.min(pool.length, randInt(1, Math.min(4, pool.length)));
   const elegidos = shuffle(pool).slice(0, n);
   const mult =
     perfil === "diario" ? 1.2 : perfil === "ocasional" ? 0.7 : 1;
 
-  return elegidos.map((producto) => {
+  return elegidos.map(({ producto, alias, precioCentavos }) => {
     const base =
       producto.unidadMedida === "LIBRA"
         ? randInt(10, 80)
         : randInt(2, 20);
     const cantidad = Math.max(1, Math.round(base * mult));
     const precio =
+      precioCentavos ??
       PRECIOS_DEMO_CENTAVOS[producto.sku] ??
       (producto.familia === "TORTILLA" ? 1100 : 1400);
     return {
       producto,
       cantidad,
       precio,
-      nombre: ALIAS_DEMO[producto.sku] ?? producto.nombreCanonico,
+      nombre: alias ?? ALIAS_DEMO[producto.sku] ?? producto.nombreCanonico,
     };
   });
 }
@@ -985,16 +942,6 @@ function escenarioNota(estado: string): string {
   }
 }
 
-function slug(nombre: string): string {
-  return nombre
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40);
-}
-
 function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -1016,21 +963,3 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function encryptSeed(plain: string): string | null {
-  const hex = process.env.APP_ENCRYPTION_KEY;
-  if (!hex || !/^[0-9a-fA-F]{64}$/.test(hex)) return null;
-  const key = Buffer.from(hex, "hex");
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const encrypted = Buffer.concat([
-    cipher.update(plain, "utf8"),
-    cipher.final(),
-  ]);
-  const tag = cipher.getAuthTag();
-  return [
-    "v1",
-    iv.toString("base64url"),
-    tag.toString("base64url"),
-    encrypted.toString("base64url"),
-  ].join(".");
-}

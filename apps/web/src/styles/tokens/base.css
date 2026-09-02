@@ -1,7 +1,7 @@
 /* @layer base: sin esto, color:inherit en button pisa text-* de Tailwind (utilities). */
 @layer base {
 *,*::before,*::after{box-sizing:border-box}
-html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;zoom:var(--ui-zoom)}
 body{margin:0;font-family:var(--font-core);font-size:var(--text-base);font-weight:var(--weight-regular);line-height:var(--leading-relaxed);color:var(--text-body);background:var(--surface-page)}
 h1,h2,h3,h4{margin:0;font-weight:var(--weight-semibold);line-height:var(--leading-snug);color:var(--text-strong);text-wrap:balance}
 h1{font-size:var(--type-h1-size)}

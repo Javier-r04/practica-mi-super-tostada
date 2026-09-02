@@ -71,7 +71,7 @@ export type ClienteMegaDef = {
   skusPreferidos?: string[];
 };
 
-/** ~45 restaurantes guatemaltecos ficticios para llenar listas y cartera. */
+/** Perfiles de pedido por nombre (solo heurística; no inserta clientes). */
 export const CLIENTES_MEGA: ClienteMegaDef[] = [
   {
     nombre: "El Portal de Antigua",
@@ -479,15 +479,3 @@ export const CLIENTES_MEGA: ClienteMegaDef[] = [
     skusPreferidos: ["TORT-12", "TOST-12-B"],
   },
 ];
-
-/** Clientes del seed base que el mega-seed enriquece con ligas y pedidos. */
-export const CONTACTOS_BASE_ENRICH = [
-  "TABASCO CASA VIEJA (LA ESPERANZA)",
-  "TABASCO INTERPLAZA",
-  "KRAKEN (FLORESTA)",
-  "VICTORIAS",
-  "AL ESTILO BAJA (METROPLAZA)",
-  "PURA FRESCURA",
-  "TABASCO 14 AVENIDA",
-  "DON NAPO (PASEO LA LUNA)",
-] as const;

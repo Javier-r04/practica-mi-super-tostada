@@ -5,12 +5,19 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Eye, EyeOff, Lock, User } from "lucide-react";
 import { loginRequestSchema } from "@misupertostada/shared";
-import { Button, Card, InputGroup, Label, TextField } from "@heroui/react";
+import { Button, Card } from "@heroui/react";
 import { toastError, toastFromError } from "@/components/ui/toaster";
 import { Wordmark } from "@/components/brand/wordmark";
+import { Field } from "@/components/ui/field";
 import { api } from "@/lib/api";
 
 type LoginValues = { username: string; password: string };
+
+const pillFieldClassName =
+  "flex h-campo w-full items-center gap-3 rounded-pill border border-[var(--border-default)] bg-blanco px-4 shadow-[var(--shadow-inset-field)] transition-[border-color,box-shadow] duration-control ease-out hover:border-[var(--border-strong)] focus-within:border-[var(--border-focus)] focus-within:shadow-foco";
+
+const pillInputClassName =
+  "mst-search__input min-w-0 flex-1 appearance-none bg-transparent border-0 p-0 text-sm text-tinta-800 shadow-none outline-none ring-0 placeholder:text-tinta-500 focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -56,67 +63,57 @@ export default function LoginPage() {
             })}
           >
             <div className="grid gap-5 text-left">
-              <TextField className="w-full" name="username">
-                <Label className="text-xs font-semibold text-tinta-700">
-                  Usuario
-                </Label>
-                <InputGroup className="w-full">
-                  <InputGroup.Prefix>
-                    <User
-                      aria-hidden
-                      className="size-[18px] text-tinta-500"
-                      strokeWidth={1.75}
-                    />
-                  </InputGroup.Prefix>
-                  <InputGroup.Input
+              <Field label="Usuario" htmlFor="username" required>
+                <div className={pillFieldClassName}>
+                  <User
+                    aria-hidden
+                    className="size-[18px] shrink-0 text-tinta-500"
+                    strokeWidth={1.75}
+                  />
+                  <input
                     id="username"
                     autoComplete="username"
                     autoFocus
                     required
                     placeholder="Tu usuario"
+                    className={pillInputClassName}
                     {...form.register("username")}
                   />
-                </InputGroup>
-              </TextField>
+                </div>
+              </Field>
 
-              <TextField className="w-full" name="password">
-                <Label className="text-xs font-semibold text-tinta-700">
-                  Contraseña
-                </Label>
-                <InputGroup className="w-full">
-                  <InputGroup.Prefix>
-                    <Lock
-                      aria-hidden
-                      className="size-[18px] text-tinta-500"
-                      strokeWidth={1.75}
-                    />
-                  </InputGroup.Prefix>
-                  <InputGroup.Input
+              <Field label="Contraseña" htmlFor="password" required>
+                <div className={pillFieldClassName}>
+                  <Lock
+                    aria-hidden
+                    className="size-[18px] shrink-0 text-tinta-500"
+                    strokeWidth={1.75}
+                  />
+                  <input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
                     placeholder="Tu contraseña"
+                    className={pillInputClassName}
                     {...form.register("password")}
                   />
-                  <InputGroup.Suffix>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="flex size-7 items-center justify-center rounded-campo text-tinta-500 transition-colors hover:text-tinta-800 focus-visible:outline-none focus-visible:shadow-foco"
-                      aria-label={
-                        showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
-                      }
-                    >
-                      {showPassword ? (
-                        <EyeOff className="size-[18px]" strokeWidth={1.75} />
-                      ) : (
-                        <Eye className="size-[18px]" strokeWidth={1.75} />
-                      )}
-                    </button>
-                  </InputGroup.Suffix>
-                </InputGroup>
-              </TextField>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-tinta-500 transition-colors hover:bg-[var(--ink-50)] hover:text-tinta-800 focus-visible:outline-none focus-visible:shadow-foco"
+                    aria-label={
+                      showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff className="size-[18px]" strokeWidth={1.75} />
+                    ) : (
+                      <Eye className="size-[18px]" strokeWidth={1.75} />
+                    )}
+                  </button>
+                </div>
+              </Field>
 
               <Button
                 type="submit"

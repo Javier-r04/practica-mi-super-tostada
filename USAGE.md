@@ -84,16 +84,25 @@ Para otro cliente: panel **Clientes** → detalle → **Rotar token de portal** 
 
 12 productos y 13 clientes según `CONTEXT.md` §5 (Tabasco Casa Vieja, Kraken con fajitas, Metroplaza con entrega 09:00, etc.). Los precios reales **no** vienen en seed salvo el demo de Tabasco Casa Vieja; Cristian los carga en **Clientes → productos del cliente**.
 
-### Mega-seed (datos de prueba densos)
+### Mega-seed (historial denso sobre datos existentes)
 
-Para llenar cartera, ruta, producción, WhatsApp y tablero con ~45 clientes extra y ~45 días hábiles de historial (fechas relativas al momento de correr el script):
+Llena cartera, ruta, producción, WhatsApp y tablero con ~45 días hábiles de pedidos, facturas y pagos **encima de los clientes y productos que ya están en la base** (no crea clientes ni ligas nuevas). Usa precios de `cliente_producto` cuando existen; si un cliente no tiene ligas, elige productos al azar con precios demo en el snapshot del pedido.
 
 ```bash
-bun run db:seed:mega        # seed base + clear previo + mega datos
+bun run db:seed:mega        # seed base (opcional) + clear previo + historial
 bun run db:seed:mega:clear  # solo borra lo marcado [MEGA_SEED]
 ```
 
-No toca org/usuarios/productos ni los 13 clientes base; sí enriquece esos clientes con pedidos de prueba. Re-ejecutar es seguro (limpia y vuelve a generar).
+En producción (contenedor `api`), con el seed base ya aplicado:
+
+```bash
+docker exec -it NOMBRE_CONTENEDOR_API sh -c '
+  export DATABASE_URL="postgresql://${POSTGRES_USER:-tostada}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-misupertostada}"
+  cd /app && bun packages/db/src/seed-mega.ts --skip-base
+'
+```
+
+Re-ejecutar es seguro (limpia pedidos/hojas marcados y vuelve a generar).
 
 ---
 
