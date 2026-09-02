@@ -348,6 +348,63 @@ export const facturaCarteraSchema = facturaPublicaSchema.extend({
 });
 export type FacturaCartera = z.infer<typeof facturaCarteraSchema>;
 
+/** Prioridad en la lista de cartera: urgencia antes que recencia. */
+function rankEstadoCartera(estado: PagoEstado): number {
+  if (estado === "VENCIDO") return 0;
+  if (estado === "ABONO_PARCIAL") return 1;
+  if (estado === "PENDIENTE") return 2;
+  return 3;
+}
+
+/**
+ * Lista general de cartera: vencidas arriba, luego operación más reciente.
+ * Dentro del mismo día gana el pedido con correlativo más alto.
+ */
+export function ordenarCartera(
+  a: FacturaCartera,
+  b: FacturaCartera,
+): number {
+  const porEstado = rankEstadoCartera(a.estado) - rankEstadoCartera(b.estado);
+  if (porEstado !== 0) return porEstado;
+
+  if (a.estado === "VENCIDO" && b.estado === "VENCIDO") {
+    if (b.antiguedadDias !== a.antiguedadDias) {
+      return b.antiguedadDias - a.antiguedadDias;
+    }
+  }
+
+  if (a.fechaOperacion !== b.fechaOperacion) {
+    return a.fechaOperacion < b.fechaOperacion ? 1 : -1;
+  }
+
+  if (b.correlativo !== a.correlativo) {
+    return b.correlativo - a.correlativo;
+  }
+
+  return a.clienteNombre.localeCompare(b.clienteNombre, "es");
+}
+
+/** Orden FIFO de cobro: la factura más vieja va primero (la que recibe el pago). */
+export function ordenarFacturasFifo(
+  a: {
+    emitidaAt: string | null;
+    correlativo?: number;
+    fechaOperacion?: string;
+  },
+  b: {
+    emitidaAt: string | null;
+    correlativo?: number;
+    fechaOperacion?: string;
+  },
+): number {
+  const ea = a.emitidaAt ?? a.fechaOperacion ?? "";
+  const eb = b.emitidaAt ?? b.fechaOperacion ?? "";
+  if (ea !== eb) return ea < eb ? -1 : 1;
+  const ca = a.correlativo ?? 0;
+  const cb = b.correlativo ?? 0;
+  return ca - cb;
+}
+
 export const carteraCountsSchema = z.object({
   todas: z.number().int().nonnegative(),
   pendientes: z.number().int().nonnegative(),

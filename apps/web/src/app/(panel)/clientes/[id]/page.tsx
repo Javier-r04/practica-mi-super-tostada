@@ -364,7 +364,7 @@ export default function ClienteFichaPage() {
                   />
                 ) : (
                   <ul>
-                    {cuenta.data!.facturas.map((f) => (
+                    {cuenta.data!.facturas.map((f, idx) => (
                       <li
                         key={f.id}
                         className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 border-t border-[var(--border-subtle)] px-5 py-3"
@@ -393,6 +393,11 @@ export default function ClienteFichaPage() {
                           />
                         </div>
                         <div className="col-span-2 flex flex-wrap gap-1.5">
+                          {idx === 0 ? (
+                            <Chip color="warning" size="sm" variant="soft">
+                              Siguiente cobro
+                            </Chip>
+                          ) : null}
                           <EstadoBadge estado={f.estado} size="sm" />
                           {!f.numeroDte && (
                             <Chip color="warning" size="sm" variant="soft">

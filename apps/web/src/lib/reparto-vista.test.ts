@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { RutaParada } from "@misupertostada/shared";
 import {
   desgloseCobroParada,
   saldoParadaCentavos,
@@ -6,6 +7,8 @@ import {
   siguienteTrasEntrega,
   siguienteTrasVolver,
   vistaInicialParada,
+  paradaConColaLocal,
+  cobradoPendienteColaCentavos,
 } from "./reparto-vista";
 
 describe("vistaInicialParada", () => {
@@ -157,5 +160,115 @@ describe("desgloseCobroParada", () => {
     });
     expect(d.mostrarDesgloseHoy).toBe(false);
     expect(d.saldoTotalCentavos).toBe(3000);
+  });
+});
+
+describe("paradaConColaLocal", () => {
+  const paradaBase: RutaParada = {
+    pedidoId: "00000000-0000-4000-8000-000000000010",
+    correlativo: 42,
+    clienteId: "00000000-0000-4000-8000-000000000020",
+    clienteNombre: "Tabascos",
+    horarioEntregaFijo: "08:00",
+    telefonoWa: null,
+    fotoAssetId: null,
+    notasPermanentes: null,
+    estado: "ENTREGADO",
+    totalEstimadoCentavos: 5000,
+    saldoAnteriorCentavos: 0,
+    facturasPendientes: 0,
+    items: [
+      {
+        productoId: "00000000-0000-4000-8000-000000000030",
+        nombreMostrado: "Tortilla",
+        unidadMedida: "LIBRA",
+        cantidadPedida: 10,
+        cantidadEntregada: 10,
+        precioUnitarioCentavos: 500,
+        notaProduccion: null,
+        fotoAssetId: null,
+      },
+    ],
+    factura: {
+      id: "00000000-0000-4000-8000-000000000040",
+      pedidoId: "00000000-0000-4000-8000-000000000010",
+      numeroDte: null,
+      montoCentavos: 5000,
+      abonadoCentavos: 0,
+      saldoCentavos: 5000,
+      emitidaAt: null,
+      antiguedadDias: 0,
+      estado: "PENDIENTE",
+    },
+  };
+
+  test("refleja cobro parcial en cola antes de sincronizar", () => {
+    const parada = paradaConColaLocal(paradaBase, [
+      {
+        tipo: "PAGO",
+        idempotencyKey: "pago-1",
+        pagoId: "00000000-0000-4000-8000-000000000050",
+        clienteId: paradaBase.clienteId,
+        pedidoId: paradaBase.pedidoId,
+        montoCentavos: 200,
+        metodo: "EFECTIVO",
+        estado: "pendiente",
+        enqueuedAt: "2026-08-22T10:00:00.000Z",
+      },
+    ]);
+    expect(parada.factura?.abonadoCentavos).toBe(200);
+    expect(parada.factura?.saldoCentavos).toBe(4800);
+    expect(parada.factura?.estado).toBe("ABONO_PARCIAL");
+  });
+
+  test("aplica cobro a saldo anterior antes que a la factura de hoy", () => {
+    const parada = paradaConColaLocal(
+      { ...paradaBase, saldoAnteriorCentavos: 1000 },
+      [
+        {
+          tipo: "PAGO",
+          idempotencyKey: "pago-2",
+          pagoId: "00000000-0000-4000-8000-000000000051",
+          clienteId: paradaBase.clienteId,
+          pedidoId: paradaBase.pedidoId,
+          montoCentavos: 500,
+          metodo: "EFECTIVO",
+          estado: "pendiente",
+          enqueuedAt: "2026-08-22T10:00:00.000Z",
+        },
+      ],
+    );
+    expect(parada.saldoAnteriorCentavos).toBe(500);
+    expect(parada.factura?.abonadoCentavos).toBe(0);
+    expect(parada.factura?.saldoCentavos).toBe(5000);
+  });
+});
+
+describe("cobradoPendienteColaCentavos", () => {
+  test("suma pagos pendientes y enviando", () => {
+    expect(
+      cobradoPendienteColaCentavos([
+        {
+          tipo: "PAGO",
+          idempotencyKey: "a",
+          pagoId: "00000000-0000-4000-8000-000000000060",
+          clienteId: "00000000-0000-4000-8000-000000000020",
+          montoCentavos: 200,
+          metodo: "EFECTIVO",
+          estado: "pendiente",
+          enqueuedAt: "2026-08-22T10:00:00.000Z",
+        },
+        {
+          tipo: "PAGO",
+          idempotencyKey: "b",
+          pagoId: "00000000-0000-4000-8000-000000000061",
+          clienteId: "00000000-0000-4000-8000-000000000020",
+          montoCentavos: 300,
+          metodo: "EFECTIVO",
+          estado: "enviando",
+          enqueuedAt: "2026-08-22T10:01:00.000Z",
+        },
+      ]),
+    ).toBe(500);
   });
 });

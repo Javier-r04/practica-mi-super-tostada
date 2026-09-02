@@ -45,6 +45,9 @@ import { toastFromError, toastSuccess } from "@/lib/toast";
 import { etiquetaDiaSemanaCorto } from "@/lib/fecha-ui";
 import { cn } from "@/lib/utils";
 import {
+  cobradoPendienteColaCentavos,
+  desgloseCobroParada,
+  paradaConColaLocal,
   saldoParadaCentavos,
   siguienteTrasCobro,
   siguienteTrasEntrega,
@@ -120,18 +123,30 @@ export default function RepartoPage() {
   );
   const aviso = avisoReabierto(calendario.data);
   const cierreAnticipado = capturaCerradaAnticipada(calendario.data);
-  const parada = ruta.data?.paradas.find((p) => p.pedidoId === sel) ?? null;
+
+  const paradasEfectivas = useMemo(
+    () =>
+      (ruta.data?.paradas ?? []).map((p) =>
+        paradaConColaLocal(p, cola.cola),
+      ),
+    [ruta.data?.paradas, cola.cola],
+  );
+
+  const parada = paradasEfectivas.find((p) => p.pedidoId === sel) ?? null;
 
   const entregados =
-    ruta.data?.paradas.filter((p) => p.estado === "ENTREGADO").length ?? 0;
-  const total = ruta.data?.paradas.length ?? 0;
+    paradasEfectivas.filter((p) => p.estado === "ENTREGADO").length;
+  const total = paradasEfectivas.length;
   const pendientes = total - entregados;
 
-  // Lo que queda por cobrar en la ruta: la otra mitad del trabajo de Tony,
-  // antes solo visible parada por parada.
+  const cobradoLocalCentavos = useMemo(
+    () => cobradoPendienteColaCentavos(cola.cola),
+    [cola.cola],
+  );
+
   const porCobrarCentavos = useMemo(
     () =>
-      (ruta.data?.paradas ?? []).reduce(
+      paradasEfectivas.reduce(
         (acc, p) =>
           acc +
           saldoParadaCentavos({
@@ -140,19 +155,18 @@ export default function RepartoPage() {
           }),
         0,
       ),
-    [ruta.data?.paradas],
+    [paradasEfectivas],
   );
 
   const paradasFiltradas = useMemo(() => {
-    const list = ruta.data?.paradas ?? [];
     if (filtro === "pendientes") {
-      return list.filter((p) => p.estado !== "ENTREGADO");
+      return paradasEfectivas.filter((p) => p.estado !== "ENTREGADO");
     }
     if (filtro === "entregados") {
-      return list.filter((p) => p.estado === "ENTREGADO");
+      return paradasEfectivas.filter((p) => p.estado === "ENTREGADO");
     }
-    return list;
-  }, [ruta.data?.paradas, filtro]);
+    return paradasEfectivas;
+  }, [paradasEfectivas, filtro]);
 
   function aplicarDestino(destino: DestinoReparto) {
     if (destino === "ruta") {
@@ -242,7 +256,9 @@ export default function RepartoPage() {
             entregados={entregados}
             total={total}
             pendientes={pendientes}
-            cobradoHoyCentavos={ruta.data?.cobradoHoyCentavos ?? 0}
+            cobradoHoyCentavos={
+              (ruta.data?.cobradoHoyCentavos ?? 0) + cobradoLocalCentavos
+            }
             porCobrarCentavos={porCobrarCentavos}
           />
 
@@ -749,10 +765,12 @@ function DetalleCobro({
   onBack: () => void;
   onCobrar: () => void;
 }) {
-  const saldo = saldoParadaCentavos({
+  const cobro = desgloseCobroParada({
     saldoAnteriorCentavos: parada.saldoAnteriorCentavos,
-    facturaSaldoCentavos: parada.factura?.saldoCentavos,
+    factura: parada.factura,
   });
+  const saldo = cobro.saldoTotalCentavos;
+  const parcialHoy = cobro.facturaAbonadoCentavos > 0;
 
   return (
     <div className="grid gap-4 pb-[calc(var(--bottombar-height)+5rem)]">
@@ -761,16 +779,61 @@ function DetalleCobro({
         sinSincronizar={sinSincronizar}
         onBack={onBack}
       />
-      <Card className="gap-3 border-l-[4px] border-l-[var(--amber-600)] p-4">
+      <Card
+        className={cn(
+          "gap-3 border-l-[4px] p-4",
+          parcialHoy ? "border-l-[var(--green-600)]" : "border-l-[var(--amber-600)]",
+        )}
+      >
         <Card.Header>
-          <Card.Title>Por cobrar</Card.Title>
+          <Card.Title>
+            {parcialHoy ? "Abono parcial" : "Por cobrar"}
+          </Card.Title>
           <Card.Description>
-            {parada.facturasPendientes} facturas pendientes
+            {cobro.saldoAnteriorCentavos > 0
+              ? "El cobro se aplica primero a facturas anteriores"
+              : "Cobro de la factura de hoy"}
           </Card.Description>
         </Card.Header>
-        <Card.Content className="flex-col flex-wrap items-stretch gap-2 sm:flex-row sm:items-center">
-          <Money centavos={saldo} tone="pendiente" truncate className="text-3xl" />
-          {sinSincronizar && <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />}
+        <Card.Content className="grid gap-3">
+          {parcialHoy && (
+            <div className="flex items-center justify-between gap-2 rounded-[calc(var(--radius-card)-6px)] bg-[var(--green-50)] px-3 py-2.5">
+              <span className="text-sm text-tinta-700">Cobrado hoy</span>
+              <Money
+                centavos={cobro.facturaAbonadoCentavos}
+                tone="pagado"
+                className="text-xl font-semibold"
+              />
+            </div>
+          )}
+          {cobro.facturaSaldoCentavos > 0 && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-tinta-700">Debe hoy</span>
+              <Money
+                centavos={cobro.facturaSaldoCentavos}
+                tone="pendiente"
+                className="text-xl font-semibold"
+              />
+            </div>
+          )}
+          {cobro.saldoAnteriorCentavos > 0 && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-tinta-700">Saldo anterior</span>
+              <Money
+                centavos={cobro.saldoAnteriorCentavos}
+                tone="pendiente"
+                className="text-lg"
+              />
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-3">
+            <span className="text-sm font-semibold text-tinta-900">Total</span>
+            <Money centavos={saldo} tone="pendiente" truncate className="text-3xl" />
+            {sinSincronizar && <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />}
+            {parada.factura?.estado === "ABONO_PARCIAL" && (
+              <EstadoBadge estado="ABONO_PARCIAL" size="sm" />
+            )}
+          </div>
         </Card.Content>
       </Card>
       {error && (

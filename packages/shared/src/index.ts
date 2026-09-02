@@ -327,6 +327,8 @@ export {
   TIPO_EVENTO_LIMITE_CREDITO,
   TIPO_EVENTO_PEDIDO_ENTREGADO,
   aplicarFifo,
+  ordenarCartera,
+  ordenarFacturasFifo,
   capturarDteRequestSchema,
   carteraListaSchema,
   carteraQuerySchema,

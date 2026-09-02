@@ -76,13 +76,13 @@ type CobroCliente = {
 };
 
 const PANELES = [
-  { id: "lista", label: "Facturas" },
+  { id: "lista", label: "Facturas abiertas" },
   { id: "transferencias", label: "Transferencias" },
-  { id: "cuadre", label: "Cuadre del día" },
+  { id: "cuadre", label: "Cobros del día" },
 ] as const;
 
 const VISTAS = [
-  { id: "factura", label: "Por factura" },
+  { id: "factura", label: "Recientes primero" },
   { id: "cliente", label: "Por cliente" },
 ] as const;
 
@@ -332,7 +332,7 @@ function CarteraInner() {
   return (
     <PanelShell title="Cartera">
       <div className="grid min-w-0 gap-5">
-        <PageToolbar description="Facturas abiertas, captura de DTE y cobros." />
+        <PageToolbar description="Vencidas y operación reciente arriba. Por cliente, la factura más vieja es la siguiente en cobrar." />
 
         <ResumenCartera cargando={!resumen.data} resumen={resumen.data} />
 

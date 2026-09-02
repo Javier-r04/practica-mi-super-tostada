@@ -12,11 +12,14 @@ import {
 } from "@heroui/react";
 import { MessageCircle } from "lucide-react";
 import type { FacturaCartera } from "@misupertostada/shared";
+import { ordenarFacturasFifo } from "@misupertostada/shared";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
+import { etiquetaDiaSemanaCorto } from "@/lib/fecha-ui";
 import { DialogoCapturaDte } from "./dialogo-captura-dte";
 import { BotonDte } from "./boton-dte";
+import { cn } from "@/lib/utils";
 
 export type VistaCartera = "factura" | "cliente";
 
@@ -129,7 +132,7 @@ export function TablaCartera({
                   Cliente
                 </Table.Column>
                 <Table.Column id="dte">DTE</Table.Column>
-                <Table.Column id="pedido">Pedido</Table.Column>
+                <Table.Column id="pedido">Operación</Table.Column>
                 <Table.Column id="saldo">Saldo</Table.Column>
                 <Table.Column id="estado">Estado</Table.Column>
                 <Table.Column id="acciones">Acciones</Table.Column>
@@ -159,18 +162,10 @@ export function TablaCartera({
                       />
                     </Table.Cell>
                     <Table.Cell className="font-mono text-xs tabular-nums text-tinta-500">
-                      #{f.correlativo}
-                      {f.antiguedadDias > 0 ? ` · ${f.antiguedadDias}d` : ""}
+                      <EtiquetaOperacion factura={f} />
                     </Table.Cell>
                     <Table.Cell className="text-right">
-                      <div className="grid justify-items-end gap-0.5">
-                        <Money centavos={f.saldoCentavos} tone={tonoSaldo(f)} />
-                        {f.abonadoCentavos > 0 && f.estado !== "PAGADO" ? (
-                          <span className="text-[11px] tabular-nums text-tinta-500">
-                            de <Money centavos={f.montoCentavos} tone="muted" />
-                          </span>
-                        ) : null}
-                      </div>
+                      <DesgloseSaldoFactura factura={f} compacto />
                     </Table.Cell>
                     <Table.Cell>
                       <EstadoBadge estado={f.estado} size="sm" />
@@ -272,6 +267,73 @@ function ClienteCell({
   );
 }
 
+/** Cobrado / debe / factura en una sola lectura; evita confundir saldo con monto. */
+function DesgloseSaldoFactura({
+  factura: f,
+  compacto,
+  className,
+}: {
+  factura: FacturaCartera;
+  compacto?: boolean;
+  className?: string;
+}) {
+  const tono = tonoSaldo(f);
+  const parcial = f.abonadoCentavos > 0 && f.estado !== "PAGADO";
+
+  if (parcial) {
+    return (
+      <div
+        className={cn(
+          "grid min-w-0 gap-1 rounded-[calc(var(--radius-card)-0.5rem)] bg-tinta-50 px-2.5 py-2",
+          className,
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="mst-label shrink-0 text-[10px]">Cobrado</span>
+          <Money
+            centavos={f.abonadoCentavos}
+            tone="pagado"
+            truncate
+            className={compacto ? "text-sm" : "text-[15px]"}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="mst-label shrink-0 text-[10px]">Debe</span>
+          <Money
+            centavos={f.saldoCentavos}
+            tone={tono}
+            truncate
+            className={compacto ? "text-sm font-semibold" : "text-[15px] font-semibold"}
+          />
+        </div>
+        <p className="text-[10px] tabular-nums text-tinta-500">
+          Factura{" "}
+          <Money centavos={f.montoCentavos} tone="muted" className="text-[10px]" />
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-2 rounded-[calc(var(--radius-card)-0.5rem)] bg-tinta-50 px-2.5 py-2",
+        className,
+      )}
+    >
+      <span className="mst-label shrink-0 text-[10px]">
+        {f.estado === "PAGADO" ? "Pagado" : "Debe"}
+      </span>
+      <Money
+        centavos={f.estado === "PAGADO" ? f.montoCentavos : f.saldoCentavos}
+        tone={tono}
+        truncate
+        className={compacto ? "text-sm" : undefined}
+      />
+    </div>
+  );
+}
+
 function FacturaCard({
   factura: f,
   puedeDte,
@@ -311,8 +373,7 @@ function FacturaCard({
             {f.clienteNombre}
           </Link>
           <p className="mt-0.5 text-xs tabular-nums text-tinta-500">
-            #{f.correlativo}
-            {f.antiguedadDias > 0 ? ` · ${f.antiguedadDias}d` : ""}
+            <EtiquetaOperacion factura={f} />
           </p>
           {f.numeroDte ? (
             <div className="mt-1">
@@ -331,10 +392,7 @@ function FacturaCard({
         <EstadoBadge estado={f.estado} size="sm" />
       </div>
 
-      <div className="flex items-center justify-between gap-2 rounded-[calc(var(--radius-card)-0.5rem)] bg-tinta-50 px-2.5 py-2">
-        <span className="mst-label shrink-0 text-[10px]">Saldo</span>
-        <Money centavos={f.saldoCentavos} tone={tonoSaldo(f)} truncate />
-      </div>
+      <DesgloseSaldoFactura factura={f} />
 
       {!f.numeroDte ? (
         <BotonDte
@@ -486,15 +544,31 @@ function CarteraPorCliente({
 
               <Disclosure.Content>
                 <Disclosure.Body className="border-t border-[var(--border-subtle)] p-0">
+                  <p className="border-b border-[var(--border-subtle)] px-3 py-2 text-[11px] text-tinta-600">
+                    Arriba la factura más vieja: es la que recibe el próximo
+                    cobro.
+                  </p>
                   <ul>
-                    {g.facturas.map((f) => (
+                    {[...g.facturas]
+                      .sort(ordenarFacturasFifo)
+                      .map((f, idx) => (
                       <li
                         key={f.id}
                         className="flex flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] px-3 py-2.5 last:border-b-0"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium tabular-nums text-tinta-900">
-                            #{f.correlativo}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium tabular-nums text-tinta-900">
+                              #{f.correlativo}
+                            </p>
+                            {idx === 0 && f.estado !== "PAGADO" ? (
+                              <Chip color="warning" size="sm" variant="soft">
+                                Siguiente cobro
+                              </Chip>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 text-[11px] tabular-nums text-tinta-500">
+                            <EtiquetaOperacion factura={f} />
                           </p>
                           <div className="mt-0.5">
                             <BotonDte
@@ -519,11 +593,10 @@ function CarteraPorCliente({
                             ) : null}
                           </div>
                         </div>
-                        <Money
-                          centavos={f.saldoCentavos}
-                          tone={tonoSaldo(f)}
-                          truncate
-                          className="shrink-0 text-sm sm:text-base"
+                        <DesgloseSaldoFactura
+                          factura={f}
+                          compacto
+                          className="shrink-0 sm:text-base"
                         />
                         {f.estado !== "PAGADO" ? (
                           <Button
@@ -579,6 +652,28 @@ function agruparPorCliente(facturas: FacturaCartera[]): GrupoCliente[] {
   }
   return [...map.values()].sort((a, b) => {
     if (b.vencidas !== a.vencidas) return b.vencidas - a.vencidas;
-    return b.saldoCentavos - a.saldoCentavos;
+    const fa = maxFechaOperacion(a.facturas);
+    const fb = maxFechaOperacion(b.facturas);
+    if (fa !== fb) return fa < fb ? 1 : -1;
+    if (b.saldoCentavos !== a.saldoCentavos) {
+      return b.saldoCentavos - a.saldoCentavos;
+    }
+    return a.nombre.localeCompare(b.nombre, "es");
   });
+}
+
+function maxFechaOperacion(facturas: FacturaCartera[]): string {
+  return facturas.reduce(
+    (max, f) => (f.fechaOperacion > max ? f.fechaOperacion : max),
+    "",
+  );
+}
+
+function EtiquetaOperacion({ factura: f }: { factura: FacturaCartera }) {
+  return (
+    <>
+      #{f.correlativo} · {etiquetaDiaSemanaCorto(f.fechaOperacion)}
+      {f.antiguedadDias > 0 ? ` · ${f.antiguedadDias}d` : ""}
+    </>
+  );
 }

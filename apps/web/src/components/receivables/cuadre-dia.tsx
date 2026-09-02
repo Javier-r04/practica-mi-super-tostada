@@ -14,7 +14,8 @@ export function VistaCuadre({ cuadre }: { cuadre: CuadreDia }) {
       <Card.Header>
         <Card.Title>Cuadre del día</Card.Title>
         <Card.Description>
-          Pagos con fecha {cuadre.fecha} · no es la fecha de operación
+          Pagos con fecha {cuadre.fecha} · más reciente primero · no es la
+          fecha de operación
         </Card.Description>
       </Card.Header>
 

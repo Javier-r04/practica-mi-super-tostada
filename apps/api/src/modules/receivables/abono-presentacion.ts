@@ -9,6 +9,7 @@ import {
 } from "@misupertostada/db";
 import {
   instanteAIso,
+  ordenarFacturasFifo,
   portalCuentaSchema,
   estadoFactura,
   type AbonoPublico,
@@ -212,7 +213,7 @@ export async function construirCuentaCliente(
     facturasPendientes: pendientes.length,
     limiteFacturasPendientes: cli.limiteFacturasPendientes,
     saldoCentavos: pendientes.reduce((acc, f) => acc + f.saldoCentavos, 0),
-    facturas: pendientes,
+    facturas: [...pendientes].sort(ordenarFacturasFifo),
     abonos: abonosPublicos,
     transferenciasEnRevisionCentavos,
   });

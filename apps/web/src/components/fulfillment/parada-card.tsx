@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Chip } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { Banknote, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { RutaParada } from "@misupertostada/shared";
@@ -11,9 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { desgloseCobroParada } from "@/lib/reparto-vista";
 import { cn } from "@/lib/utils";
 
-/* Mismo lenguaje que ClienteMiniCard: filete lateral con el estado, Card
-   compuesto y Chips. El filete dice si la parada ya está hecha; el desglose
-   de cobro (cobrado / debe) vive aquí para que Tony no abra cada parada. */
 const RAIL_HECHO = "border-l-[var(--green-600)]";
 const RAIL_PENDIENTE = "border-l-[var(--amber-600)]";
 
@@ -37,22 +34,27 @@ export function ParadaCard({
     : hecho
       ? "entregado"
       : "pendiente";
-  const mostrarEstadoFactura =
-    cobro.estadoFactura === "ABONO_PARCIAL" ||
-    cobro.estadoFactura === "PAGADO";
+  const badgeCobro =
+    cobro.estadoFactura === "PAGADO"
+      ? null
+      : cobro.facturaAbonadoCentavos > 0
+        ? "ABONO_PARCIAL"
+        : cobro.mostrarBannerCobrar
+          ? "PENDIENTE"
+          : null;
 
   return (
-    /* La tarjeta entera es el área táctil: en la calle no hay que apuntar a un
-       botón chico, se toca la parada. Botón nativo → onClick. */
     <button
       type="button"
       onClick={onAbrir}
       aria-label={`${hora} ${parada.clienteNombre} ${estadoLabel}${
-        cobro.mostrarDesgloseHoy
-          ? `, cobrado ${cobro.facturaAbonadoCentavos} centavos, debe ${cobro.facturaSaldoCentavos} centavos`
-          : cobro.mostrarBannerCobrar
-            ? `, por cobrar ${cobro.saldoTotalCentavos} centavos`
-            : ""
+        cobro.facturaAbonadoCentavos > 0
+          ? `, cobrado ${cobro.facturaAbonadoCentavos} centavos`
+          : ""
+      }${
+        cobro.saldoTotalCentavos > 0
+          ? `, por cobrar ${cobro.saldoTotalCentavos} centavos`
+          : ""
       }`}
       className={cn(
         "group block w-full rounded-tarjeta text-left",
@@ -84,9 +86,11 @@ export function ParadaCard({
               ) : (
                 <EstadoBadge estado={parada.estado} size="sm" />
               )}
-              {mostrarEstadoFactura && cobro.estadoFactura && (
-                <EstadoBadge estado={cobro.estadoFactura} size="sm" />
-              )}
+              {badgeCobro ? (
+                <EstadoBadge estado={badgeCobro} size="sm" />
+              ) : cobro.estadoFactura === "PAGADO" ? (
+                <EstadoBadge estado="PAGADO" size="sm" />
+              ) : null}
             </div>
             <Card.Title className="mt-1 text-[17px] leading-snug text-pretty text-tinta-900">
               {parada.clienteNombre}
@@ -120,57 +124,93 @@ export function ParadaCard({
               valor={valorColumnaCobro(cobro)}
             />
           </div>
+
           {cobro.mostrarBannerCobrar && (
             <div
               className={cn(
-                "flex items-center justify-between gap-3 rounded-[calc(var(--radius-card)-6px)]",
-                "border border-[color-mix(in_srgb,var(--amber-600)_28%,transparent)] bg-[var(--amber-100)] px-3 py-2.5",
-                "transition-[border-color,background-color] duration-control ease-out",
-                "group-hover:border-[color-mix(in_srgb,var(--amber-600)_45%,transparent)] group-hover:bg-[var(--yellow-100)]",
+                "grid gap-2 rounded-[calc(var(--radius-card)-6px)] px-3 py-2.5",
+                cobro.facturaAbonadoCentavos > 0
+                  ? "border border-[color-mix(in_srgb,var(--green-600)_25%,transparent)] bg-[var(--green-50)]"
+                  : "border border-[color-mix(in_srgb,var(--amber-600)_28%,transparent)] bg-[var(--amber-100)]",
               )}
             >
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--yellow-200)] text-aviso-700">
-                  <Banknote size={16} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <Chip
-                    className="font-semibold"
-                    color="warning"
-                    size="sm"
-                    variant="soft"
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-2">
+                  <span
+                    className={cn(
+                      "inline-flex size-8 shrink-0 items-center justify-center rounded-full",
+                      cobro.facturaAbonadoCentavos > 0
+                        ? "bg-[var(--green-100)] text-[var(--green-800)]"
+                        : "bg-[var(--yellow-200)] text-aviso-700",
+                    )}
                   >
-                    Cobrar
-                  </Chip>
-                  <p className="mst-label mt-1 text-[11px]">
-                    {subtituloBannerCobro(cobro)}
-                  </p>
-                  {cobro.mostrarDesgloseHoy && (
-                    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-tinta-700">
-                      <span>Cobrado</span>
-                      <Money
-                        centavos={cobro.facturaAbonadoCentavos}
-                        tone="pagado"
-                        className="text-[11px] font-semibold"
-                      />
-                      <span aria-hidden>·</span>
-                      <span>Debe hoy</span>
-                      <Money
-                        centavos={cobro.facturaSaldoCentavos}
-                        tone="pendiente"
-                        className="text-[11px] font-semibold"
-                      />
+                    <Banknote size={16} aria-hidden />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="mst-label text-[11px]">
+                      {subtituloBannerCobro(cobro)}
                     </p>
-                  )}
+                    {cobro.facturaAbonadoCentavos > 0 && (
+                      <p className="mt-1 text-sm font-semibold text-tinta-900">
+                        Cobrado hoy{" "}
+                        <Money
+                          centavos={cobro.facturaAbonadoCentavos}
+                          tone="pagado"
+                          className="text-sm font-semibold"
+                        />
+                      </p>
+                    )}
+                    {cobro.facturaSaldoCentavos > 0 && (
+                      <p
+                        className={cn(
+                          "text-sm font-semibold text-tinta-900",
+                          cobro.facturaAbonadoCentavos > 0 ? "mt-0.5" : "mt-1",
+                        )}
+                      >
+                        Debe hoy{" "}
+                        <Money
+                          centavos={cobro.facturaSaldoCentavos}
+                          tone="pendiente"
+                          className="text-sm font-semibold"
+                        />
+                      </p>
+                    )}
+                    {cobro.saldoAnteriorCentavos > 0 && (
+                      <p className="mt-0.5 text-[11px] text-tinta-600">
+                        + saldo anterior{" "}
+                        <Money
+                          centavos={cobro.saldoAnteriorCentavos}
+                          tone="pendiente"
+                          className="text-[11px] font-semibold"
+                        />
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="mst-label text-[10px]">Total</p>
+                  <Money
+                    centavos={cobro.saldoTotalCentavos}
+                    tone="pendiente"
+                    className="text-[17px] font-semibold"
+                  />
                 </div>
               </div>
-              <Money
-                centavos={cobro.saldoTotalCentavos}
-                tone="pendiente"
-                className="shrink-0 text-[17px] font-semibold"
-              />
             </div>
           )}
+
+          {!cobro.mostrarBannerCobrar &&
+            cobro.facturaAbonadoCentavos > 0 &&
+            cobro.estadoFactura === "PAGADO" && (
+              <div className="flex items-center justify-between gap-2 rounded-[calc(var(--radius-card)-6px)] bg-[var(--green-50)] px-3 py-2.5">
+                <span className="text-sm text-tinta-700">Cobrado hoy</span>
+                <Money
+                  centavos={cobro.facturaAbonadoCentavos}
+                  tone="pagado"
+                  className="text-[15px] font-semibold"
+                />
+              </div>
+            )}
         </Card.Content>
       </Card>
     </button>
@@ -230,8 +270,9 @@ function valorColumnaCobro(
 function subtituloBannerCobro(
   cobro: ReturnType<typeof desgloseCobroParada>,
 ): string {
+  if (cobro.facturaAbonadoCentavos > 0) return "Abono parcial de hoy";
   if (cobro.saldoAnteriorCentavos > 0 && cobro.facturaSaldoCentavos > 0) {
-    return "Total por cobrar (hoy + anterior)";
+    return "Por cobrar (hoy + anterior)";
   }
   if (cobro.saldoAnteriorCentavos > 0) return "Saldo anterior";
   return "Por cobrar hoy";

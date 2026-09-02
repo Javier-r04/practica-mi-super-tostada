@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   abono,
   cliente,
@@ -19,6 +19,7 @@ import {
   fechaDeInstante,
   facturaCarteraSchema,
   instanteAIso,
+  ordenarCartera,
   portalCuentaSchema,
   type CarteraLista,
   type CarteraQuery,
@@ -40,24 +41,6 @@ import { construirCuentaCliente } from "./abono-presentacion";
 const abonadoSql = sql<number>`coalesce((
   select sum(${pago.montoCentavos}) from ${pago} where ${pago.facturaId} = ${factura.id}
 ), 0)::int`;
-
-function rankEstado(estado: FacturaCartera["estado"]): number {
-  if (estado === "VENCIDO") return 0;
-  if (estado === "ABONO_PARCIAL") return 1;
-  if (estado === "PENDIENTE") return 2;
-  return 3;
-}
-
-function ordenarCartera(a: FacturaCartera, b: FacturaCartera): number {
-  const porEstado = rankEstado(a.estado) - rankEstado(b.estado);
-  if (porEstado !== 0) return porEstado;
-  if (b.antiguedadDias !== a.antiguedadDias) {
-    return b.antiguedadDias - a.antiguedadDias;
-  }
-  const porNombre = a.clienteNombre.localeCompare(b.clienteNombre, "es");
-  if (porNombre !== 0) return porNombre;
-  return a.correlativo - b.correlativo;
-}
 
 function coincideBusqueda(f: FacturaCartera, needle: string): boolean {
   if (!needle) return true;
@@ -346,7 +329,8 @@ export class CarteraService {
       .leftJoin(usuario, eq(usuario.id, pago.registradoPor))
       .where(
         and(eq(pedido.organizacionId, actor.organizacionId), eq(pago.fecha, fecha)),
-      );
+      )
+      .orderBy(desc(pago.createdAt));
 
     const efectivo = Number(totales?.efectivo ?? 0);
     const transferencia = Number(totales?.transferencia ?? 0);

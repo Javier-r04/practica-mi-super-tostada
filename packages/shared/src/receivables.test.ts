@@ -6,10 +6,64 @@ import {
   entregarPedidoRequestSchema,
   estadoFactura,
   montoFacturaCentavos,
+  ordenarCartera,
+  ordenarFacturasFifo,
   registrarPagoRequestSchema,
   rutaParadaSchema,
   rutaRepartoSchema,
 } from "./receivables";
+
+describe("ordenarCartera", () => {
+  const base = {
+    id: "00000000-0000-4000-8000-000000000001",
+    pedidoId: "00000000-0000-4000-8000-000000000002",
+    numeroDte: null,
+    montoCentavos: 5000,
+    abonadoCentavos: 0,
+    saldoCentavos: 5000,
+    emitidaAt: "2026-08-20T12:00:00.000Z",
+    antiguedadDias: 0,
+    clienteId: "00000000-0000-4000-8000-000000000003",
+    clienteNombre: "Alpha",
+    fotoAssetId: null,
+    estado: "PENDIENTE" as const,
+  };
+
+  test("operación más reciente va antes que una vieja", () => {
+    expect(
+      ordenarCartera(
+        { ...base, correlativo: 10, fechaOperacion: "2026-08-22" },
+        { ...base, correlativo: 9, fechaOperacion: "2026-08-20" },
+      ),
+    ).toBeLessThan(0);
+  });
+
+  test("vencida gana aunque la otra sea más reciente", () => {
+    expect(
+      ordenarCartera(
+        {
+          ...base,
+          correlativo: 1,
+          fechaOperacion: "2026-08-10",
+          antiguedadDias: 20,
+          estado: "VENCIDO",
+        },
+        { ...base, correlativo: 99, fechaOperacion: "2026-08-22" },
+      ),
+    ).toBeLessThan(0);
+  });
+});
+
+describe("ordenarFacturasFifo", () => {
+  test("factura emitida antes va primero", () => {
+    expect(
+      ordenarFacturasFifo(
+        { emitidaAt: "2026-08-18T10:00:00.000Z", correlativo: 2 },
+        { emitidaAt: "2026-08-20T10:00:00.000Z", correlativo: 5 },
+      ),
+    ).toBeLessThan(0);
+  });
+});
 
 describe("carteraQuerySchema", () => {
   test("acepta paginación y búsqueda desde query string", () => {
