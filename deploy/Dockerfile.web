@@ -1,9 +1,17 @@
 # Next.js standalone. `next dev` local no usa esta imagen.
 #
+# Una sola imagen base (node:22-bookworm-slim): evita dos pulls a Docker Hub
+# en paralelo, que en el VPS suelen terminar en timeout (DeadlineExceeded).
+#
 # Un solo stage de build: copiar fuente → instalar → compilar.
 # Openship inyecta NODE_ENV=production y bun run ejecuta scripts con bash
 # sin node_modules/.bin en PATH. Por eso: --production=false y bunx.
-FROM oven/bun:1.3-debian AS build
+FROM node:22-bookworm-slim AS build
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl ca-certificates unzip \
+  && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.13" \
+  && rm -rf /var/lib/apt/lists/*
+ENV PATH="/root/.bun/bin:${PATH}"
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/web apps/web
