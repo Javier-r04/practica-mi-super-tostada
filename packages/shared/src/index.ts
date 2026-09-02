@@ -9,6 +9,7 @@ export {
   FAMILIA_ETIQUETA,
   IMPORT_TIPOS,
   PLANTILLAS_CSV,
+  CATALOGO_SSE_TIPOS,
   clienteProductoFilaSchema,
   clientePublicoSchema,
   crearClienteRequestSchema,
@@ -38,6 +39,8 @@ export {
   type ReordenarProductosRequest,
   type TokenPortalResponse,
   type UpsertClienteProductoRequest,
+  precioEfectivoCentavos,
+  type CatalogoSseTipo,
 } from "./catalog";
 export {
   ABONO_ESTADOS,

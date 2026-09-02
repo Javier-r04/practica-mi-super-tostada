@@ -23,6 +23,7 @@ import {
   pedidoBandejaSchema,
   pedidoDetalleSchema,
   portalPedidoSchema,
+  precioEfectivoCentavos,
   textoConfirmacionPedido,
   totalPedidoCentavos,
   type PedidoBandeja,
@@ -887,20 +888,26 @@ export class PedidoService {
       }
       const prod = porId.get(item.productoId);
       const liga = ligaPorProducto.get(item.productoId);
-      if (!prod || !liga || liga.precioCentavos == null) {
+      const precioUnitarioCentavos = prod
+        ? precioEfectivoCentavos({
+            precioClienteCentavos: liga?.precioCentavos ?? null,
+            precioBaseCentavos: prod.precioBaseCentavos ?? null,
+          })
+        : null;
+      if (!prod || precioUnitarioCentavos == null) {
         throw new DomainException(
           "PRECIO_AUSENTE",
           MENSAJE_PRECIO_AUSENTE,
           409,
         );
       }
-      const alias = liga.alias?.trim();
+      const alias = liga?.alias?.trim();
       return {
         productoId: item.productoId,
         cantidad: item.cantidad,
         nombreMostrado: alias || prod.nombreCanonico,
         unidadMedida: prod.unidadMedida,
-        precioUnitarioCentavos: liga.precioCentavos,
+        precioUnitarioCentavos,
       };
     });
   }

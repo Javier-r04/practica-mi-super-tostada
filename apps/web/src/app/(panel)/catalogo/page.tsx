@@ -20,6 +20,7 @@ import {
   Button,
   Card,
   Chip,
+  Description,
   Input,
   Label,
   Modal,
@@ -36,6 +37,9 @@ import {
   FAMILIAS,
   FAMILIA_ETIQUETA,
   crearProductoRequestSchema,
+  editarProductoRequestSchema,
+  formatearCentavos,
+  quetzalesTextoACentavos,
   tienePermiso,
   type ActorPublico,
   type Familia,
@@ -46,6 +50,7 @@ import { toastFromError, toastSuccess } from "@/lib/toast";
 import { subirFotoProducto } from "@/lib/upload-asset";
 import { cn } from "@/lib/utils";
 import { PanelShell } from "@/components/layout/panel-shell";
+import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EstadoBadge } from "@/components/domain/estado-badge";
@@ -75,6 +80,7 @@ export default function CatalogoPage() {
     queryFn: () => api<{ usuario: ActorPublico }>("/auth/me"),
   });
   const canWrite = tienePermiso(me.data?.usuario.permisos ?? [], "catalogo.escribir");
+  const canPrecio = tienePermiso(me.data?.usuario.permisos ?? [], "precios.cambiar");
 
   const productos = useQuery({
     queryKey: ["productos"],
@@ -235,6 +241,7 @@ export default function CatalogoPage() {
       {editing && (
         <ProductoModal
           producto={editing === "new" ? null : editing}
+          canPrecio={canPrecio}
           onClose={() => setEditing(null)}
           onSaved={() => {
             void qc.invalidateQueries({ queryKey: ["productos"] });
@@ -424,6 +431,12 @@ function ProductoRowBody({ producto }: { producto: ProductoPublico }) {
         <span className="mt-0.5 block text-xs text-pretty text-tinta-500">
           <span className="font-mono sm:hidden">{producto.sku} · </span>
           {producto.unidadMedida}
+          {producto.precioBaseCentavos != null && (
+            <>
+              {" · "}
+              <Money centavos={producto.precioBaseCentavos} size="sm" tone="muted" />
+            </>
+          )}
         </span>
       </span>
     </>
@@ -443,16 +456,24 @@ const PUNTOS = [
 
 function ProductoModal({
   producto,
+  canPrecio,
   onClose,
   onSaved,
 }: {
   producto: ProductoPublico | null;
+  canPrecio: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [foto, setFoto] = useState<File | null>(null);
   const [clearFoto, setClearFoto] = useState(false);
+  const [precioText, setPrecioText] = useState(
+    producto?.precioBaseCentavos == null
+      ? ""
+      : formatearCentavos(producto.precioBaseCentavos, { simbolo: false, miles: false }),
+  );
+  const [precioError, setPrecioError] = useState<string | null>(null);
   const [campos, setCampos] = useState({
     sku: producto?.sku ?? "",
     nombreCanonico: producto?.nombreCanonico ?? "",
@@ -470,22 +491,45 @@ function ProductoModal({
 
   const guardar = useMutation({
     mutationFn: async () => {
-      const parsed = crearProductoRequestSchema.safeParse({
-        ...campos,
-        esProducido: true,
-      });
-      if (!parsed.success) throw new Error("Revise los campos del producto");
+      let precioBaseCentavos: number | null | undefined = undefined;
+      if (canPrecio) {
+        if (precioText.trim() === "") {
+          precioBaseCentavos = null;
+        } else {
+          try {
+            precioBaseCentavos = quetzalesTextoACentavos(precioText);
+            setPrecioError(null);
+          } catch (err) {
+            setPrecioError(
+              err instanceof Error ? err.message : "Precio inválido",
+            );
+            throw new Error("Revise el precio base");
+          }
+        }
+      }
 
       let productoId = producto?.id;
       if (producto) {
+        const parsed = editarProductoRequestSchema.parse({
+          ...campos,
+          esProducido: producto.esProducido,
+          ...(canPrecio ? { precioBaseCentavos } : {}),
+        });
         await api(`/productos/${producto.id}`, {
           method: "PATCH",
-          body: JSON.stringify(parsed.data),
+          body: JSON.stringify(parsed),
         });
       } else {
+        const parsed = crearProductoRequestSchema.parse({
+          ...campos,
+          esProducido: true,
+          ...(canPrecio && precioBaseCentavos != null
+            ? { precioBaseCentavos }
+            : {}),
+        });
         const creado = await api<ProductoPublico>("/productos", {
           method: "POST",
-          body: JSON.stringify(parsed.data),
+          body: JSON.stringify(parsed),
         });
         productoId = creado.id;
       }
@@ -631,6 +675,28 @@ function ProductoModal({
                   options={PUNTOS}
                   onChange={(v) => set("puntoCarga")(v as ProductoPublico["puntoCarga"])}
                 />
+                {canPrecio && (
+                  <TextField
+                    className="grid gap-1.5"
+                    isInvalid={precioError != null}
+                    value={precioText}
+                    onChange={setPrecioText}
+                  >
+                    <Label>Precio base</Label>
+                    <Description>
+                      Lista de fábrica. Los clientes lo heredan si no tienen precio
+                      propio.
+                    </Description>
+                    <Input
+                      className="tabular-nums"
+                      inputMode="decimal"
+                      placeholder="12.50"
+                    />
+                    {precioError && (
+                      <Description className="text-peligro">{precioError}</Description>
+                    )}
+                  </TextField>
+                )}
               </fieldset>
 
               {error && (

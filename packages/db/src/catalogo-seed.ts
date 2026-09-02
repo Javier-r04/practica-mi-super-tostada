@@ -185,4 +185,28 @@ export const PRODUCTOS_SEED = [
   },
 ] as const;
 
+/** Precios de lista para desarrollo (no reales). Fuente única para seed y mega-seed. */
+export const PRECIOS_BASE_SEED_CENTAVOS: Record<string, number> = {
+  "TORT-16": 1250,
+  "TORT-14": 1100,
+  "TORT-12": 1000,
+  "TORT-10": 900,
+  "TORT-GARN": 1200,
+  "NACH-B-P": 1000,
+  "NACH-B-G": 1800,
+  "NACH-A-G": 1800,
+  "PAL-B": 1200,
+  "PAL-A": 1200,
+  "FAJ-B": 1600,
+  "PAPA-S-P": 600,
+  "PAPA-BBQ-P": 600,
+  "PAPA-S-G": 1400,
+  "PAPA-BBQ-G": 1400,
+  "TOST-16-B": 2000,
+  "TOST-13-B": 1800,
+  "TOST-12-B": 1500,
+  "TOST-BOQ": 1400,
+  "CANAST-A": 1200,
+};
+
 export type ProductoSeed = (typeof PRODUCTOS_SEED)[number];

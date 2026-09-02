@@ -32,6 +32,7 @@ export const crearProductoRequestSchema = z.object({
   unidadMedida: z.enum(UNIDADES_MEDIDA),
   puntoCarga: z.enum(PUNTOS_CARGA),
   esProducido: z.boolean().default(true),
+  precioBaseCentavos: centavosSchema.nonnegative().nullable().optional(),
   fotoAssetId: z.string().uuid().nullable().optional(),
   orden: z.number().int().nonnegative().optional(),
 });
@@ -45,6 +46,7 @@ export const editarProductoRequestSchema = z.object({
   unidadMedida: z.enum(UNIDADES_MEDIDA).optional(),
   puntoCarga: z.enum(PUNTOS_CARGA).optional(),
   esProducido: z.boolean().optional(),
+  precioBaseCentavos: centavosSchema.nonnegative().nullable().optional(),
   fotoAssetId: z.string().uuid().nullable().optional(),
   orden: z.number().int().nonnegative().optional(),
 });
@@ -68,6 +70,7 @@ export const productoPublicoSchema = z.object({
   unidadMedida: z.enum(UNIDADES_MEDIDA),
   puntoCarga: z.enum(PUNTOS_CARGA),
   esProducido: z.boolean(),
+  precioBaseCentavos: z.number().int().nullable(),
   fotoAssetId: z.string().uuid().nullable(),
   orden: z.number().int(),
   activo: z.boolean(),
@@ -133,7 +136,9 @@ export const clienteProductoFilaSchema = z.object({
   puntoCarga: z.enum(PUNTOS_CARGA),
   productoActivo: z.boolean(),
   alias: z.string().nullable(),
+  /** Override del cliente; null hereda precioBaseCentavos. */
   precioCentavos: z.number().int().nullable(),
+  precioBaseCentavos: z.number().int().nullable(),
   notaProduccion: z.string().nullable(),
   favorito: z.boolean(),
   orden: z.number().int(),
@@ -176,9 +181,24 @@ export const importReporteSchema = z.object({
 
 export type ImportReporte = z.infer<typeof importReporteSchema>;
 
+/** Precio de captura: override del cliente, o base del catálogo si no hay override. */
+export function precioEfectivoCentavos(input: {
+  precioClienteCentavos: number | null;
+  precioBaseCentavos: number | null;
+}): number | null {
+  return input.precioClienteCentavos ?? input.precioBaseCentavos;
+}
+
+export const CATALOGO_SSE_TIPOS = [
+  "producto.precio",
+  "cliente_producto.precio",
+] as const;
+
+export type CatalogoSseTipo = (typeof CATALOGO_SSE_TIPOS)[number];
+
 export const PLANTILLAS_CSV: Record<ImportTipo, string> = {
   productos:
-    "sku,nombre_canonico,familia,unidad_medida,punto_carga,es_producido,orden\n",
+    "sku,nombre_canonico,familia,unidad_medida,punto_carga,es_producido,precio_base,orden\n",
   clientes:
     "nombre,contacto,telefono_wa,horario_entrega_fijo,notas_permanentes,limite_facturas_pendientes\n",
   cliente_producto:

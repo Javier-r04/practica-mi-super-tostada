@@ -18,6 +18,7 @@ import {
   portalPedidoResumenSchema,
   portalProductoSchema,
   portalSesionSchema,
+  precioEfectivoCentavos,
   estadoFactura,
   saludoPortalDe,
   totalPedidoCentavos,
@@ -433,7 +434,10 @@ export class PortalService {
 
     const filas = productos.map((p) => {
       const liga = ligaPorProducto.get(p.id);
-      const precioCentavos = liga?.precioCentavos ?? null;
+      const precioCentavos = precioEfectivoCentavos({
+        precioClienteCentavos: liga?.precioCentavos ?? null,
+        precioBaseCentavos: p.precioBaseCentavos ?? null,
+      });
       const alias = liga?.alias?.trim() || p.nombreCanonico;
       return portalProductoSchema.parse({
         productoId: p.id,

@@ -13,7 +13,7 @@ import postgres from "postgres";
 import * as argon2 from "argon2";
 import { PERMISO_DESCRIPCION, PERMISOS } from "@misupertostada/shared";
 import * as schema from "./schema";
-import { PRODUCTOS_SEED } from "./catalogo-seed";
+import { PRODUCTOS_SEED, PRECIOS_BASE_SEED_CENTAVOS } from "./catalogo-seed";
 import { sembrarVentanaSemanal } from "./ventana-semanal";
 
 config({ path: resolve(import.meta.dir, "../../../.env") });
@@ -304,6 +304,7 @@ export async function seed(databaseUrl: string) {
         PRODUCTOS.map((p) => ({
           organizacionId: ORG_ID,
           ...p,
+          precioBaseCentavos: PRECIOS_BASE_SEED_CENTAVOS[p.sku] ?? null,
         })),
       )
       .onConflictDoUpdate({
@@ -315,6 +316,7 @@ export async function seed(databaseUrl: string) {
           puntoCarga: sql`excluded.punto_carga`,
           esProducido: sql`excluded.es_producido`,
           orden: sql`excluded.orden`,
+          precioBaseCentavos: sql`excluded.precio_base_centavos`,
           activo: true,
         },
       });
@@ -409,31 +411,26 @@ export async function seed(databaseUrl: string) {
     if (tabascoCasaVieja && process.env.NODE_ENV !== "production") {
       const demoTortilla: Record<
         string,
-        { alias: string; precioCentavos: number; favorito: boolean }
+        { alias: string; favorito: boolean }
       > = {
         "TORT-16": {
           alias: "tortilla grande",
-          precioCentavos: 1250,
           favorito: true,
         },
         "TORT-14": {
           alias: "tortilla mediana",
-          precioCentavos: 1100,
           favorito: true,
         },
         "TORT-12": {
           alias: "tortilla pequeña",
-          precioCentavos: 1000,
           favorito: true,
         },
         "TORT-10": {
           alias: "tortilla mini",
-          precioCentavos: 900,
           favorito: true,
         },
         "TORT-GARN": {
           alias: "tortilla garnacha",
-          precioCentavos: 1200,
           favorito: false,
         },
       };
@@ -444,7 +441,6 @@ export async function seed(databaseUrl: string) {
           .update(schema.clienteProducto)
           .set({
             alias: demo.alias,
-            precioCentavos: demo.precioCentavos,
             favorito: demo.favorito,
             notaProduccion: "GRUESA",
           })
@@ -472,7 +468,7 @@ export async function seed(databaseUrl: string) {
             clienteId: tabascoCasaVieja.id,
             productoId: nachosBlancosP.id,
             alias: "nachos blancos pequeños",
-            precioCentavos: 1000,
+            precioCentavos: null,
             favorito: false,
             orden: 10,
           })
@@ -481,7 +477,6 @@ export async function seed(databaseUrl: string) {
           .update(schema.clienteProducto)
           .set({
             alias: "nachos blancos pequeños",
-            precioCentavos: 1000,
           })
           .where(
             and(
@@ -532,7 +527,7 @@ export async function seed(databaseUrl: string) {
         `[seed] Portal Tabasco Casa Vieja: http://localhost:3000/p/dev-tabasco-casa-vieja-portal-token`,
       );
       console.log(
-        "[seed] Precios de demo en tortillas No. 16/14/12/10/garnachas y nachos.",
+        "[seed] Precios base en catálogo; alias de demo en Tabasco Casa Vieja.",
       );
     }
 
@@ -565,7 +560,7 @@ export async function seed(databaseUrl: string) {
           .values({
             clienteId: kraken.id,
             productoId: fajitas.id,
-            precioCentavos: 1600,
+            precioCentavos: null,
             orden: 1,
           })
           .onConflictDoNothing();

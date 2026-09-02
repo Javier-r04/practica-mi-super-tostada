@@ -587,6 +587,7 @@ async function elegirItems(
     const cantidad = Math.max(1, Math.round(base * mult));
     const precio =
       precioCentavos ??
+      producto.precioBaseCentavos ??
       PRECIOS_DEMO_CENTAVOS[producto.sku] ??
       (producto.familia === "TORTILLA" ? 1100 : 1400);
     return {

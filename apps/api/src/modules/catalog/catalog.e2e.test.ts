@@ -21,15 +21,17 @@ import { ProductosService } from "./productos.service";
 import { ClientesService } from "./clientes.service";
 import { ClienteProductoService } from "./cliente-producto.service";
 import { ImportService } from "./import.service";
+import { PedidoEvents } from "../shared/panel-events";
 
 const listo = await postgresListo();
 
 async function fixture() {
   const { client, db } = openTestDb();
   const audit = new AuditWriter(db);
-  const productos = new ProductosService(db, audit);
+  const events = new PedidoEvents();
+  const productos = new ProductosService(db, audit, events);
   const clientes = new ClientesService(db, audit);
-  const clienteProductoSvc = new ClienteProductoService(db, audit, clientes);
+  const clienteProductoSvc = new ClienteProductoService(db, audit, clientes, events);
   const importSvc = new ImportService(
     db,
     audit,
@@ -130,6 +132,7 @@ describe.skipIf(!listo)("catálogo E1", () => {
       const filas = await f.clienteProductoSvc.listar(cli.id, f.actor);
       const ligada = filas.find((r) => r.productoId === creado.id);
       expect(ligada?.precioCentavos).toBe(1250);
+      expect(ligada?.precioBaseCentavos).toBeNull();
       expect(ligada?.alias).toBe("grande");
       expect(ligada?.ligado).toBe(true);
 

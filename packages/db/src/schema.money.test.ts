@@ -12,10 +12,12 @@ import {
   outbox,
   pago,
   pedidoItem,
+  producto,
 } from "./schema";
 
 const COLUMNAS_DINERO = [
   clienteProducto.precioCentavos,
+  producto.precioBaseCentavos,
   pedidoItem.precioUnitarioCentavos,
   factura.montoCentavos,
   pago.montoCentavos,
@@ -37,6 +39,7 @@ describe("columnas de dinero", () => {
     expect(Object.keys(getTableColumns(clienteProducto))).toContain(
       "precioCentavos",
     );
+    expect(Object.keys(getTableColumns(producto))).toContain("precioBaseCentavos");
   });
 });
 

@@ -6,7 +6,37 @@ import {
   importarCsvRequestSchema,
   PLANTILLAS_CSV,
   upsertClienteProductoRequestSchema,
+  precioEfectivoCentavos,
 } from "./catalog";
+
+describe("precioEfectivoCentavos", () => {
+  test("override del cliente gana sobre el base", () => {
+    expect(
+      precioEfectivoCentavos({
+        precioClienteCentavos: 1300,
+        precioBaseCentavos: 1250,
+      }),
+    ).toBe(1300);
+  });
+
+  test("sin override hereda el base", () => {
+    expect(
+      precioEfectivoCentavos({
+        precioClienteCentavos: null,
+        precioBaseCentavos: 1250,
+      }),
+    ).toBe(1250);
+  });
+
+  test("sin ninguno devuelve null", () => {
+    expect(
+      precioEfectivoCentavos({
+        precioClienteCentavos: null,
+        precioBaseCentavos: null,
+      }),
+    ).toBeNull();
+  });
+});
 
 describe("crearProductoRequestSchema", () => {
   test("normaliza SKU a mayúsculas", () => {

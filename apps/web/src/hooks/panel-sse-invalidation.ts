@@ -24,6 +24,7 @@ const CLAVES_ENTREGA: string[][] = [
 const CLAVES_FACTURA: string[][] = [["cartera"], ["pedidos"], ["tablero"]];
 const CLAVES_PAGO: string[][] = [["cartera"], ["cuadre"], ["ruta"], ["tablero"]];
 const CLAVES_MENSAJE: string[][] = [["conversaciones"]];
+const CLAVES_CATALOGO: string[][] = [["productos"], ["clientes"]];
 
 const CLAVES_RECONEXION: string[][] = [
   ["pedidos"],
@@ -35,6 +36,8 @@ const CLAVES_RECONEXION: string[][] = [
   ["cuadre"],
   ["tablero"],
   ["conversaciones"],
+  ["productos"],
+  ["clientes"],
 ];
 
 export function clavesAInvalidar(evento: PanelSseEvent): string[][] {
@@ -59,6 +62,9 @@ export function clavesAInvalidar(evento: PanelSseEvent): string[][] {
     case "mensaje.nuevo":
     case "mensaje.estado":
       return CLAVES_MENSAJE;
+    case "producto.precio":
+    case "cliente_producto.precio":
+      return CLAVES_CATALOGO;
   }
 }
 

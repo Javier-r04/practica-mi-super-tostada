@@ -25,6 +25,7 @@ import {
   FAMILIA_ETIQUETA,
   crearClienteRequestSchema,
   formatearCentavos,
+  precioEfectivoCentavos,
   quetzalesTextoACentavos,
   tienePermiso,
   type ActorPublico,
@@ -479,7 +480,8 @@ export default function ClienteFichaPage() {
                       </Table.Column>
                       <Table.Column id="familia">Familia</Table.Column>
                       <Table.Column id="alias">Alias</Table.Column>
-                      <Table.Column id="precio">Precio</Table.Column>
+                      <Table.Column id="precio_base">Base</Table.Column>
+                      <Table.Column id="precio">Precio cliente</Table.Column>
                       <Table.Column id="nota">Nota producción</Table.Column>
                       <Table.Column id="favorito">Favorito</Table.Column>
                     </Table.Header>
@@ -523,6 +525,9 @@ export default function ClienteFichaPage() {
                               }
                             />
                           </Table.Cell>
+                          <Table.Cell className="text-right text-tinta-500">
+                            <Money centavos={fila.precioBaseCentavos} />
+                          </Table.Cell>
                           <Table.Cell className="text-right">
                             {canPrecio ? (
                               <InlinePrecio
@@ -544,7 +549,12 @@ export default function ClienteFichaPage() {
                                 }
                               />
                             ) : (
-                              <Money centavos={fila.precioCentavos} />
+                              <Money
+                                centavos={precioEfectivoCentavos({
+                                  precioClienteCentavos: fila.precioCentavos,
+                                  precioBaseCentavos: fila.precioBaseCentavos,
+                                })}
+                              />
                             )}
                           </Table.Cell>
                           <Table.Cell>
@@ -957,8 +967,11 @@ function InlinePrecio({
       <Input
         className="text-right tabular-nums"
         inputMode="decimal"
-        placeholder="Q"
-      />
+      placeholder="Q"
+    />
+    <Description className="text-tinta-500">
+      Vacío hereda el precio base del catálogo.
+    </Description>
       {error && <Description className="text-peligro">{error}</Description>}
     </TextField>
   );

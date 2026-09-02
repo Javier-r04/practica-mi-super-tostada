@@ -20,6 +20,7 @@ import {
   FAMILIA_ETIQUETA,
   UNIDAD_CORTA,
   totalPedidoCentavos,
+  precioEfectivoCentavos,
   type CalendarioAhora,
   type ClienteProductoFila,
   type ClientePublico,
@@ -119,7 +120,13 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
       const fila = productos.data?.find((p) => p.productoId === item.productoId);
       return {
         cantidad: item.cantidad,
-        precioUnitarioCentavos: fila?.precioCentavos ?? 0,
+        precioUnitarioCentavos:
+          fila
+            ? (precioEfectivoCentavos({
+                precioClienteCentavos: fila.precioCentavos,
+                precioBaseCentavos: fila.precioBaseCentavos,
+              }) ?? 0)
+            : 0,
       };
     }),
   );
@@ -363,7 +370,11 @@ function CapturaFila({
 }) {
   const alias = fila.alias?.trim() || fila.nombreCanonico;
   const unidad = UNIDAD_CORTA[fila.unidadMedida];
-  const pedible = fila.precioCentavos != null;
+  const precioEfectivo = precioEfectivoCentavos({
+    precioClienteCentavos: fila.precioCentavos,
+    precioBaseCentavos: fila.precioBaseCentavos,
+  });
+  const pedible = precioEfectivo != null;
   return (
     <div
       className={cn(
@@ -387,7 +398,7 @@ function CapturaFila({
           {" · "}
           {pedible ? (
             <>
-              <Money centavos={fila.precioCentavos} tone="muted" /> / {unidad}
+              <Money centavos={precioEfectivo} tone="muted" /> / {unidad}
             </>
           ) : (
             "Sin precio — no pedible"

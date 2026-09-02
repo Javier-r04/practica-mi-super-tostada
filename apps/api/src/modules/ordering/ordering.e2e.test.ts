@@ -72,11 +72,11 @@ async function fixture(clock: Clock) {
   const audit = new AuditWriter(db);
   const outboxWriter = new OutboxWriter(db);
   const calendar = new BusinessCalendarService(db, clock);
-  const productos = new ProductosService(db, audit);
-  const clientes = new ClientesService(db, audit);
-  const ligas = new ClienteProductoService(db, audit, clientes);
-  const tokens = new PortalTokenService(db);
   const events = new PedidoEvents();
+  const productos = new ProductosService(db, audit, events);
+  const clientes = new ClientesService(db, audit);
+  const ligas = new ClienteProductoService(db, audit, clientes, events);
+  const tokens = new PortalTokenService(db);
   const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
   const storage = new FakeStorageAdapter();
   const variants = new AssetVariantsJob(db, storage);

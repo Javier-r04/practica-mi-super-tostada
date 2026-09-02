@@ -201,6 +201,8 @@ export const producto = pgTable(
     puntoCarga: puntoCargaEnum("punto_carga").notNull(),
     esProducido: boolean("es_producido").notNull().default(true),
     fotoAssetId: uuid("foto_asset_id"),
+    /** Precio de lista. Los clientes sin override en cliente_producto lo heredan. */
+    precioBaseCentavos: integer("precio_base_centavos"),
     orden: integer("orden").notNull().default(0),
     activo: boolean("activo").notNull().default(true),
     ...timestamps,

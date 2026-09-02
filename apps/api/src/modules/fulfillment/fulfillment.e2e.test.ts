@@ -63,9 +63,9 @@ async function fixture(clock: Clock) {
   const domainEventsWriter = new DomainEventWriter(db);
   const calendar = new BusinessCalendarService(db, clock);
   const events = new PedidoEvents();
-  const productos = new ProductosService(db, audit);
+  const productos = new ProductosService(db, audit, events);
   const clientes = new ClientesService(db, audit);
-  const ligas = new ClienteProductoService(db, audit, clientes);
+  const ligas = new ClienteProductoService(db, audit, clientes, events);
   const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
   const hoja = new HojaService(db, calendar);
   const cierre = new CierreService(

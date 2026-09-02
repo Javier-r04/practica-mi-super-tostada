@@ -112,6 +112,7 @@ export class ImportService {
     aplicar: boolean,
     vistos: Set<string>,
   ): Promise<void> {
+    const precioBaseTexto = (row.precio_base ?? "").trim();
     const parsed = crearProductoRequestSchema.parse({
       sku: col(row, "sku"),
       nombreCanonico: col(row, "nombre_canonico"),
@@ -119,6 +120,9 @@ export class ImportService {
       unidadMedida: col(row, "unidad_medida"),
       puntoCarga: col(row, "punto_carga"),
       esProducido: parseBool(row.es_producido ?? "", true),
+      ...(precioBaseTexto
+        ? { precioBaseCentavos: quetzalesTextoACentavos(precioBaseTexto) }
+        : {}),
       orden: parseEnteroOpcional(row.orden ?? "") ?? undefined,
     });
     if (vistos.has(parsed.sku)) {

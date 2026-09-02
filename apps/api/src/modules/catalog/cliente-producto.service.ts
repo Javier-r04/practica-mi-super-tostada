@@ -11,6 +11,7 @@ import {
 import { DRIZZLE } from "../shared/tokens";
 import type { AppDatabase } from "../shared/database.module";
 import { AuditWriter } from "../shared/audit.writer";
+import { PedidoEvents } from "../shared/panel-events";
 import { DomainException } from "../shared/domain.exception";
 import { parseBody } from "../shared/zod-body";
 import type { Actor } from "../identity/actor";
@@ -22,6 +23,7 @@ export class ClienteProductoService {
     @Inject(DRIZZLE) private readonly db: AppDatabase,
     private readonly audit: AuditWriter,
     private readonly clientes: ClientesService,
+    private readonly events: PedidoEvents,
   ) {}
 
   async listar(clienteId: string, actor: Actor): Promise<ClienteProductoFila[]> {
@@ -48,6 +50,7 @@ export class ClienteProductoService {
         productoActivo: p.activo,
         alias: liga?.alias ?? null,
         precioCentavos: liga?.precioCentavos ?? null,
+        precioBaseCentavos: p.precioBaseCentavos ?? null,
         notaProduccion: liga?.notaProduccion ?? null,
         favorito: liga?.favorito ?? false,
         orden: liga?.orden ?? p.orden,
@@ -164,6 +167,12 @@ export class ClienteProductoService {
         despues: { precioCentavos: input.precioCentavos ?? null },
         ip: actor.ip,
         userAgent: actor.userAgent,
+      });
+      this.events.emit({
+        organizacionId: actor.organizacionId,
+        tipo: "cliente_producto.precio",
+        productoId,
+        clienteId,
       });
     }
 

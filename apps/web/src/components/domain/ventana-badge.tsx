@@ -81,26 +81,37 @@ export function VentanaBadge({
         ? Clock
         : Lock;
 
+  const compacto = size === "sm";
+
   let etiqueta = viva ? "Ventana abierta" : "Ventana cerrada";
   if (reabiertaPedido) {
     etiqueta = "Ventana reabierta";
   } else if (cierreAnticipado) {
     etiqueta =
-      proximaAperturaAt && restante > 0
+      !compacto && proximaAperturaAt && restante > 0
         ? `Día cerrado · Abre en ${formatearRestante(restante)}`
         : "Día cerrado";
   } else if (tipo === "whatsapp") {
-    etiqueta = viva ? `24 h · ${formatearRestante(restante)}` : "24 h cerrada";
+    etiqueta =
+      viva && !compacto
+        ? `24 h · ${formatearRestante(restante)}`
+        : viva
+          ? "24 h"
+          : "24 h cerrada";
   } else if (!reabiertaPedido && viva && cierraAt && restante > 0) {
-    etiqueta = `Ventana abierta · Cierra en ${formatearRestante(restante)}`;
+    etiqueta = compacto
+      ? "Ventana abierta"
+      : `Ventana abierta · Cierra en ${formatearRestante(restante)}`;
   } else if (!reabiertaPedido && !viva && proximaAperturaAt && restante > 0) {
-    etiqueta = `Ventana cerrada · Abre en ${formatearRestante(restante)}`;
+    etiqueta = compacto
+      ? "Ventana cerrada"
+      : `Ventana cerrada · Abre en ${formatearRestante(restante)}`;
   }
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-pill font-semibold tabular-nums",
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill font-semibold tabular-nums",
         size === "sm" ? "h-[22px] px-2 text-[12px]" : "h-7 px-3 text-xs",
         reabiertaPedido || cierreAnticipado
           ? "bg-[var(--amber-100)] text-[var(--amber-700)]"

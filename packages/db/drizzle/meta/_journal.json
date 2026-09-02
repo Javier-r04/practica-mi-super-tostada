@@ -92,6 +92,13 @@
       "when": 1787310000000,
       "tag": "0013_abono",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787320000000,
+      "tag": "0014_producto_precio_base",
+      "breakpoints": true
     }
   ]
 }

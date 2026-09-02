@@ -62,6 +62,53 @@ describe("stream del portal", () => {
     sub.unsubscribe();
   });
 
+  test("producto.precio llega a todos; cliente_producto.precio solo al dueño", () => {
+    const bus = new PedidoEvents();
+    const vistosCliente: string[] = [];
+    const vistosOtro: string[] = [];
+    const subCliente = bus
+      .stream(ORG)
+      .pipe(filter(({ data }) => visibleParaCliente(data, CLIENTE)))
+      .subscribe(({ data }) => {
+        if (data.tipo !== "heartbeat") vistosCliente.push(data.tipo);
+      });
+    const subOtro = bus
+      .stream(ORG)
+      .pipe(filter(({ data }) => visibleParaCliente(data, OTRO)))
+      .subscribe(({ data }) => {
+        if (data.tipo !== "heartbeat") vistosOtro.push(data.tipo);
+      });
+
+    bus.emit({
+      organizacionId: ORG,
+      tipo: "producto.precio",
+      productoId: PEDIDO,
+    });
+    bus.emit({
+      organizacionId: ORG,
+      tipo: "cliente_producto.precio",
+      productoId: PEDIDO,
+      clienteId: CLIENTE,
+    });
+    bus.emit({
+      organizacionId: ORG,
+      tipo: "cliente_producto.precio",
+      productoId: PEDIDO,
+      clienteId: OTRO,
+    });
+
+    expect(vistosCliente).toEqual([
+      "producto.precio",
+      "cliente_producto.precio",
+    ]);
+    expect(vistosOtro).toEqual([
+      "producto.precio",
+      "cliente_producto.precio",
+    ]);
+    subCliente.unsubscribe();
+    subOtro.unsubscribe();
+  });
+
   test("el latido siempre pasa", () => {
     expect(visibleParaCliente({ tipo: "heartbeat" }, CLIENTE)).toBe(true);
   });

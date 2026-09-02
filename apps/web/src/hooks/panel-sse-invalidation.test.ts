@@ -110,6 +110,22 @@ describe("clavesAInvalidar", () => {
     });
     expect(claves).toEqual([["conversaciones"]]);
   });
+
+  test("cambio de precio en catálogo refresca productos y clientes", () => {
+    const base: PanelSseEvent = {
+      tipo: "producto.precio",
+      productoId: PEDIDO,
+    };
+    const override: PanelSseEvent = {
+      tipo: "cliente_producto.precio",
+      productoId: PEDIDO,
+      clienteId: CLIENTE,
+    };
+    expect(incluye(clavesAInvalidar(base), "productos")).toBe(true);
+    expect(incluye(clavesAInvalidar(base), "clientes")).toBe(true);
+    expect(incluye(clavesAInvalidar(override), "productos")).toBe(true);
+    expect(incluye(clavesAInvalidar(override), "clientes")).toBe(true);
+  });
 });
 
 describe("interpretarMensajeSse", () => {

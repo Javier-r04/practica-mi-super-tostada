@@ -10,6 +10,7 @@ import {
 } from "./estados";
 import { MESSAGING_SSE_TIPOS } from "./messaging";
 import { COBRANZA_SSE_TIPOS } from "./receivables";
+import { CATALOGO_SSE_TIPOS } from "./catalog";
 import {
   DIA_ESTADOS_CALENDARIO,
   formatearFechaLarga,
@@ -418,6 +419,7 @@ export const PANEL_SSE_TIPOS = [
   ...OPERACION_SSE_TIPOS,
   ...COBRANZA_SSE_TIPOS,
   ...MESSAGING_SSE_TIPOS,
+  ...CATALOGO_SSE_TIPOS,
 ] as const;
 
 export const pedidoSseEventSchema = z.object({
@@ -448,6 +450,15 @@ export const panelSseEventSchema = z.union([
     conversacionId: z.string().uuid().optional(),
     mensajeId: z.string().uuid().optional(),
     clienteId: z.string().uuid().optional(),
+  }),
+  z.object({
+    tipo: z.literal("producto.precio"),
+    productoId: z.string().uuid(),
+  }),
+  z.object({
+    tipo: z.literal("cliente_producto.precio"),
+    productoId: z.string().uuid(),
+    clienteId: z.string().uuid(),
   }),
 ]);
 

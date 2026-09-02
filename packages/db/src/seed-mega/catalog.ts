@@ -1,30 +1,9 @@
 /** Catálogo de demo para el mega-seed (precios de prueba, no reales). */
 
-import { PRODUCTOS_SEED } from "../catalogo-seed";
+import { PRODUCTOS_SEED, PRECIOS_BASE_SEED_CENTAVOS } from "../catalogo-seed";
 
 /** Precios demo por SKU del catálogo oficial. */
-export const PRECIOS_DEMO_CENTAVOS: Record<string, number> = {
-  "TORT-16": 1250,
-  "TORT-14": 1100,
-  "TORT-12": 1000,
-  "TORT-10": 900,
-  "TORT-GARN": 1200,
-  "NACH-B-P": 1000,
-  "NACH-B-G": 1800,
-  "NACH-A-G": 1800,
-  "PAL-B": 1200,
-  "PAL-A": 1200,
-  "FAJ-B": 1600,
-  "PAPA-S-P": 600,
-  "PAPA-BBQ-P": 600,
-  "PAPA-S-G": 1400,
-  "PAPA-BBQ-G": 1400,
-  "TOST-16-B": 2000,
-  "TOST-13-B": 1800,
-  "TOST-12-B": 1500,
-  "TOST-BOQ": 1400,
-  "CANAST-A": 1200,
-};
+export const PRECIOS_DEMO_CENTAVOS = PRECIOS_BASE_SEED_CENTAVOS;
 
 /** Alias comercial por cliente (cómo lo piden); no va al consolidado de producción. */
 export const ALIAS_DEMO: Record<string, string> = {

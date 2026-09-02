@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   horaEnZona,
+  precioEfectivoCentavos,
   totalPedidoCentavos,
   type ClienteProductoFila,
   type PedidoDetalle as PedidoDetalleDto,
@@ -223,8 +224,13 @@ export function PedidoDetalle({
 
   function agregarProducto(productoId: string) {
     const fila = agregables.find((f) => f.productoId === productoId);
-    if (!fila || fila.precioCentavos == null) return;
-    const precio = fila.precioCentavos;
+    const precio = fila
+      ? precioEfectivoCentavos({
+          precioClienteCentavos: fila.precioCentavos,
+          precioBaseCentavos: fila.precioBaseCentavos,
+        })
+      : null;
+    if (!fila || precio == null) return;
     userEditedRef.current = true;
     setItems((prev) => [
       ...prev,

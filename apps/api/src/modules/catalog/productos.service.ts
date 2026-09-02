@@ -6,11 +6,13 @@ import {
   editarProductoRequestSchema,
   productoPublicoSchema,
   reordenarProductosRequestSchema,
+  tienePermiso,
   type ProductoPublico,
 } from "@misupertostada/shared";
 import { DRIZZLE } from "../shared/tokens";
 import type { AppDatabase } from "../shared/database.module";
 import { AuditWriter } from "../shared/audit.writer";
+import { PedidoEvents } from "../shared/panel-events";
 import { DomainException } from "../shared/domain.exception";
 import { parseBody } from "../shared/zod-body";
 import type { Actor } from "../identity/actor";
@@ -21,6 +23,7 @@ export class ProductosService {
   constructor(
     @Inject(DRIZZLE) private readonly db: AppDatabase,
     private readonly audit: AuditWriter,
+    private readonly events: PedidoEvents,
   ) {}
 
   async listar(actor: Actor): Promise<ProductoPublico[]> {
@@ -34,6 +37,16 @@ export class ProductosService {
 
   async crear(body: unknown, actor: Actor): Promise<ProductoPublico> {
     const input = parseBody(crearProductoRequestSchema, body);
+    const cambiaPrecioBase =
+      Object.prototype.hasOwnProperty.call(input, "precioBaseCentavos") &&
+      input.precioBaseCentavos != null;
+    if (cambiaPrecioBase && !tienePermiso(actor.permisos, "precios.cambiar")) {
+      throw new DomainException(
+        "PERMISO_DENEGADO",
+        "No tiene permiso para cambiar precios",
+        403,
+      );
+    }
     const orden =
       input.orden ?? (await this.siguienteOrden(actor.organizacionId, input.familia));
     try {
@@ -47,6 +60,7 @@ export class ProductosService {
           unidadMedida: input.unidadMedida,
           puntoCarga: input.puntoCarga,
           esProducido: input.esProducido,
+          precioBaseCentavos: input.precioBaseCentavos ?? null,
           fotoAssetId: input.fotoAssetId ?? null,
           orden,
           activo: true,
@@ -65,6 +79,24 @@ export class ProductosService {
         ip: actor.ip,
         userAgent: actor.userAgent,
       });
+      if (row.precioBaseCentavos != null) {
+        await this.audit.insert({
+          actorTipo: "usuario",
+          actorId: actor.usuarioId,
+          accion: "productos.precio",
+          entidad: "producto",
+          entidadId: row.id,
+          antes: { precioBaseCentavos: null },
+          despues: { precioBaseCentavos: row.precioBaseCentavos },
+          ip: actor.ip,
+          userAgent: actor.userAgent,
+        });
+        this.events.emit({
+          organizacionId: actor.organizacionId,
+          tipo: "producto.precio",
+          productoId: row.id,
+        });
+      }
       return presentarProducto(row);
     } catch (err) {
       if (esViolacionUnica(err)) {
@@ -77,6 +109,17 @@ export class ProductosService {
   async editar(id: string, body: unknown, actor: Actor): Promise<ProductoPublico> {
     const input = parseBody(editarProductoRequestSchema, body);
     const actual = await this.owned(id, actor.organizacionId);
+    const precioBaseAnterior = actual.precioBaseCentavos ?? null;
+    const cambiaPrecioBase =
+      Object.prototype.hasOwnProperty.call(input, "precioBaseCentavos") &&
+      input.precioBaseCentavos !== precioBaseAnterior;
+    if (cambiaPrecioBase && !tienePermiso(actor.permisos, "precios.cambiar")) {
+      throw new DomainException(
+        "PERMISO_DENEGADO",
+        "No tiene permiso para cambiar precios",
+        403,
+      );
+    }
     try {
       const [row] = await this.db
         .update(producto)
@@ -87,6 +130,9 @@ export class ProductosService {
           unidadMedida: input.unidadMedida ?? actual.unidadMedida,
           puntoCarga: input.puntoCarga ?? actual.puntoCarga,
           esProducido: input.esProducido ?? actual.esProducido,
+          precioBaseCentavos: cambiaPrecioBase
+            ? (input.precioBaseCentavos ?? null)
+            : precioBaseAnterior,
           fotoAssetId:
             input.fotoAssetId === undefined ? actual.fotoAssetId : input.fotoAssetId,
           orden: input.orden ?? actual.orden,
@@ -107,6 +153,24 @@ export class ProductosService {
         ip: actor.ip,
         userAgent: actor.userAgent,
       });
+      if (cambiaPrecioBase) {
+        await this.audit.insert({
+          actorTipo: "usuario",
+          actorId: actor.usuarioId,
+          accion: "productos.precio",
+          entidad: "producto",
+          entidadId: id,
+          antes: { precioBaseCentavos: precioBaseAnterior },
+          despues: { precioBaseCentavos: input.precioBaseCentavos ?? null },
+          ip: actor.ip,
+          userAgent: actor.userAgent,
+        });
+        this.events.emit({
+          organizacionId: actor.organizacionId,
+          tipo: "producto.precio",
+          productoId: id,
+        });
+      }
       return presentarProducto(row);
     } catch (err) {
       if (esViolacionUnica(err)) {
@@ -237,6 +301,7 @@ function presentarProducto(row: typeof producto.$inferSelect): ProductoPublico {
     unidadMedida: row.unidadMedida,
     puntoCarga: row.puntoCarga,
     esProducido: row.esProducido,
+    precioBaseCentavos: row.precioBaseCentavos ?? null,
     fotoAssetId: row.fotoAssetId ?? null,
     orden: row.orden,
     activo: row.activo,

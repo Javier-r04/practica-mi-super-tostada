@@ -1,6 +1,7 @@
 import {
   FAMILIA_ETIQUETA,
   FAMILIAS,
+  precioEfectivoCentavos,
   type ClienteProductoFila,
   type Familia,
   type PedidoBandeja,
@@ -132,7 +133,10 @@ export function productosAgregables(
   return catalogo.filter(
     (f) =>
       f.productoActivo &&
-      f.precioCentavos != null &&
+      precioEfectivoCentavos({
+        precioClienteCentavos: f.precioCentavos,
+        precioBaseCentavos: f.precioBaseCentavos,
+      }) != null &&
       !productoIdsEnPedido.has(f.productoId),
   );
 }

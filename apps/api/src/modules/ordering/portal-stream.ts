@@ -21,5 +21,9 @@ export function visibleParaCliente(
   if ((OPERACION_SSE_TIPOS as readonly string[]).includes(data.tipo)) {
     return true;
   }
+  if (data.tipo === "producto.precio") return true;
+  if (data.tipo === "cliente_producto.precio") {
+    return "clienteId" in data && data.clienteId === clienteId;
+  }
   return "clienteId" in data && data.clienteId === clienteId;
 }
