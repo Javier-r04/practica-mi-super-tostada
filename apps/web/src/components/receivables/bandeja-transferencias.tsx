@@ -80,18 +80,27 @@ export function BandejaTransferencias({
             key={a.id}
             className="grid gap-3 rounded-[calc(var(--radius-card)-0.25rem)] border border-[var(--border-subtle)] bg-blanco p-3"
           >
-            <div className="flex items-start gap-3">
+            <div className="flex min-w-0 items-start gap-3">
               <ClienteAvatar nombre={a.clienteNombre ?? "?"} size="sm" />
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-tinta-900">
+                <p className="truncate font-semibold text-tinta-900">
                   {a.clienteNombre ?? "Cliente"}
                 </p>
-                <p className="mt-0.5 text-xs text-tinta-500">{a.fecha}</p>
+                <p className="mt-0.5 text-xs tabular-nums text-tinta-500">
+                  {a.fecha}
+                </p>
                 {a.descripcion ? (
-                  <p className="mt-1 text-sm text-tinta-700">{a.descripcion}</p>
+                  <p className="mt-1 text-pretty text-sm text-tinta-700 line-clamp-2">
+                    {a.descripcion}
+                  </p>
                 ) : null}
               </div>
-              <Money centavos={a.montoCentavos} tone="pendiente" />
+              <Money
+                centavos={a.montoCentavos}
+                tone="pendiente"
+                truncate
+                className="shrink-0 text-sm sm:text-base"
+              />
             </div>
             {a.comprobanteAssetId ? (
               <ComprobanteAssetPreview

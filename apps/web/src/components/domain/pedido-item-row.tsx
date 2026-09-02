@@ -40,47 +40,52 @@ export function PedidoItemRow({
   const unidad = UNIDAD_CORTA[unidadMedida];
   const subtotal = cantidad * precioUnitarioCentavos;
   return (
-    <div className="flex min-h-fila items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3">
-      <ProductoThumb
-        nombre={nombreMostrado}
-        fotoAssetId={fotoAssetId}
-        srcPath={fotoSrcPath}
-        size="sm"
-      />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-pretty text-tinta-900">
-          {nombreMostrado}
-        </p>
-        <p className="text-[12px] tabular-nums text-tinta-500">
-          {alias && alias !== nombreMostrado ? `«${alias}» · ` : null}
-          {editable ? null : (
-            <>
-              {cantidad} {unidad} ×{" "}
-              <Money centavos={precioUnitarioCentavos} tone="muted" />
-            </>
-          )}
-          {editable ? (
-            <>
-              <Money centavos={precioUnitarioCentavos} tone="muted" /> / {unidad}
-            </>
-          ) : null}
-        </p>
-        {(puntoCarga || notaProduccion) && (
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {puntoCarga ? <EstadoBadge estado={puntoCarga} size="sm" /> : null}
-            {notaProduccion ? <Tag>{notaProduccion}</Tag> : null}
-          </div>
-        )}
-      </div>
-      {editable && onChangeCantidad ? (
-        <QuantityStepper
-          value={cantidad}
-          onChange={onChangeCantidad}
-          min={1}
-          unidad={unidad}
+    <div className="flex min-w-0 flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-3 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <ProductoThumb
+          nombre={nombreMostrado}
+          fotoAssetId={fotoAssetId}
+          srcPath={fotoSrcPath}
+          size="sm"
         />
-      ) : null}
-      <Money centavos={subtotal} className="tabular-nums" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-pretty text-tinta-900">
+            {nombreMostrado}
+          </p>
+          <p className="min-w-0 truncate text-[12px] tabular-nums text-tinta-500">
+            {alias && alias !== nombreMostrado ? `«${alias}» · ` : null}
+            {editable ? null : (
+              <>
+                {cantidad} {unidad} ×{" "}
+                <Money centavos={precioUnitarioCentavos} tone="muted" truncate />
+              </>
+            )}
+            {editable ? (
+              <>
+                <Money centavos={precioUnitarioCentavos} tone="muted" truncate /> /{" "}
+                {unidad}
+              </>
+            ) : null}
+          </p>
+          {(puntoCarga || notaProduccion) && (
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {puntoCarga ? <EstadoBadge estado={puntoCarga} size="sm" /> : null}
+              {notaProduccion ? <Tag>{notaProduccion}</Tag> : null}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex min-w-0 items-center justify-between gap-3 sm:shrink-0">
+        {editable && onChangeCantidad ? (
+          <QuantityStepper
+            value={cantidad}
+            onChange={onChangeCantidad}
+            min={1}
+            unidad={unidad}
+          />
+        ) : null}
+        <Money centavos={subtotal} truncate className="shrink-0 tabular-nums" />
+      </div>
     </div>
   );
 }

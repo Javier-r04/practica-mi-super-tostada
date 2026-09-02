@@ -95,8 +95,8 @@ function Fila({
           : "flex items-center justify-between gap-4 border-b border-[var(--border-subtle)] px-4 py-2.5"
       }
     >
-      <dt className="text-tinta-500">{etiqueta}</dt>
-      <dd className="font-semibold tabular-nums text-tinta-900">{valor}</dd>
+      <dt className="min-w-0 text-pretty text-tinta-500">{etiqueta}</dt>
+      <dd className="shrink-0 font-semibold tabular-nums text-tinta-900">{valor}</dd>
     </div>
   );
 }

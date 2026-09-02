@@ -127,6 +127,7 @@ export function HistorialCard() {
         {data.isLoading ? (
           <RowSkeleton rows={8} />
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <Table.ScrollContainer>
               <Table.Content
@@ -226,6 +227,7 @@ export function HistorialCard() {
               </Table.Content>
             </Table.ScrollContainer>
           </Table>
+          </div>
         )}
       </Card.Content>
 

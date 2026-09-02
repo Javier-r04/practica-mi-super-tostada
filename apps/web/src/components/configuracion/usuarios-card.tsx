@@ -92,6 +92,7 @@ export function UsuariosCard() {
         {lista.isLoading ? (
           <RowSkeleton rows={4} />
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <Table.ScrollContainer>
               <Table.Content
@@ -162,6 +163,7 @@ export function UsuariosCard() {
               </Table.Content>
             </Table.ScrollContainer>
           </Table>
+          </div>
         )}
       </Card.Content>
 

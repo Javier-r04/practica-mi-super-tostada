@@ -296,7 +296,7 @@ function FacturaCard({
   onPedirDte: (fac: FacturaCartera) => void;
 }) {
   return (
-    <article className="grid gap-2.5 rounded-[calc(var(--radius-card)-0.25rem)] border border-[var(--border-subtle)] bg-blanco p-3">
+    <article className="grid min-w-0 gap-2.5 rounded-[calc(var(--radius-card)-0.25rem)] border border-[var(--border-subtle)] bg-blanco p-3">
       <div className="flex items-start gap-2.5">
         <ClienteAvatar
           fotoAssetId={f.fotoAssetId}
@@ -332,8 +332,8 @@ function FacturaCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 rounded-[calc(var(--radius-card)-0.5rem)] bg-tinta-50 px-2.5 py-2">
-        <span className="mst-label text-[10px]">Saldo</span>
-        <Money centavos={f.saldoCentavos} tone={tonoSaldo(f)} />
+        <span className="mst-label shrink-0 text-[10px]">Saldo</span>
+        <Money centavos={f.saldoCentavos} tone={tonoSaldo(f)} truncate />
       </div>
 
       {!f.numeroDte ? (
@@ -434,7 +434,7 @@ function CarteraPorCliente({
                       <span className="block truncate font-semibold text-tinta-900">
                         {g.nombre}
                       </span>
-                      <span className="mt-0.5 block text-xs tabular-nums font-normal text-tinta-500">
+                      <span className="mt-0.5 block truncate text-xs tabular-nums font-normal text-tinta-500">
                         {g.facturas.length} factura
                         {g.facturas.length === 1 ? "" : "s"}
                         {g.sinDte > 0 ? ` · ${g.sinDte} sin DTE` : ""}
@@ -446,10 +446,21 @@ function CarteraPorCliente({
                     <Money
                       centavos={g.saldoCentavos}
                       tone={g.vencidas > 0 ? "vencido" : "pendiente"}
+                      truncate
+                      className="hidden shrink-0 text-sm sm:block"
                     />
-                    <Disclosure.Indicator />
+                    <Disclosure.Indicator className="shrink-0" />
                   </Button>
                 </Disclosure.Heading>
+                <div className="flex w-full items-center justify-between gap-2 pl-11 sm:hidden">
+                  <span className="mst-label text-[10px]">Saldo</span>
+                  <Money
+                    centavos={g.saldoCentavos}
+                    tone={g.vencidas > 0 ? "vencido" : "pendiente"}
+                    truncate
+                    className="text-sm"
+                  />
+                </div>
                 {cobrable ? (
                   <div className="flex w-full gap-2 sm:w-auto">
                     <Button
@@ -508,7 +519,12 @@ function CarteraPorCliente({
                             ) : null}
                           </div>
                         </div>
-                        <Money centavos={f.saldoCentavos} tone={tonoSaldo(f)} />
+                        <Money
+                          centavos={f.saldoCentavos}
+                          tone={tonoSaldo(f)}
+                          truncate
+                          className="shrink-0 text-sm sm:text-base"
+                        />
                         {f.estado !== "PAGADO" ? (
                           <Button
                             aria-label={

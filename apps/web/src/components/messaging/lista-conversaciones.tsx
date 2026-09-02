@@ -43,7 +43,7 @@ export function ListaConversaciones({
        filas separadas) se mantiene con utilidades. */
     <ListBox
       aria-label="Conversaciones"
-      className="max-h-[min(60vh,520px)] overflow-y-auto p-0 [&>*+*]:mt-0"
+      className="max-h-[min(60dvh,520px)] overflow-y-auto p-0 lg:max-h-[min(60vh,520px)] [&>*+*]:mt-0"
       disallowEmptySelection
       selectedKeys={sel ? new Set([sel]) : new Set<string>()}
       selectionMode="single"

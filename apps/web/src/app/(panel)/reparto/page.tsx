@@ -26,6 +26,7 @@ import { api, ApiError } from "@/lib/api";
 import { PanelShell } from "@/components/layout/panel-shell";
 import { useColaOffline } from "@/hooks/use-cola-offline";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
@@ -458,18 +459,12 @@ function ResumenRuta({
   porCobrarCentavos: number;
 }) {
   if (cargando) {
-    return (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
-        ))}
-      </div>
-    );
+    return <KpiGridSkeleton count={4} />;
   }
 
   return (
-    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Cifra
+    <KpiGrid>
+      <KpiCard
         etiqueta="Entregas"
         valor={
           <>
@@ -479,53 +474,26 @@ function ResumenRuta({
         }
         tono="ok"
       />
-      <Cifra
+      <KpiCard
         etiqueta="Paradas pendientes"
         valor={pendientes}
         tono={pendientes > 0 ? "aviso" : "ok"}
       />
-      <Cifra
+      <KpiCard
         etiqueta="Cobrado hoy"
-        valor={<Money centavos={cobradoHoyCentavos} tone="pagado" />}
+        valor={<Money centavos={cobradoHoyCentavos} tone="pagado" truncate />}
       />
-      <Cifra
+      <KpiCard
         etiqueta="Por cobrar en ruta"
         valor={
           <Money
             centavos={porCobrarCentavos}
             tone={porCobrarCentavos > 0 ? "pendiente" : "muted"}
+            truncate
           />
         }
       />
-    </dl>
-  );
-}
-
-function Cifra({
-  etiqueta,
-  valor,
-  tono = "neutro",
-}: {
-  etiqueta: string;
-  valor: ReactNode;
-  tono?: "neutro" | "ok" | "aviso";
-}) {
-  return (
-    <Card className="gap-1 p-4">
-      <dt className="mst-label text-[11px]">{etiqueta}</dt>
-      <dd
-        className={cn(
-          "text-[22px] font-semibold leading-none tabular-nums",
-          tono === "aviso"
-            ? "text-aviso-700"
-            : tono === "ok"
-              ? "text-marca"
-              : "text-tinta-900",
-        )}
-      >
-        {valor}
-      </dd>
-    </Card>
+    </KpiGrid>
   );
 }
 
@@ -584,7 +552,7 @@ function CabeceraParada({
         Ruta
       </Button>
       <Card className="gap-3 p-4">
-        <Card.Header className="flex-row items-start gap-3">
+        <Card.Header className="flex-col items-start gap-3 sm:flex-row">
           <ClienteAvatar
             nombre={parada.clienteNombre}
             fotoAssetId={parada.fotoAssetId}
@@ -592,7 +560,7 @@ function CabeceraParada({
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Card.Title className="text-[17px] leading-snug text-pretty text-tinta-900">
+              <Card.Title className="min-w-0 text-[17px] leading-snug text-pretty text-tinta-900">
                 {parada.clienteNombre}
               </Card.Title>
               {sinSincronizar && (
@@ -610,7 +578,7 @@ function CabeceraParada({
             <a
               href={`tel:${parada.telefonoWa}`}
               aria-label={`Llamar a ${parada.clienteNombre}`}
-              className="inline-flex h-13 shrink-0 items-center justify-center gap-2 rounded-pill border border-[var(--border-default)] bg-blanco px-5 text-base font-semibold text-tinta-900 shadow-[var(--shadow-xs)] no-underline transition-[border-color,box-shadow] duration-control ease-out hover:border-[var(--border-strong)] hover:bg-tinta-50 hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+              className="inline-flex h-13 w-full shrink-0 items-center justify-center gap-2 rounded-pill border border-[var(--border-default)] bg-blanco px-5 text-base font-semibold text-tinta-900 shadow-[var(--shadow-xs)] no-underline transition-[border-color,box-shadow] duration-control ease-out hover:border-[var(--border-strong)] hover:bg-tinta-50 hover:no-underline focus-visible:outline-none focus-visible:shadow-foco sm:w-auto"
             >
               <Phone size={20} aria-hidden />
               Llamar
@@ -696,14 +664,15 @@ function DetalleEntrega({
               {parada.facturasPendientes} facturas pendientes
             </Card.Description>
           </Card.Header>
-          <Card.Content className="flex-row flex-wrap items-center justify-between gap-3">
+          <Card.Content className="flex-col flex-wrap items-stretch justify-between gap-3 sm:flex-row sm:items-center">
             <Money
               centavos={parada.saldoAnteriorCentavos}
               tone="pendiente"
+              truncate
               className="text-2xl"
             />
             <Button
-              className="min-h-12"
+              className="min-h-12 w-full sm:w-auto"
               isDisabled={!puedeAbrirCobro}
               size="lg"
               variant="secondary"
@@ -799,8 +768,8 @@ function DetalleCobro({
             {parada.facturasPendientes} facturas pendientes
           </Card.Description>
         </Card.Header>
-        <Card.Content className="flex-row flex-wrap items-center gap-2">
-          <Money centavos={saldo} tone="pendiente" className="text-3xl" />
+        <Card.Content className="flex-col flex-wrap items-stretch gap-2 sm:flex-row sm:items-center">
+          <Money centavos={saldo} tone="pendiente" truncate className="text-3xl" />
           {sinSincronizar && <EstadoBadge estado="SIN_SINCRONIZAR" size="sm" />}
         </Card.Content>
       </Card>

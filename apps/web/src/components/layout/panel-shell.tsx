@@ -271,8 +271,9 @@ export function PanelShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-[var(--z-sticky)] flex min-h-topbar items-center gap-3 border-b border-tinta-200/50 bg-blanco/80 backdrop-blur-md px-4 py-2 lg:px-6 shadow-sm">
-          <h1 className="min-w-0 truncate text-lg font-semibold text-tinta-900">
+        <header className="sticky top-0 z-[var(--z-sticky)] flex min-h-topbar items-center gap-2 border-b border-tinta-200/50 bg-blanco/80 backdrop-blur-md px-4 py-2 sm:gap-3 lg:px-6 shadow-sm">
+          {/* En móvil la sección activa ya está en la barra inferior; el header queda para estado operativo. */}
+          <h1 className="sr-only lg:not-sr-only lg:min-w-0 lg:truncate lg:text-lg lg:font-semibold lg:text-tinta-900">
             {title}
           </h1>
           {/*
@@ -301,14 +302,18 @@ export function PanelShell({
               <Link
                 className="mst-label shrink-0 rounded-full bg-[var(--amber-100)] px-2 py-0.5 text-[var(--amber-700)] no-underline hover:text-[var(--amber-800)]"
                 href="/cartera?panel=transferencias"
-                title="Transferencias reportadas por clientes, pendientes de confirmar"
+                title={`${transferenciasPendientes} transferencia${transferenciasPendientes === 1 ? "" : "s"} pendientes de confirmar`}
               >
-                {transferenciasPendientes} transferencia
-                {transferenciasPendientes === 1 ? "" : "s"}
+                <span className="sm:hidden">{transferenciasPendientes} transf.</span>
+                <span className="hidden sm:inline">
+                  {transferenciasPendientes} transferencia
+                  {transferenciasPendientes === 1 ? "" : "s"}
+                </span>
               </Link>
             ) : null}
             {calendario.data && (
               <VentanaBadge
+                size="sm"
                 abierta={calendario.data.capturaAbierta}
                 reabierta={calendario.data.diaEstado === "REABIERTO"}
                 diaCerrado={calendario.data.diaEstado === "CERRADO"}

@@ -124,7 +124,7 @@ export default function CatalogoPage() {
 
   return (
     <PanelShell title="Catálogo">
-      <div className="grid gap-5">
+      <div className="grid min-w-0 gap-5">
         <ProductosResumen resumen={resumen} cargando={productos.isLoading} />
 
         <section className="grid gap-3" aria-label="Buscar y filtrar">
@@ -386,7 +386,7 @@ function ProductoRow({
         </div>
       )}
 
-      <div className="flex shrink-0 items-center gap-1.5 pr-1 sm:gap-2 sm:pr-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 pr-1 sm:gap-2 sm:pr-2">
         {!producto.fotoAssetId && producto.activo && (
           <Chip className="hidden md:inline-flex" color="warning" size="sm" variant="soft">
             Sin foto
@@ -428,13 +428,17 @@ function ProductoRowBody({ producto }: { producto: ProductoPublico }) {
         <span className="block font-semibold text-pretty text-tinta-900">
           {producto.nombreCanonico}
         </span>
-        <span className="mt-0.5 block text-xs text-pretty text-tinta-500">
+        <span className="mt-0.5 block min-w-0 truncate text-xs text-pretty text-tinta-500">
           <span className="font-mono sm:hidden">{producto.sku} · </span>
           {producto.unidadMedida}
           {producto.precioBaseCentavos != null && (
             <>
               {" · "}
-              <Money centavos={producto.precioBaseCentavos} tone="muted" />
+              <Money
+                centavos={producto.precioBaseCentavos}
+                tone="muted"
+                truncate
+              />
             </>
           )}
         </span>

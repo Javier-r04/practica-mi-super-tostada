@@ -10,7 +10,7 @@ import {
 } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Download, Factory, Printer } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import {
   FAMILIA_ETIQUETA,
   MENSAJE_HOJA_NO_MATERIALIZADA,
@@ -23,6 +23,7 @@ import { api, ApiError } from "@/lib/api";
 import { PanelShell } from "@/components/layout/panel-shell";
 import { PageToolbar } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CintaEje } from "@/components/domain/cinta-eje";
 import { copyEjeProduccion, fechaHojaProduccion } from "@/lib/ejes-vista";
@@ -201,25 +202,20 @@ export default function ProduccionPage() {
           {anuncioCopia}
         </span>
 
-        {hoja.isLoading && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
-            ))}
-          </div>
-        )}
+        {hoja.isLoading && <KpiGridSkeleton count={4} />}
 
         {hoja.data && (
-          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiGrid>
             {totales.map((t) => (
-              <Cifra
+              <KpiCard
                 key={t.familia}
                 etiqueta={FAMILIA_ETIQUETA[t.familia]}
                 nota={UNIDAD_CORTA[t.unidadDominante]}
                 valor={t.cantidad}
+                tono="marca"
               />
             ))}
-            <Cifra
+            <KpiCard
               etiqueta="Renglones de la hoja"
               nota={
                 corregida
@@ -228,32 +224,35 @@ export default function ProduccionPage() {
                     : `${cambios} con cambio`
                   : "Sin correcciones"
               }
-              tono={corregida ? "aviso" : "neutro"}
+              tono={corregida ? "aviso" : "marca"}
               valor={lineas.length}
             />
-          </dl>
+          </KpiGrid>
         )}
 
         {corregida && hoja.data && (
-          <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-            <ToggleButtonGroup
-              aria-label="Vista de la hoja"
-              disallowEmptySelection
-              selectedKeys={new Set([vista])}
-              selectionMode="single"
-              size="sm"
-              onSelectionChange={(keys) => {
-                const next = [...keys][0];
-                if (typeof next === "string") setVista(next as VistaHoja);
-              }}
-            >
-              {VISTAS.map((v, i) => (
-                <ToggleButton key={v.id} id={v.id}>
-                  {i > 0 && <ToggleButtonGroup.Separator />}
-                  {v.label}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 print:hidden">
+            <div className="min-w-0 max-w-full overflow-x-auto pb-0.5">
+              <ToggleButtonGroup
+                aria-label="Vista de la hoja"
+                className="mst-segmento-activo w-max min-w-full sm:min-w-0"
+                disallowEmptySelection
+                selectedKeys={new Set([vista])}
+                selectionMode="single"
+                size="sm"
+                onSelectionChange={(keys) => {
+                  const next = [...keys][0];
+                  if (typeof next === "string") setVista(next as VistaHoja);
+                }}
+              >
+                {VISTAS.map((v, i) => (
+                  <ToggleButton key={v.id} id={v.id}>
+                    {i > 0 && <ToggleButtonGroup.Separator />}
+                    {v.label}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </div>
 
             <p className="mst-label tabular-nums" aria-live="polite">
               {visibles} de {lineas.length} renglones
@@ -391,36 +390,6 @@ export default function ProduccionPage() {
         </div>
       </div>
     </PanelShell>
-  );
-}
-
-/* Tira de cifras de la hoja: lo primero que Alex mira al llegar a planta.
-   Cantidad grande y tabular; la unidad va debajo, no compite con el número. */
-function Cifra({
-  etiqueta,
-  valor,
-  nota,
-  tono = "neutro",
-}: {
-  etiqueta: string;
-  valor: ReactNode;
-  nota?: string;
-  tono?: "neutro" | "aviso";
-}) {
-  return (
-    <Card className="gap-1 p-4">
-      <dt className="mst-label text-[11px]">{etiqueta}</dt>
-      <dd
-        className={
-          tono === "aviso"
-            ? "text-[22px] font-semibold leading-none tabular-nums text-aviso-700"
-            : "text-[22px] font-semibold leading-none tabular-nums text-marca"
-        }
-      >
-        {valor}
-      </dd>
-      {nota && <p className="text-[11px] text-tinta-500">{nota}</p>}
-    </Card>
   );
 }
 

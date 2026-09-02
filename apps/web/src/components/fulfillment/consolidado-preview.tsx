@@ -46,7 +46,7 @@ export function ConsolidadoPreview({
         }
         className="relative overflow-hidden rounded-campo border border-[var(--border-subtle)] bg-[var(--ink-50)] px-3 py-2.5"
       >
-        <p className="whitespace-pre-wrap text-sm leading-relaxed tabular-nums text-tinta-800">
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed tabular-nums text-tinta-800">
           {preview}
         </p>
         {recortado ? (
@@ -81,7 +81,7 @@ export function ConsolidadoPreview({
             </Modal.Header>
             <Modal.Body>
               <div className="max-h-[70vh] overflow-y-auto rounded-campo border border-[var(--border-subtle)] bg-[var(--ink-50)] px-3 py-2.5">
-                <p className="whitespace-pre-wrap text-sm leading-relaxed tabular-nums text-tinta-800">
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed tabular-nums text-tinta-800">
                   {cuerpo}
                 </p>
               </div>

@@ -180,7 +180,7 @@ export function ComprobantePicker({
   );
 
   return (
-    <div className={cn("grid gap-1.5", className)}>
+    <div className={cn("grid min-w-0 gap-1.5", className)}>
       {label ? (
         <span className="text-sm font-medium text-tinta-900">{label}</span>
       ) : null}

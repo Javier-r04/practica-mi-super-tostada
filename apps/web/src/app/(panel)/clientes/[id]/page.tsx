@@ -43,6 +43,7 @@ import { Money } from "@/components/domain/money";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Skeleton, RowSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { FotoPicker } from "@/components/catalog/foto-picker";
 import { cn } from "@/lib/utils";
@@ -160,7 +161,7 @@ export default function ClienteFichaPage() {
 
   return (
     <PanelShell title={c.nombre}>
-      <div className="grid gap-5">
+      <div className="grid min-w-0 gap-5">
         <Link
           href="/clientes"
           className="inline-flex min-h-11 w-fit items-center gap-1 text-sm font-semibold text-marca no-underline hover:text-marca-hover hover:no-underline"
@@ -198,7 +199,7 @@ export default function ClienteFichaPage() {
                   </Chip>
                 )}
               </div>
-              <p className="mst-label mt-1">
+              <p className="mst-label mt-1 truncate">
                 {c.horarioEntregaFijo
                   ? `Entrega ${c.horarioEntregaFijo}`
                   : "Sin horario fijo"}
@@ -267,17 +268,13 @@ export default function ClienteFichaPage() {
             </Tabs.List>
           </Tabs.ListContainer>
 
-          <Tabs.Panel id="operacion" className="grid gap-4 pt-4">
+          <Tabs.Panel id="operacion" className="grid min-w-0 gap-4 pt-4">
             {cuenta.isLoading ? (
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {Array.from({ length: 4 }, (_, i) => (
-                  <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
-                ))}
-              </div>
+              <KpiGridSkeleton count={4} />
             ) : cuenta.data ? (
               <>
-                <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <Cifra
+                <KpiGrid>
+                  <KpiCard
                     etiqueta="Facturas pendientes"
                     valor={
                       <>
@@ -291,26 +288,24 @@ export default function ClienteFichaPage() {
                     }
                     tono={excedido ? "peligro" : "neutro"}
                   />
-                  <Cifra
+                  <KpiCard
                     etiqueta="Saldo"
                     valor={
                       <Money
                         centavos={cuenta.data.saldoCentavos}
                         tone={excedido ? "vencido" : "pendiente"}
+                        truncate
                       />
                     }
                   />
-                  <Cifra
+                  <KpiCard
                     etiqueta="Por facturar"
                     nota="Sin DTE"
                     valor={enProgreso}
                     tono={enProgreso > 0 ? "aviso" : "neutro"}
                   />
-                  <Cifra
-                    etiqueta="Facturas abiertas"
-                    valor={cuenta.data.facturas.length}
-                  />
-                </dl>
+                  <KpiCard etiqueta="Facturas abiertas" valor={cuenta.data.facturas.length} />
+                </KpiGrid>
 
                 {excedido && (
                   <Alert status="danger">
@@ -368,9 +363,10 @@ export default function ClienteFichaPage() {
                               : "Sin fecha de emisión"}
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="min-w-0 shrink text-right">
                           <Money
                             centavos={f.saldoCentavos}
+                            truncate
                             tone={
                               f.estado === "VENCIDO"
                                 ? "vencido"
@@ -434,22 +430,26 @@ export default function ClienteFichaPage() {
                             historial: true,
                             pedidoId: p.id,
                           })}
-                          className="flex min-h-fila items-center gap-3 px-5 py-2.5 text-inherit no-underline hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+                          className="flex min-h-fila min-w-0 items-center gap-2 px-5 py-2.5 text-inherit no-underline hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco sm:gap-3"
                         >
-                          <span className="w-14 shrink-0 font-mono text-xs text-tinta-500">
+                          <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-tinta-500 sm:w-14">
                             #{p.correlativo}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-semibold tabular-nums text-tinta-900">
+                            <span className="block truncate text-sm font-semibold tabular-nums text-tinta-900">
                               Entrega {p.fechaEntrega}
                             </span>
-                            <span className="block text-xs text-tinta-500">
+                            <span className="block truncate text-xs text-tinta-500">
                               {p.origen === "PORTAL" ? "Portal" : "Manual"} ·
                               operación {p.fechaOperacion}
                             </span>
                           </span>
                           <EstadoBadge estado={p.estado} size="sm" />
-                          <Money centavos={p.totalCentavos} />
+                          <Money
+                            centavos={p.totalCentavos}
+                            truncate
+                            className="shrink-0 text-sm sm:text-base"
+                          />
                         </Link>
                       </li>
                     ))}
@@ -459,8 +459,8 @@ export default function ClienteFichaPage() {
             </Card>
           </Tabs.Panel>
 
-          <Tabs.Panel id="precios" className="grid gap-3 pt-4">
-            <p className="text-sm text-tinta-500">
+          <Tabs.Panel id="precios" className="grid min-w-0 gap-3 pt-4">
+            <p className="text-sm text-pretty text-tinta-500">
               El alias es como el restaurante nombra el producto; la nota de
               producción viaja a la hoja del día. Cada cambio se guarda al salir
               del campo.
@@ -468,12 +468,13 @@ export default function ClienteFichaPage() {
             {filas.isLoading ? (
               <RowSkeleton rows={5} />
             ) : (
-              <Table>
-                <Table.ScrollContainer>
-                  <Table.Content
-                    aria-label={`Productos de ${c.nombre}`}
-                    className="min-w-[720px]"
-                  >
+              <div className="min-w-0 overflow-x-auto">
+                <Table>
+                  <Table.ScrollContainer>
+                    <Table.Content
+                      aria-label={`Productos de ${c.nombre}`}
+                      className="min-w-[720px]"
+                    >
                     <Table.Header>
                       <Table.Column isRowHeader id="producto">
                         Producto
@@ -611,10 +612,11 @@ export default function ClienteFichaPage() {
                   </Table.Content>
                 </Table.ScrollContainer>
               </Table>
+              </div>
             )}
           </Tabs.Panel>
 
-          <Tabs.Panel id="datos" className="grid gap-4 pt-4">
+          <Tabs.Panel id="datos" className="grid min-w-0 gap-4 pt-4">
             {canWrite && (
               <Card className="p-5">
                 <Card.Header>
@@ -742,37 +744,6 @@ export default function ClienteFichaPage() {
         </Modal.Container>
       </Modal.Backdrop>
     </PanelShell>
-  );
-}
-
-function Cifra({
-  etiqueta,
-  valor,
-  nota,
-  tono = "neutro",
-}: {
-  etiqueta: string;
-  valor: ReactNode;
-  nota?: string;
-  tono?: "neutro" | "aviso" | "peligro";
-}) {
-  return (
-    <Card className="gap-1 p-4">
-      <dt className="mst-label text-[11px]">{etiqueta}</dt>
-      <dd
-        className={cn(
-          "text-[22px] font-semibold leading-none tabular-nums",
-          tono === "peligro"
-            ? "text-peligro"
-            : tono === "aviso"
-              ? "text-aviso-700"
-              : "text-tinta-900",
-        )}
-      >
-        {valor}
-      </dd>
-      {nota && <p className="text-[11px] text-tinta-500">{nota}</p>}
-    </Card>
   );
 }
 

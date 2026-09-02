@@ -34,6 +34,7 @@ import { HiloConversacion } from "@/components/messaging/hilo-conversacion";
 import { ComposerWhatsapp } from "@/components/messaging/composer-whatsapp";
 import { VentanaBadge } from "@/components/domain/ventana-badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -209,10 +210,10 @@ export default function ConversacionesPage() {
           </Alert>
         ) : null}
 
-        <div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
           <Card
             className={cn(
-              "gap-0 overflow-hidden p-0",
+              "min-w-0 gap-0 overflow-hidden p-0",
               sel && "hidden lg:flex",
             )}
           >
@@ -237,28 +238,31 @@ export default function ConversacionesPage() {
                 </SearchField.Group>
               </SearchField>
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <ToggleButtonGroup
-                  aria-label="Filtrar conversaciones"
-                  disallowEmptySelection
-                  selectedKeys={new Set([filtro])}
-                  selectionMode="single"
-                  size="sm"
-                  onSelectionChange={(keys) => {
-                    const next = [...keys][0];
-                    if (typeof next === "string") setFiltro(next as FiltroBandeja);
-                  }}
-                >
-                  {FILTROS.map((f, i) => (
-                    <ToggleButton key={f.id} id={f.id}>
-                      {i > 0 && <ToggleButtonGroup.Separator />}
-                      {f.label}
-                    </ToggleButton>
-                  ))}
-                </ToggleButtonGroup>
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="min-w-0 max-w-full overflow-x-auto">
+                  <ToggleButtonGroup
+                    aria-label="Filtrar conversaciones"
+                    className="w-max max-w-none"
+                    disallowEmptySelection
+                    selectedKeys={new Set([filtro])}
+                    selectionMode="single"
+                    size="sm"
+                    onSelectionChange={(keys) => {
+                      const next = [...keys][0];
+                      if (typeof next === "string") setFiltro(next as FiltroBandeja);
+                    }}
+                  >
+                    {FILTROS.map((f, i) => (
+                      <ToggleButton key={f.id} id={f.id}>
+                        {i > 0 && <ToggleButtonGroup.Separator />}
+                        {f.label}
+                      </ToggleButton>
+                    ))}
+                  </ToggleButtonGroup>
+                </div>
 
                 {!lista.isLoading && (
-                  <p className="mst-label tabular-nums" aria-live="polite">
+                  <p className="mst-label shrink-0 tabular-nums" aria-live="polite">
                     {filtrados.length} de {resumen.total}
                   </p>
                 )}
@@ -290,7 +294,7 @@ export default function ConversacionesPage() {
             </div>
           </Card>
 
-          <div className={cn("grid gap-3", !sel && "hidden lg:grid")}>
+          <div className={cn("grid min-w-0 gap-3", !sel && "hidden lg:grid")}>
             {sel && detalle.isLoading ? (
               <Card className="gap-3 p-4">
                 <Skeleton className="h-6 w-48 rounded-campo" />
@@ -309,7 +313,7 @@ export default function ConversacionesPage() {
                   Conversaciones
                 </Button>
 
-                <Card className="gap-0 overflow-hidden p-0">
+                <Card className="min-w-0 gap-0 overflow-hidden p-0">
                   <Card.Header className="flex-row flex-wrap items-start justify-between gap-3 p-4">
                     <div className="min-w-0">
                       <Card.Title className="truncate text-[15px] text-tinta-900">
@@ -439,42 +443,32 @@ function BandejaResumen({
   cargando: boolean;
 }) {
   if (cargando) {
-    return (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
-        ))}
-      </div>
-    );
+    return <KpiGridSkeleton count={4} />;
   }
 
-  const cifras = [
-    { label: "Conversaciones", valor: resumen.total, tono: "text-tinta-900" },
-    { label: "Con no leídos", valor: resumen.noLeidos, tono: "text-peligro" },
-    { label: "Ventana abierta", valor: resumen.abiertas, tono: "text-marca" },
-    {
-      label: "Cierra en < 2 h",
-      valor: resumen.porCerrar,
-      tono: "text-aviso-700",
-    },
+  const cifras: Array<{
+    etiqueta: string;
+    valor: number;
+    tono: "neutro" | "peligro" | "marca" | "aviso";
+  }> = [
+    { etiqueta: "Conversaciones", valor: resumen.total, tono: "neutro" },
+    { etiqueta: "Con no leídos", valor: resumen.noLeidos, tono: "peligro" },
+    { etiqueta: "Ventana abierta", valor: resumen.abiertas, tono: "marca" },
+    { etiqueta: "Cierra en < 2 h", valor: resumen.porCerrar, tono: "aviso" },
   ];
 
   return (
-    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <KpiGrid>
       {cifras.map((c) => (
-        <Card key={c.label} className="gap-1 p-4">
-          <dt className="mst-label text-[11px]">{c.label}</dt>
-          <dd
-            className={cn(
-              "text-[22px] font-semibold leading-none tabular-nums",
-              c.valor > 0 ? c.tono : "text-tinta-400",
-            )}
-          >
-            {c.valor}
-          </dd>
-        </Card>
+        <KpiCard
+          key={c.etiqueta}
+          etiqueta={c.etiqueta}
+          valor={c.valor}
+          tono={c.tono}
+          valorInactivo={c.valor === 0}
+        />
       ))}
-    </dl>
+    </KpiGrid>
   );
 }
 

@@ -33,13 +33,13 @@ export default function LoginPage() {
   }, []);
 
   return (
-    <main className="relative flex min-h-[100svh] w-full items-center justify-center bg-[var(--surface-paper)] px-4 py-10 sm:min-h-[100dvh] sm:px-6">
+    <main className="relative flex min-h-[100svh] w-full items-center justify-center overflow-x-hidden bg-[var(--surface-paper)] px-4 py-6 sm:min-h-[100dvh] sm:px-6 sm:py-10">
       {/* Decorative background blurs */}
-      <div className="pointer-events-none absolute left-1/2 top-0 -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-marca/10 opacity-60 blur-3xl w-[800px] h-[400px]" aria-hidden />
+      <div className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[min(400px,50vh)] w-[min(800px,120vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-marca/10 opacity-60 blur-3xl" aria-hidden />
 
       <Card className="mx-auto w-full max-w-[26rem] border border-[var(--border-subtle)] bg-blanco shadow-xl sm:max-w-[28rem]">
-        <Card.Header className="flex flex-col items-center justify-center gap-2 pt-8 sm:pt-10 pb-0">
-          <Wordmark className="mx-auto h-60 w-auto max-w-full object-contain object-center sm:h-72 mb-4" />
+        <Card.Header className="flex flex-col items-center justify-center gap-2 pb-0 pt-6 sm:pt-10">
+          <Wordmark className="mx-auto mb-3 h-44 w-auto max-w-full object-contain object-center sm:mb-4 sm:h-72" />
           <Card.Title className="text-xl font-bold text-tinta-900">
             Iniciar sesión
           </Card.Title>

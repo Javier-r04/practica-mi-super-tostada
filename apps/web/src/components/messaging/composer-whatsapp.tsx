@@ -90,13 +90,19 @@ export function ComposerWhatsapp({
           <MensajePreview tipo="libre" cuerpo={cuerpo} hora="ahora" />
         ) : null}
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           {/* Sigue apagado; el rótulo dice por qué en vez de dejarlo mudo. */}
-          <Button isDisabled size="sm" variant="ghost">
+          <Button
+            className="w-full sm:w-auto"
+            isDisabled
+            size="sm"
+            variant="ghost"
+          >
             <Sparkles size={15} aria-hidden />
             Redactar con IA · pronto
           </Button>
           <Button
+            className="w-full sm:w-auto"
             isDisabled={!cuerpo.trim()}
             isPending={enviando}
             size="sm"
@@ -173,6 +179,7 @@ export function ComposerWhatsapp({
             </Select>
 
             <Button
+              className="w-full shrink-0 sm:w-auto"
               isDisabled={!seleccionada || !validacion.ok}
               isPending={enviando}
               size="md"

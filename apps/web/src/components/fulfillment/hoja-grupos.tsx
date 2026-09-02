@@ -119,16 +119,16 @@ function FilaHoja({
         eliminado && "opacity-70",
       )}
     >
-      <div className="flex items-start gap-2 sm:gap-3">
+      <div className="flex flex-wrap items-start gap-2 sm:items-start sm:gap-3">
         <p
           className={cn(
-            "min-w-0 flex-1 text-sm font-semibold text-pretty text-tinta-900",
+            "min-w-0 flex-1 basis-full text-sm font-semibold text-pretty text-tinta-900 sm:basis-auto",
             eliminado && "line-through",
           )}
         >
           {linea.nombreCanonico}
         </p>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <EstadoBadge estado={linea.puntoCargaEfectivo} size="sm" />
           {linea.cambio === "nuevo" && (
             <Chip color="warning" size="sm" variant="soft">

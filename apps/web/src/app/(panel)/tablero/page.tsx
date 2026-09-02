@@ -57,13 +57,13 @@ function TarjetaGrafica({
   children: ReactNode;
 }) {
   return (
-    <div id={ancla} className="scroll-mt-24">
-      <Card className="h-full">
+    <div id={ancla} className="min-w-0 scroll-mt-24">
+      <Card className="h-full min-w-0 overflow-hidden">
         <Card.Header>
           <Card.Title>{titulo}</Card.Title>
           {subtitulo && <Card.Description>{subtitulo}</Card.Description>}
         </Card.Header>
-        <Card.Content>{children}</Card.Content>
+        <Card.Content className="min-w-0 overflow-x-auto">{children}</Card.Content>
       </Card>
     </div>
   );
@@ -241,7 +241,7 @@ function TableroInner() {
     >
       <div
         className={cn(
-          "grid gap-5 transition-opacity duration-slow ease-out",
+          "grid min-w-0 gap-5 transition-opacity duration-slow ease-out",
           (tablero.isFetching || mostrandoPrevios) && "opacity-70",
         )}
         aria-busy={tablero.isFetching || undefined}
@@ -259,7 +259,7 @@ function TableroInner() {
         {cargandoPrimeraVez && (
           <>
             <KpiStripSkeleton />
-            <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-stretch">
               <TarjetaGrafica
                 ancla="chart-ventas-cargando"
                 titulo="Ventas por día"
@@ -286,7 +286,7 @@ function TableroInner() {
           <>
             <KpiStrip data={data} />
 
-            <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-stretch">
               <TarjetaGrafica
                 ancla="chart-ventas"
                 titulo="Ventas por día"
@@ -307,7 +307,7 @@ function TableroInner() {
             </div>
 
             {/* Listas rankeadas del mismo tipo → misma densidad, sin huecos */}
-            <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-stretch">
               <TarjetaGrafica
                 ancla="chart-participacion"
                 titulo="Participación por cliente"
@@ -378,7 +378,7 @@ function TableroInner() {
             </div>
 
             {/* Widgets compactos · misma altura natural */}
-            <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-stretch">
               <TarjetaGrafica
                 ancla="chart-cartera"
                 titulo="Antigüedad de cartera"

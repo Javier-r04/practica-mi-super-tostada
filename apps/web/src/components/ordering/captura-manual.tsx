@@ -308,14 +308,14 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
 
                   {/* El total va pegado al pie: es la cifra que se le dice al
                       cliente por teléfono antes de colgar. */}
-                  <div className="flex items-baseline justify-between gap-3 rounded-campo bg-[var(--ink-50)] px-4 py-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3 rounded-campo bg-[var(--ink-50)] px-4 py-3">
                     <span className="mst-label">
                       Total
                       <span className="ml-2 font-normal tabular-nums text-tinta-500">
                         {lineas} línea{lineas === 1 ? "" : "s"}
                       </span>
                     </span>
-                    <Money centavos={total} className="text-lg" />
+                    <Money centavos={total} truncate className="text-lg" />
                   </div>
                 </>
               )}
@@ -332,12 +332,12 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
             </div>
           </Modal.Body>
 
-          <Modal.Footer>
+          <Modal.Footer className="flex-wrap gap-2">
             <Button variant="tertiary" onPress={onClose}>
               Cancelar
             </Button>
             <Button
-              className="button--accent"
+              className="button--accent w-full sm:w-auto"
               isDisabled={!clienteId || items.length === 0 || capturar.isPending}
               isPending={capturar.isPending}
               variant="primary"

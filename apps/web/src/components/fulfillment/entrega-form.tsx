@@ -87,7 +87,7 @@ export function EntregaForm({
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <QuantityStepper
                 value={value}
                 onChange={(v) => set(it.productoId, v)}
@@ -96,7 +96,7 @@ export function EntregaForm({
                 disabled={disabled}
                 size="lg"
               />
-              <div className="text-right">
+              <div className="min-w-0 text-right">
                 <p className="mst-label text-[11px]">{unidad} entregadas</p>
                 <Money
                   centavos={montoFacturaCentavos([
@@ -105,6 +105,7 @@ export function EntregaForm({
                       precioUnitarioCentavos: it.precioUnitarioCentavos,
                     },
                   ])}
+                  truncate
                   className="text-[15px]"
                 />
               </div>
@@ -112,13 +113,13 @@ export function EntregaForm({
           </div>
         );
       })}
-      <div className="flex items-baseline justify-between gap-3 bg-tinta-50 px-4 py-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3 bg-tinta-50 px-4 py-4">
         <span className="mst-label">
           {ajustes > 0
             ? `${ajustes} ajuste${ajustes > 1 ? "s" : ""}`
             : "Sin ajustes"}
         </span>
-        <Money centavos={total} className="text-xl" />
+        <Money centavos={total} truncate className="text-xl" />
       </div>
     </div>
   );

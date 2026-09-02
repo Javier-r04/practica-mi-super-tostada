@@ -7,13 +7,13 @@ import type { ClientePublico } from "@misupertostada/shared";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KpiCard, KpiGrid } from "@/components/ui/kpi-grid";
 import {
   DIAS_PAGO_LENTO,
   formatearFechaCorta,
   segmentarSaludClientes,
   type ClienteSaludVista,
 } from "@/lib/tablero-vista";
-import { cn } from "@/lib/utils";
 
 function fotoDe(
   clientes: ClientePublico[] | undefined,
@@ -23,33 +23,6 @@ function fotoDe(
 }
 
 /** Misma cifra chica que la tira de KPIs: etiqueta arriba, número en tabular. */
-function Cifra({
-  etiqueta,
-  valor,
-  tono = "neutro",
-}: {
-  etiqueta: string;
-  valor: number;
-  tono?: "neutro" | "aviso" | "peligro";
-}) {
-  return (
-    <Card variant="secondary" className="gap-1 p-3">
-      <dt className="mst-label text-[11px]">{etiqueta}</dt>
-      <dd
-        className={cn(
-          "text-[22px] font-semibold leading-none tabular-nums",
-          tono === "peligro"
-            ? "text-peligro"
-            : tono === "aviso"
-              ? "text-aviso-700"
-              : "text-tinta-900",
-        )}
-      >
-        {valor}
-      </dd>
-    </Card>
-  );
-}
 
 function FilaCliente({
   c,
@@ -128,19 +101,25 @@ export function SaludClientesCard({
         </Card.Description>
       </Card.Header>
       <Card.Content className="grid gap-5">
-        <dl className="grid grid-cols-3 gap-2 sm:gap-3">
-          <Cifra
+        <KpiGrid columns="tres">
+          <KpiCard
             etiqueta="Dejaron de pedir"
             valor={salud.resumen.dejaron}
             tono={salud.resumen.dejaron > 0 ? "peligro" : "neutro"}
+            variant="secondary"
           />
-          <Cifra
+          <KpiCard
             etiqueta={`Pagan ≥${DIAS_PAGO_LENTO} d`}
             valor={salud.resumen.lentos}
             tono={salud.resumen.lentos > 0 ? "aviso" : "neutro"}
+            variant="secondary"
           />
-          <Cifra etiqueta="Con pedido" valor={salud.resumen.conPedidos} />
-        </dl>
+          <KpiCard
+            etiqueta="Con pedido"
+            valor={salud.resumen.conPedidos}
+            variant="secondary"
+          />
+        </KpiGrid>
 
         <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
           <section className="grid gap-2">

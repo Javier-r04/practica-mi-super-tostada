@@ -13,8 +13,10 @@ import { cn } from "@/lib/utils";
 
 export function HiloConversacion({
   conversacion,
+  className,
 }: {
   conversacion: ConversacionDetalle;
+  className?: string;
 }) {
   const cajaRef = useRef<HTMLDivElement>(null);
   const total = conversacion.mensajes.length;
@@ -48,7 +50,10 @@ export function HiloConversacion({
   return (
     <ScrollShadow
       ref={cajaRef}
-      className="max-h-[min(52vh,460px)] bg-[var(--cream-100)]"
+      className={cn(
+        "max-h-[min(52dvh,460px)] bg-[var(--cream-100)] lg:max-h-[min(52vh,460px)]",
+        className,
+      )}
     >
       <div className="grid gap-4 px-4 py-4">
         {filas.map(({ m, hora, dia, abreDia }) => {
@@ -64,7 +69,7 @@ export function HiloConversacion({
                 /* Entrante: burbuja sólida de marca a la derecha, con el rótulo
                    de origen que el saliente ya trae en MensajePreview. Los dos
                    lados se leen igual de rápido. */
-                <div className="grid max-w-[380px] gap-1.5 justify-self-end">
+                <div className="grid w-full max-w-[min(100%,380px)] gap-1.5 justify-self-end">
                   <span className="mst-label justify-self-end">
                     {conversacion.clienteNombre}
                   </span>

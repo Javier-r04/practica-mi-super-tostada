@@ -45,6 +45,7 @@ import {
 import { DateField } from "@/components/ui/date-field";
 import { fechaFocoUi } from "@/lib/ejes-vista";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -302,9 +303,9 @@ function PedidosInner() {
       <div className="grid gap-5">
         <BandejaResumen resumen={resumen} cargando={cargandoLista} />
 
-        <section className="grid gap-3" aria-label="Buscar y filtrar">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="w-full sm:w-auto sm:min-w-[11rem] sm:max-w-[15rem]">
+        <section className="grid min-w-0 gap-3" aria-label="Buscar y filtrar">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="min-w-0 w-full sm:w-auto sm:min-w-[11rem] sm:max-w-[15rem]">
               <DateField
                 id="filtro-fecha-operacion"
                 value={desde}
@@ -334,7 +335,7 @@ function PedidosInner() {
             </SearchField>
             {puedeEscribir && (
               <Button
-                className="button--accent shrink-0"
+                className="button--accent w-full shrink-0 sm:w-auto"
                 variant="primary"
                 onPress={() => setCaptura(true)}
               >
@@ -344,11 +345,11 @@ function PedidosInner() {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0 max-w-full overflow-x-auto pb-0.5">
               <ToggleButtonGroup
                 aria-label="Filtrar pedidos por estado"
-                className="mst-segmento-activo"
+                className="mst-segmento-activo w-max min-w-full sm:min-w-0"
                 disallowEmptySelection
                 selectedKeys={new Set([segmento])}
                 selectionMode="single"
@@ -493,8 +494,8 @@ function PedidosInner() {
                                   : ""}
                                 {horaEnZona(new Date(p.capturadoAt))}
                               </span>
-                              <span className="ml-auto">
-                                <Money centavos={p.totalCentavos} tone="muted" />
+                              <span className="ml-auto shrink-0">
+                                <Money centavos={p.totalCentavos} tone="muted" truncate />
                               </span>
                             </span>
                           </span>
@@ -611,63 +612,33 @@ function BandejaResumen({
   cargando: boolean;
 }) {
   if (cargando) {
-    return (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
-        ))}
-      </div>
-    );
+    return <KpiGridSkeleton count={4} />;
   }
   if (!resumen) return null;
   return (
-    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Cifra label="Pedidos" valor={resumen.pedidos} />
-      <Cifra label="Vivos" valor={resumen.vivos} tono="text-[var(--amber-700)]" />
-      <Cifra
-        label="Anulados"
+    <KpiGrid>
+      <KpiCard etiqueta="Pedidos" valor={resumen.pedidos} />
+      <KpiCard etiqueta="Vivos" valor={resumen.vivos} tono="aviso" />
+      <KpiCard
+        etiqueta="Anulados"
         valor={resumen.anulados}
-        tono={resumen.anulados > 0 ? "text-peligro" : "text-tinta-400"}
+        tono={resumen.anulados > 0 ? "peligro" : "neutro"}
+        valorInactivo={resumen.anulados === 0}
       />
-      <Cifra
-        label="Total vivo"
+      <KpiCard
+        etiqueta="Total vivo"
         className="border-[var(--amber-600)]/30 bg-[var(--amber-100)]/20"
-        tono="text-aviso-700"
+        tono="aviso"
         valor={
           <Money
             centavos={resumen.totalCentavos}
             tone="pendiente"
-            className="font-display text-[28px] leading-none"
+            truncate
+            className="font-display leading-none"
           />
         }
       />
-    </dl>
-  );
-}
-
-function Cifra({
-  label,
-  valor,
-  tono = "text-tinta-900",
-  className,
-}: {
-  label: string;
-  valor: ReactNode;
-  tono?: string;
-  className?: string;
-}) {
-  return (
-    <Card className={cn("gap-1 p-4", className)}>
-      <dt className="mst-label text-[11px]">{label}</dt>
-      <dd
-        className={cn(
-          "text-[22px] font-semibold leading-none tabular-nums",
-          tono,
-        )}
-      >
-        {valor}
-      </dd>
-    </Card>
+    </KpiGrid>
   );
 }
 

@@ -272,29 +272,31 @@ export function FiltrosTableroBarra({
         de exportar vivía en el cuerpo, una banda vacía abajo del filtro que no
         se alineaba con nada; junto al periodo queda claro qué recorte baja.
       */}
-      <div className="flex flex-wrap items-center gap-2">
-        <ToggleButtonGroup
-          className="mst-segmento-activo"
-          isDetached
-          aria-label="Periodo del tablero"
-          disallowEmptySelection
-          selectedKeys={new Set([value.periodo])}
-          selectionMode="single"
-          size="sm"
-          onSelectionChange={(keys) => {
-            const next = [...keys][0];
-            if (typeof next === "string") elegirPeriodo(next as PeriodoTablero);
-          }}
-        >
-          {PERIODOS.map((p) => (
-            <ToggleButton key={p.id} id={p.id}>
-              {p.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="min-w-0 max-w-full overflow-x-auto">
+          <ToggleButtonGroup
+            className="mst-segmento-activo w-max max-w-none"
+            isDetached
+            aria-label="Periodo del tablero"
+            disallowEmptySelection
+            selectedKeys={new Set([value.periodo])}
+            selectionMode="single"
+            size="sm"
+            onSelectionChange={(keys) => {
+              const next = [...keys][0];
+              if (typeof next === "string") elegirPeriodo(next as PeriodoTablero);
+            }}
+          >
+            {PERIODOS.map((p) => (
+              <ToggleButton key={p.id} id={p.id}>
+                {p.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </div>
 
         {enPersonalizado ? (
-          <div className="min-w-[13rem] flex-1 sm:max-w-[18rem] [&_.mst-control]:h-9 [&_.mst-control]:md:h-8">
+          <div className="min-w-0 w-full flex-1 sm:min-w-[13rem] sm:max-w-[18rem] [&_.mst-control]:h-9 [&_.mst-control]:md:h-8">
             <DateField
               id="tab-rango"
               value={desdeMostrado}

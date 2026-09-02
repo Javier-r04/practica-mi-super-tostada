@@ -9,7 +9,7 @@ import {
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, startTransition, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, startTransition, useEffect, useMemo, useState } from "react";
 import {
   horaEnZona,
   tienePermiso,
@@ -58,43 +58,11 @@ import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { ScrollFadeLista } from "@/components/ui/scroll-fade-lista";
+import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { cn } from "@/lib/utils";
 
 /* Tira de cifras del arranque del día: el mismo patrón que `ClientesResumen`,
    para que Hoy y Clientes se escaneen igual. */
-function Cifra({
-  etiqueta,
-  valor,
-  nota,
-  tono = "neutro",
-}: {
-  etiqueta: string;
-  valor: ReactNode;
-  nota?: string;
-  tono?: "neutro" | "ok" | "aviso" | "peligro";
-}) {
-  return (
-    <Card className="gap-1 p-4">
-      <dt className="mst-label text-[11px]">{etiqueta}</dt>
-      <dd
-        className={cn(
-          "text-[22px] font-semibold leading-none tabular-nums",
-          tono === "peligro"
-            ? "text-peligro"
-            : tono === "aviso"
-              ? "text-aviso-700"
-              : tono === "ok"
-                ? "text-marca"
-                : "text-tinta-900",
-        )}
-      >
-        {valor}
-      </dd>
-      {nota ? <p className="text-[11px] text-tinta-500">{nota}</p> : null}
-    </Card>
-  );
-}
-
 function ChipRuta({ estado, valor }: { estado: PedidoEstado; valor: number }) {
   return (
     <span className="inline-flex min-h-11 items-center gap-2 rounded-campo border border-[var(--border-subtle)] bg-blanco px-3 text-sm">
@@ -137,8 +105,8 @@ function HeroNoche({
           {loading ? (
             <Skeleton className="mt-3 h-12 w-48 bg-[var(--green-900)]/50" />
           ) : (
-            <p className="mt-2 font-display text-4xl leading-none tabular-nums text-acento sm:text-5xl">
-              <Money centavos={montoCentavos} className="text-acento" />
+            <p className="mt-2 min-w-0 font-display text-3xl leading-none tabular-nums text-acento sm:text-4xl lg:text-5xl">
+              <Money centavos={montoCentavos} className="text-acento" truncate />
             </p>
           )}
           <p className="mt-2 max-w-md text-sm text-pretty text-[var(--green-200)]">
@@ -384,26 +352,28 @@ function HoyInner() {
         */}
         {ejesSeparados && calendario.data ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <ToggleButtonGroup
-              aria-label="Operación que se está viendo"
-              className="mst-segmento-activo"
-              disallowEmptySelection
-              selectedKeys={new Set([foco])}
-              selectionMode="single"
-              size="sm"
-              onSelectionChange={(keys) => {
-                const next = [...keys][0];
-                if (next === "curso" || next === "captura") elegirFoco(next);
-              }}
-            >
-              <ToggleButton id="curso">
-                {`Reparto de hoy · ${etiquetaDiaCorto(calendario.data.fechaOperacionEnCurso)}`}
-              </ToggleButton>
-              <ToggleButton id="captura">
-                <ToggleButtonGroup.Separator />
-                {`Pedidos de esta noche · ${etiquetaDiaCorto(calendario.data.fechaOperacionCaptura)}`}
-              </ToggleButton>
-            </ToggleButtonGroup>
+            <div className="min-w-0 max-w-full overflow-x-auto pb-0.5">
+              <ToggleButtonGroup
+                aria-label="Operación que se está viendo"
+                className="mst-segmento-activo w-max min-w-full sm:min-w-0"
+                disallowEmptySelection
+                selectedKeys={new Set([foco])}
+                selectionMode="single"
+                size="sm"
+                onSelectionChange={(keys) => {
+                  const next = [...keys][0];
+                  if (next === "curso" || next === "captura") elegirFoco(next);
+                }}
+              >
+                <ToggleButton id="curso">
+                  {`Reparto de hoy · ${etiquetaDiaCorto(calendario.data.fechaOperacionEnCurso)}`}
+                </ToggleButton>
+                <ToggleButton id="captura">
+                  <ToggleButtonGroup.Separator />
+                  {`Pedidos de esta noche · ${etiquetaDiaCorto(calendario.data.fechaOperacionCaptura)}`}
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </div>
             {foco === "otra" ? (
               <Button variant="ghost" size="sm" onPress={() => elegirFoco("curso")}>
                 Volver a hoy
@@ -434,11 +404,7 @@ function HoyInner() {
               foco={foco}
               loading
             />
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {Array.from({ length: 4 }, (_, i) => (
-                <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
-              ))}
-            </div>
+            <KpiGridSkeleton count={4} />
             <Skeleton className="h-14 w-full rounded-tarjeta" />
             <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:items-start">
               <Skeleton className="h-64 rounded-tarjeta" />
@@ -480,18 +446,18 @@ function HoyInner() {
               abajo, en «Clientes sin pedido». Los contadores siguen en
               `GET /operacion` para diagnóstico.
             */}
-            <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Cifra
+            <KpiGrid>
+              <KpiCard
                 etiqueta="Pedidos del día"
                 valor={pedidosDelDia}
                 nota={`${data.pedidosPortal} del portal · ${data.pedidosManual} manuales`}
               />
-              <Cifra
+              <KpiCard
                 etiqueta="Libras de tortilla"
                 valor={`${data.librasTortilla} lb`}
                 nota="Lo que hay que producir"
               />
-              <Cifra
+              <KpiCard
                 etiqueta="Entregados"
                 valor={`${data.ruta.entregados} de ${pedidosDelDia}`}
                 nota={`${data.ruta.confirmados + data.ruta.enProduccion} sin entregar`}
@@ -501,19 +467,20 @@ function HoyInner() {
                     : "neutro"
                 }
               />
-              <Cifra
+              <KpiCard
                 etiqueta="Por cobrar del día"
                 valor={
                   <Money
                     centavos={
                       cartera.data?.porCobrarFechaOperacionCentavos ?? null
                     }
+                    truncate
                     className="text-acento-fuerte"
                   />
                 }
                 nota="Facturas de esta operación"
               />
-            </dl>
+            </KpiGrid>
 
             {/* Desglose por estado: lo que Cristian pregunta a media ruta.
                 Va en una sola tarjeta para que no compita con las cifras. */}
@@ -534,8 +501,8 @@ function HoyInner() {
             <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:items-start">
               <div className="grid gap-4">
                 <Card className="w-full">
-                  <Card.Header className="flex flex-row items-start justify-between gap-4">
-                    <div className="flex flex-col gap-1">
+                  <Card.Header className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
+                    <div className="min-w-0 flex flex-col gap-1">
                       <Card.Title>
                         {foco === "captura"
                           ? "Pedidos de la noche"
@@ -607,10 +574,11 @@ function HoyInner() {
                                   {p.origen === "PORTAL" ? "Portal" : "Manual"} ·{" "}
                                   {horaEnZona(new Date(p.capturadoAt))}
                                 </span>
-                                <span className="ml-auto">
+                                <span className="ml-auto shrink-0">
                                   <Money
                                     centavos={p.totalCentavos}
                                     tone="muted"
+                                    truncate
                                   />
                                 </span>
                               </span>

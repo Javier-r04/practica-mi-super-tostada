@@ -335,7 +335,12 @@ export function PedidoDetalle({
             )}
           </div>
           {editable && (
-            <Button size="sm" variant="danger-soft" onPress={() => setAnular(true)}>
+            <Button
+              className="w-full shrink-0 sm:w-auto"
+              size="sm"
+              variant="danger-soft"
+              onPress={() => setAnular(true)}
+            >
               Anular
             </Button>
           )}
@@ -375,9 +380,9 @@ export function PedidoDetalle({
             />
           ))}
           {editable && agregables.length > 0 ? (
-            <div className="flex flex-wrap items-end gap-2 border-b border-[var(--border-subtle)] px-4 py-3">
+            <div className="flex flex-col gap-2 border-b border-[var(--border-subtle)] px-4 py-3 sm:flex-row sm:flex-wrap sm:items-end">
               <ComboBox
-                className="min-w-[12rem] flex-1"
+                className="min-w-0 w-full flex-1"
                 selectedKey={agregarId || null}
                 onSelectionChange={(key) =>
                   setAgregarId(typeof key === "string" ? key : "")
@@ -404,6 +409,7 @@ export function PedidoDetalle({
                 </ComboBox.Popover>
               </ComboBox>
               <Button
+                className="w-full sm:w-auto"
                 isDisabled={!agregarId}
                 size="sm"
                 variant="secondary"
@@ -414,9 +420,10 @@ export function PedidoDetalle({
               </Button>
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--ink-50)] px-4 py-3">
+          <div className="flex flex-col gap-3 bg-[var(--ink-50)] px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             {editable && dirty ? (
               <Button
+                className="w-full sm:w-auto"
                 isPending={guardar.isPending}
                 size="sm"
                 variant="primary"
@@ -432,9 +439,9 @@ export function PedidoDetalle({
             ) : (
               <span />
             )}
-            <span className="ml-auto flex items-baseline gap-3">
-              <span className="mst-label">Total del pedido</span>
-              <Money centavos={total} className="text-lg" />
+            <span className="flex min-w-0 items-baseline justify-between gap-3 sm:ml-auto sm:justify-end">
+              <span className="mst-label shrink-0">Total del pedido</span>
+              <Money centavos={total} truncate className="text-lg" />
             </span>
           </div>
         </Card.Content>
@@ -448,7 +455,7 @@ export function PedidoDetalle({
               Número del DTE del sistema externo. Se captura después de entregar.
             </Card.Description>
           </Card.Header>
-          <Card.Content className="flex flex-wrap items-center gap-2 p-0">
+          <Card.Content className="flex min-w-0 flex-col flex-wrap items-stretch gap-2 p-0 sm:flex-row sm:items-center">
             {pedido.factura ? (
               <>
                 <BotonDte
@@ -461,6 +468,7 @@ export function PedidoDetalle({
                 <EstadoBadge estado={pedido.factura.estado} size="sm" />
                 <Money
                   centavos={pedido.factura.saldoCentavos}
+                  truncate
                   tone={
                     pedido.factura.estado === "VENCIDO"
                       ? "vencido"
@@ -472,7 +480,7 @@ export function PedidoDetalle({
                   }
                 />
                 <Link
-                  className="ml-auto text-sm"
+                  className="text-sm sm:ml-auto"
                   href={`/cartera?clienteId=${pedido.clienteId}`}
                 >
                   Ver en cartera
@@ -530,11 +538,14 @@ export function PedidoDetalle({
                 <li className="text-tinta-500">Sin movimientos todavía.</li>
               ) : (
                 pedido.historial.map((h, i) => (
-                  <li key={`${h.accion}-${h.createdAt}-${i}`} className="flex gap-3">
-                    <span className="font-mono tabular-nums text-tinta-500">
+                  <li
+                    key={`${h.accion}-${h.createdAt}-${i}`}
+                    className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:gap-3"
+                  >
+                    <span className="shrink-0 font-mono tabular-nums text-tinta-500">
                       {horaEnZona(new Date(h.createdAt))}
                     </span>
-                    <span>
+                    <span className="min-w-0 text-pretty">
                       {h.actorNombre ?? h.actorTipo}{" "}
                       {ACCION_TEXTO[h.accion] ?? h.accion}
                     </span>

@@ -22,7 +22,7 @@ export function VistaCuadre({ cuadre }: { cuadre: CuadreDia }) {
         {/* Las tres cifras que Carla canta al cerrar: efectivo, transferencia y
             la suma. El total va aparte, en verde, porque es la que se compara
             contra el sobre. */}
-        <dl className="grid gap-3 sm:grid-cols-3">
+        <dl className="grid min-w-0 gap-3 sm:grid-cols-3">
           <Cifra etiqueta="Efectivo" centavos={cuadre.totalEfectivoCentavos} />
           <Cifra
             etiqueta="Transferencia"
@@ -41,18 +41,19 @@ export function VistaCuadre({ cuadre }: { cuadre: CuadreDia }) {
             {cuadre.porActor.map((a) => (
               <li
                 key={a.usuarioId ?? a.username}
-                className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                className="grid min-w-0 gap-1 text-sm sm:flex sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-2"
               >
-                <span className="font-semibold text-tinta-900">
+                <span className="truncate font-semibold text-tinta-900">
                   {a.username}
                 </span>
-                <span className="tabular-nums text-tinta-500">
+                <span className="min-w-0 tabular-nums text-tinta-500">
                   {a.count} cobro{a.count === 1 ? "" : "s"} · efectivo{" "}
-                  <Money centavos={a.efectivoCentavos} />
+                  <Money centavos={a.efectivoCentavos} truncate />
                   {a.transferenciaCentavos > 0 ? (
                     <>
                       {" "}
-                      · transf. <Money centavos={a.transferenciaCentavos} />
+                      · transf.{" "}
+                      <Money centavos={a.transferenciaCentavos} truncate />
                     </>
                   ) : null}
                 </span>
@@ -72,16 +73,20 @@ export function VistaCuadre({ cuadre }: { cuadre: CuadreDia }) {
             {cuadre.pagos.map((p) => (
               <li
                 key={p.id}
-                className="flex min-h-11 items-center gap-3 border-b border-[var(--border-subtle)] py-2 text-sm last:border-b-0"
+                className="flex min-h-11 min-w-0 items-center gap-2 border-b border-[var(--border-subtle)] py-2 text-sm last:border-b-0 sm:gap-3"
               >
                 <MetodoChip metodo={p.metodo} />
                 <span className="min-w-0 flex-1 truncate font-medium text-tinta-900">
                   {p.clienteNombre ?? p.numeroDte ?? "Factura"}
                 </span>
-                <span className="hidden text-xs text-tinta-500 sm:inline">
+                <span className="hidden shrink-0 text-xs text-tinta-500 sm:inline">
                   {p.registradoPorNombre ?? "—"}
                 </span>
-                <Money centavos={p.montoCentavos} />
+                <Money
+                  centavos={p.montoCentavos}
+                  truncate
+                  className="shrink-0 text-sm sm:text-base"
+                />
               </li>
             ))}
           </ul>
@@ -106,13 +111,18 @@ function Cifra({
     <div
       className={
         destacado
-          ? "rounded-[calc(var(--radius-card)-0.5rem)] bg-[var(--green-50)] px-3 py-2.5"
-          : "rounded-[calc(var(--radius-card)-0.5rem)] bg-tinta-50 px-3 py-2.5"
+          ? "min-w-0 rounded-[calc(var(--radius-card)-0.5rem)] bg-[var(--green-50)] px-3 py-2.5"
+          : "min-w-0 rounded-[calc(var(--radius-card)-0.5rem)] bg-tinta-50 px-3 py-2.5"
       }
     >
       <dt className="mst-label text-[11px]">{etiqueta}</dt>
-      <dd className="mt-0.5">
-        <Money centavos={centavos} className="text-lg" tone={tone} />
+      <dd className="mt-0.5 min-w-0">
+        <Money
+          centavos={centavos}
+          truncate
+          className="text-base sm:text-lg"
+          tone={tone}
+        />
       </dd>
     </div>
   );

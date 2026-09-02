@@ -29,7 +29,7 @@ export function ContadorFacturas({
       : "text-marca";
 
   const shellClass = cn(
-    "flex min-h-fila items-center gap-3 rounded-tarjeta border bg-blanco px-4 py-3",
+    "flex min-h-fila min-w-0 items-center gap-3 rounded-tarjeta border bg-blanco px-4 py-3",
     excedido ? "border-peligro" : "border-[var(--border-subtle)]",
     href &&
       "text-inherit no-underline transition-[background-color] duration-control ease-out hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco",
@@ -37,22 +37,28 @@ export function ContadorFacturas({
 
   const body = (
     <>
-      <span className={cn("font-display text-[28px] leading-none tabular-nums", color)}>
+      <span
+        className={cn(
+          "shrink-0 font-display text-xl leading-none tabular-nums sm:text-2xl",
+          color,
+        )}
+      >
         {pendientes}
         {limite != null ? (
-          <span className="text-[14px] text-tinta-500">/{limite}</span>
+          <span className="text-sm text-tinta-500">/{limite}</span>
         ) : null}
       </span>
-      <div className="grid gap-0.5">
-        <span className="mst-label">{etiqueta}</span>
+      <div className="min-w-0 flex-1 grid gap-0.5">
+        <span className="mst-label truncate">{etiqueta}</span>
         {montoCentavos != null ? (
           <Money
             centavos={montoCentavos}
             tone={excedido ? "pendiente" : "default"}
+            truncate
           />
         ) : null}
         {excedido ? (
-          <span className="text-[12px] font-semibold text-peligro">
+          <span className="text-xs font-semibold text-peligro line-clamp-2">
             Límite de crédito excedido
           </span>
         ) : null}

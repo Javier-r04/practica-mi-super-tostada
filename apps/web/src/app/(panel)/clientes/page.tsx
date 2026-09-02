@@ -115,7 +115,7 @@ export default function ClientesPage() {
 
   return (
     <PanelShell title="Clientes">
-      <div className="grid gap-5">
+      <div className="grid min-w-0 gap-5">
         <ClientesResumen resumen={resumen} cargando={loading} />
 
         <section className="grid gap-3" aria-label="Buscar y filtrar">
@@ -206,9 +206,9 @@ export default function ClientesPage() {
             }
           />
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {filtrados.map(({ cliente, cobranza }) => (
-              <li key={cliente.id}>
+              <li key={cliente.id} className="min-w-0">
                 <ClienteMiniCard cliente={cliente} cobranza={cobranza} />
               </li>
             ))}

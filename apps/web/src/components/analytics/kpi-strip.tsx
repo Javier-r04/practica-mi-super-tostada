@@ -1,65 +1,13 @@
 "use client";
 
-import { Card } from "@heroui/react";
-import type { ReactNode } from "react";
 import { formatearCentavos, type Tablero } from "@misupertostada/shared";
 import { Money } from "@/components/domain/money";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-
-function scrollToAnchor(id: string) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  el.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
-}
-
-/**
- * Misma cifra que en clientes y catálogo: `dl` + `Card`, etiqueta chica y el
- * número grande en tabular. Aquí además lleva al bloque que la explica, con
- * un botón que cubre la tarjeta (el `dl`/`dt`/`dd` se conserva intacto).
- */
-function Cifra({
-  ancla,
-  etiqueta,
-  valor,
-  nota,
-  tono = "neutro",
-}: {
-  ancla: string;
-  etiqueta: string;
-  valor: ReactNode;
-  nota?: string;
-  tono?: "neutro" | "marca" | "aviso" | "peligro";
-}) {
-  return (
-    <Card className="relative gap-1 p-4">
-      <dt className="mst-label text-[11px]">{etiqueta}</dt>
-      <dd
-        className={cn(
-          "text-[22px] font-semibold leading-none tabular-nums",
-          tono === "peligro"
-            ? "text-peligro"
-            : tono === "aviso"
-              ? "text-aviso-700"
-              : tono === "marca"
-                ? "text-marca"
-                : "text-tinta-900",
-        )}
-      >
-        {valor}
-      </dd>
-      {nota && <p className="text-[11px] leading-snug text-tinta-500">{nota}</p>}
-      <button
-        type="button"
-        onClick={() => scrollToAnchor(ancla)}
-        className="absolute inset-0 rounded-tarjeta transition-shadow duration-control ease-out hover:shadow-tarjeta focus-visible:outline-none focus-visible:shadow-foco"
-      >
-        <span className="sr-only">Ver el detalle de {etiqueta}</span>
-      </button>
-    </Card>
-  );
-}
+import {
+  KpiCardAncla,
+  KpiGrid,
+  KpiGridSkeleton,
+  type KpiTono,
+} from "@/components/ui/kpi-grid";
 
 function pctDePuntosBase(puntosBase: number): string {
   const signo = puntosBase < 0 ? "−" : "";
@@ -76,13 +24,7 @@ function deltaTexto(centavos: number, puntosBase: number): string {
 }
 
 export function KpiStripSkeleton() {
-  return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
-      {Array.from({ length: 5 }, (_, i) => (
-        <Skeleton key={i} className="h-[92px] w-full rounded-tarjeta" />
-      ))}
-    </div>
-  );
+  return <KpiGridSkeleton count={5} columns="tablero" rowHeight={92} />;
 }
 
 export function KpiStrip({ data }: { data: Tablero }) {
@@ -90,26 +32,26 @@ export function KpiStrip({ data }: { data: Tablero }) {
   const unDia = data.filtrosAplicados.desde === data.filtrosAplicados.hasta;
   const bajaronVentas = k.ventasDeltaPuntosBase < 0;
   return (
-    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
-      <Cifra
+    <KpiGrid columns="tablero">
+      <KpiCardAncla
         ancla="chart-ventas"
         etiqueta="Ventas"
-        valor={<Money centavos={k.ventasCentavos} tone="pagado" />}
+        valor={<Money centavos={k.ventasCentavos} tone="pagado" truncate />}
         nota={deltaTexto(k.ventasDeltaCentavos, k.ventasDeltaPuntosBase)}
         tono={bajaronVentas ? "aviso" : "marca"}
       />
-      <Cifra
+      <KpiCardAncla
         ancla="chart-adopcion"
         etiqueta="Pedidos"
         valor={k.pedidos}
         nota={`${k.portal} del portal · ${k.manual} manuales`}
       />
-      <Cifra
+      <KpiCardAncla
         ancla="chart-cartera"
         etiqueta="Por cobrar"
         valor={
           data.filtrosAplicados.carteraAplica ? (
-            <Money centavos={k.porCobrarCentavos} tone="pendiente" />
+            <Money centavos={k.porCobrarCentavos} tone="pendiente" truncate />
           ) : (
             <span className="text-tinta-500">N/A</span>
           )
@@ -121,13 +63,13 @@ export function KpiStrip({ data }: { data: Tablero }) {
         }
         tono="aviso"
       />
-      <Cifra
+      <KpiCardAncla
         ancla="chart-cobrado"
         etiqueta="Cobrado"
-        valor={<Money centavos={k.cobradoCentavos} />}
+        valor={<Money centavos={k.cobradoCentavos} truncate />}
         nota={`Efectivo ${formatearCentavos(k.cobradoEfectivoCentavos)} · Transferencia ${formatearCentavos(k.cobradoTransferenciaCentavos)}`}
       />
-      <Cifra
+      <KpiCardAncla
         ancla={unDia ? "chart-sin-pedido" : "chart-clientes"}
         etiqueta={unDia ? "Aún no piden" : "Dejaron de pedir"}
         valor={k.clientesAlertaCount}
@@ -136,8 +78,8 @@ export function KpiStrip({ data }: { data: Tablero }) {
             ? "Activos sin pedido en esta fecha de operación"
             : "Diarios en silencio 3 días hábiles"
         }
-        tono={k.clientesAlertaCount > 0 ? "peligro" : "neutro"}
+        tono={(k.clientesAlertaCount > 0 ? "peligro" : "neutro") as KpiTono}
       />
-    </dl>
+    </KpiGrid>
   );
 }

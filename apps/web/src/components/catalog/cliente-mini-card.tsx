@@ -43,7 +43,7 @@ export function ClienteMiniCard({
     >
       <Card
         className={cn(
-          "h-full gap-4 border-l-[3px] p-4",
+          "h-full min-w-0 gap-4 border-l-[3px] p-4",
           "transition-shadow duration-control ease-out group-hover:shadow-[var(--shadow-md)]",
           RAIL[nivel],
           !cliente.activo && "opacity-70",
@@ -90,7 +90,7 @@ export function ClienteMiniCard({
             <p className="mst-label text-[11px]">Facturas pendientes</p>
             <p
               className={cn(
-                "text-[22px] font-semibold leading-none tabular-nums",
+                "text-lg font-semibold leading-none tabular-nums sm:text-[22px]",
                 excedido
                   ? "text-peligro"
                   : cobranza.facturasPendientes > 0
@@ -106,12 +106,13 @@ export function ClienteMiniCard({
               )}
             </p>
           </div>
-          <div className="text-right">
+          <div className="min-w-0 shrink text-right">
             <p className="mst-label text-[11px]">Saldo</p>
             <Money
               centavos={cobranza.saldoCentavos}
               tone={cobranza.saldoCentavos > 0 ? "pendiente" : "muted"}
-              className="text-[15px]"
+              truncate
+              className="text-sm sm:text-[15px]"
             />
           </div>
         </Card.Content>

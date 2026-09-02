@@ -48,6 +48,7 @@ import { PageToolbar } from "@/components/layout/page-header";
 import { useOnline } from "@/hooks/use-online";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DateField } from "@/components/ui/date-field";
+import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Money } from "@/components/domain/money";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
@@ -330,7 +331,7 @@ function CarteraInner() {
 
   return (
     <PanelShell title="Cartera">
-      <div className="grid gap-5">
+      <div className="grid min-w-0 gap-5">
         <PageToolbar description="Facturas abiertas, captura de DTE y cobros." />
 
         <ResumenCartera cargando={!resumen.data} resumen={resumen.data} />
@@ -416,25 +417,27 @@ function CarteraInner() {
           </Card>
         ) : null}
 
-        <ToggleButtonGroup
-          aria-label="Panel de cartera"
-          className="mst-segmento-activo"
-          disallowEmptySelection
-          fullWidth
-          selectedKeys={new Set([panel])}
-          selectionMode="single"
-          onSelectionChange={(keys) => {
-            const next = [...keys][0];
-            if (typeof next === "string") setPanel(next as PanelCartera);
-          }}
-        >
-          {PANELES.map((p, i) => (
-            <ToggleButton key={p.id} id={p.id}>
-              {i > 0 && <ToggleButtonGroup.Separator />}
-              {p.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+        <div className="-mx-1 min-w-0 overflow-x-auto px-1 sm:mx-0 sm:overflow-visible sm:px-0">
+          <ToggleButtonGroup
+            aria-label="Panel de cartera"
+            className="mst-segmento-activo min-w-max sm:min-w-0 sm:w-full [&_.toggle-button]:text-xs sm:[&_.toggle-button]:text-sm"
+            disallowEmptySelection
+            fullWidth
+            selectedKeys={new Set([panel])}
+            selectionMode="single"
+            onSelectionChange={(keys) => {
+              const next = [...keys][0];
+              if (typeof next === "string") setPanel(next as PanelCartera);
+            }}
+          >
+            {PANELES.map((p, i) => (
+              <ToggleButton key={p.id} id={p.id}>
+                {i > 0 && <ToggleButtonGroup.Separator />}
+                {p.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </div>
 
         {panel === "cuadre" ? (
           <div className="grid gap-3">
@@ -489,7 +492,7 @@ function CarteraInner() {
                 </Button>
               </div>
 
-              <div className="mst-segmento-activo flex flex-wrap items-center gap-2">
+              <div className="mst-segmento-activo flex min-w-0 flex-wrap items-center gap-2">
                 <ToggleButtonGroup
                   aria-label="Estado de facturas"
                   disallowEmptySelection
@@ -555,7 +558,7 @@ function CarteraInner() {
                 ))}
                 {facturas.data ? (
                   <p
-                    className="mst-label ml-auto tabular-nums"
+                    className="mst-label w-full tabular-nums sm:ml-auto sm:w-auto"
                     aria-live="polite"
                   >
                     {lista.length} de {totalFiltrado} factura
@@ -803,78 +806,47 @@ function ResumenCartera({
   cargando: boolean;
 }) {
   if (cargando || !resumen) {
-    return (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-[76px] w-full rounded-tarjeta" />
-        ))}
-      </div>
-    );
+    return <KpiGridSkeleton count={4} />;
   }
 
   return (
-    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Cifra
+    <KpiGrid>
+      <KpiCard
         etiqueta="Saldo por cobrar"
         valor={
-          <Money centavos={resumen.pendientesSaldoCentavos} tone="pendiente" />
+          <Money
+            centavos={resumen.pendientesSaldoCentavos}
+            tone="pendiente"
+            truncate
+          />
         }
       />
-      <Cifra
+      <KpiCard
         etiqueta="Facturas pendientes"
         tono={resumen.pendientesCount > 0 ? "aviso" : "ok"}
         valor={resumen.pendientesCount}
       />
-      <Cifra
+      <KpiCard
         etiqueta="Por facturar de la operación"
         nota="Entregado sin factura todavía"
         valor={
-          <Money centavos={resumen.porCobrarFechaOperacionCentavos} tone="muted" />
+          <Money
+            centavos={resumen.porCobrarFechaOperacionCentavos}
+            tone="muted"
+            truncate
+          />
         }
       />
-      <Cifra
+      <KpiCard
         etiqueta="Cobrado hoy"
         nota={
           resumen.fechaCobro
             ? `Día de calle · ${etiquetaDiaSemanaCorto(resumen.fechaCobro)}`
             : "Día de calle"
         }
-        valor={<Money centavos={resumen.cobradoHoyCentavos} tone="pagado" />}
+        valor={<Money centavos={resumen.cobradoHoyCentavos} tone="pagado" truncate />}
       />
-    </dl>
-  );
-}
-
-function Cifra({
-  etiqueta,
-  valor,
-  nota,
-  tono = "neutro",
-}: {
-  etiqueta: string;
-  valor: ReactNode;
-  nota?: string;
-  tono?: "neutro" | "ok" | "aviso" | "peligro";
-}) {
-  return (
-    <Card className="gap-1 p-4">
-      <dt className="mst-label text-[11px]">{etiqueta}</dt>
-      <dd
-        className={cn(
-          "text-[22px] font-semibold leading-none tabular-nums",
-          tono === "peligro"
-            ? "text-peligro"
-            : tono === "aviso"
-              ? "text-aviso-700"
-              : tono === "ok"
-                ? "text-marca"
-                : "text-tinta-900",
-        )}
-      >
-        {valor}
-      </dd>
-      {nota && <p className="text-[11px] text-tinta-500">{nota}</p>}
-    </Card>
+    </KpiGrid>
   );
 }
 
