@@ -3,7 +3,7 @@ import {
   calendarioAhoraSchema,
   capturaAbierta,
   envelopeOk,
-  instanteAIso,
+  timestampsVentana,
   type CalendarioAhora,
 } from "@misupertostada/shared";
 import { BusinessCalendarService } from "./calendar.service";
@@ -21,6 +21,9 @@ export class CalendarioController {
    * `fechaOperacion` (el de captura) y cada pantalla lo interpretaba como
    * «hoy», lo que hacía que `/pedidos` abriera en una operación vacía a las
    * 08:00 y que `/hoy` perdiera el reparto a las 15:00.
+   *
+   * Los timestamps de countdown salen de `timestampsVentana`, la misma
+   * función que usa el portal: navbar y `/p/{token}` no pueden contradecirse.
    */
   @Get("ahora")
   async ahora(@CurrentActor() actor: Actor) {
@@ -28,15 +31,13 @@ export class CalendarioController {
     const ejes = await this.calendar.ejes(actor.organizacionId);
     const now = this.calendar.now();
     const horario = cal.getHorarioReferencia(now);
-    const cierraDate = cal.getCierreVentana(now);
-    const capturaCerrada = ejes.estadoCaptura === "CERRADO";
-    // Con el día cerrado antes de las 03:00 el reloj de ventana sigue vivo, pero
-    // el timer del panel debe contar hacia la *siguiente* apertura, no hacia el
-    // cierre de esta madrugada ni decir «ventana abierta».
-    const proximaDate =
-      capturaCerrada && ejes.ventanaAbierta && cierraDate
-        ? cal.getProximaApertura(cierraDate)
-        : cal.getProximaApertura(now);
+    const { cierraAt, proximaAperturaAt } = timestampsVentana({
+      ventanaAbierta: ejes.ventanaAbierta,
+      estadoCaptura: ejes.estadoCaptura,
+      cierraDate: cal.getCierreVentana(now),
+      proximaAperturaDesde: (from) => cal.getProximaApertura(from),
+      now,
+    });
 
     const payload: CalendarioAhora = calendarioAhoraSchema.parse({
       fechaOperacionCaptura: ejes.captura,
@@ -56,14 +57,8 @@ export class CalendarioController {
       esSabado: cal.isSabado(ejes.captura),
       horarioApertura: horario?.apertura ?? null,
       horarioCierre: horario?.cierre ?? null,
-      cierraAt:
-        ejes.ventanaAbierta && cierraDate && !capturaCerrada
-          ? instanteAIso(cierraDate)
-          : null,
-      proximaAperturaAt:
-        ((!ejes.ventanaAbierta || capturaCerrada) && proximaDate
-          ? instanteAIso(proximaDate)
-          : null),
+      cierraAt,
+      proximaAperturaAt,
     });
     return envelopeOk(payload);
   }

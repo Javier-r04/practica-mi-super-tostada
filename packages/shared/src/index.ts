@@ -73,6 +73,7 @@ export {
   ZONA_NEGOCIO,
   calendarioAhoraSchema,
   capturaAbierta,
+  timestampsVentana,
   createBusinessCalendar,
   formatearFechaLarga,
   nombreDiaOperacion,

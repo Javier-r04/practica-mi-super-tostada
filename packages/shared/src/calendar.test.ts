@@ -8,7 +8,9 @@ import {
   capturaAbierta,
   createBusinessCalendar,
   desplazarFecha,
+  instanteAIso,
   rangoSemanaIsoGT,
+  timestampsVentana,
 } from "./calendar";
 
 const calendar = createBusinessCalendar({
@@ -538,5 +540,60 @@ describe("capturaAbierta", () => {
   test("sin cierre manda el reloj", () => {
     expect(capturaAbierta(true, "SIN_CIERRE")).toBe(true);
     expect(capturaAbierta(false, "SIN_CIERRE")).toBe(false);
+  });
+});
+
+/**
+ * Panel (`/calendario/ahora`) y portal (`/p/{token}`) deben contar el mismo
+ * reloj. Si cada endpoint inventa su propio `cierraAt`, el cliente ve
+ * «cierra en 6 h» mientras el navbar dice «día cerrado · abre en 18 h».
+ */
+describe("timestampsVentana", () => {
+  function ts(input: {
+    now: Date;
+    ventanaAbierta: boolean;
+    estadoCaptura: "SIN_CIERRE" | "CERRADO" | "REABIERTO";
+  }) {
+    return timestampsVentana({
+      ventanaAbierta: input.ventanaAbierta,
+      estadoCaptura: input.estadoCaptura,
+      cierraDate: calendar.getCierreVentana(input.now),
+      proximaAperturaDesde: (from) => calendar.getProximaApertura(from),
+      now: input.now,
+    });
+  }
+
+  test("ventana viva y día sin cerrar: cuenta hacia el cierre de esta madrugada", () => {
+    const now = instanteGT("2026-08-20T20:44:00");
+    expect(ts({ now, ventanaAbierta: true, estadoCaptura: "SIN_CIERRE" })).toEqual({
+      cierraAt: instanteAIso(instanteGT("2026-08-21T03:00:00")),
+      proximaAperturaAt: null,
+    });
+  });
+
+  test("cierre anticipado con reloj vivo: cuenta hacia las 15:00, no hacia las 03:00", () => {
+    const now = instanteGT("2026-08-20T20:44:00");
+    expect(ts({ now, ventanaAbierta: true, estadoCaptura: "CERRADO" })).toEqual({
+      cierraAt: null,
+      proximaAperturaAt: instanteAIso(instanteGT("2026-08-21T15:00:00")),
+    });
+  });
+
+  test("reloj cerrado: sin cierraAt, sí próxima apertura", () => {
+    const now = instanteGT("2026-08-21T09:00:00");
+    expect(ts({ now, ventanaAbierta: false, estadoCaptura: "CERRADO" })).toEqual({
+      cierraAt: null,
+      proximaAperturaAt: instanteAIso(instanteGT("2026-08-21T15:00:00")),
+    });
+  });
+
+  test("REABIERTO fuera de horario: sin cierre que prometer, sí próxima apertura", () => {
+    const now = instanteGT("2026-08-21T09:00:00");
+    expect(
+      ts({ now, ventanaAbierta: false, estadoCaptura: "REABIERTO" }),
+    ).toEqual({
+      cierraAt: null,
+      proximaAperturaAt: instanteAIso(instanteGT("2026-08-21T15:00:00")),
+    });
   });
 });

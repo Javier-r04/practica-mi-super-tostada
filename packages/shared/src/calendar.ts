@@ -17,8 +17,9 @@ export type DiaEstadoCalendario = (typeof DIA_ESTADOS_CALENDARIO)[number];
  *
  * Regla única para panel y portal. Si el reloj tiene la ventana viva, se
  * puede pedir —aunque el día figure CERRADO (el seed cierra «hoy» para
- * armar la ruta, y el navbar sigue en abierta). Un día REABIERTO acepta
- * captura aunque el reloj ya hubiera vencido.
+ * armar la ruta). El navbar no dice «ventana abierta» en ese caso: usa
+ * `diaEstado` + `timestampsVentana` y rotula «Día cerrado». Un día REABIERTO
+ * acepta captura aunque el reloj ya hubiera vencido.
  */
 export function capturaAbierta(
   ventanaAbierta: boolean,
@@ -26,6 +27,40 @@ export function capturaAbierta(
 ): boolean {
   if (estado === "REABIERTO") return true;
   return ventanaAbierta;
+}
+
+/**
+ * Timestamps que alimentan el countdown del navbar y del portal.
+ *
+ * Un día CERRADO con el reloj de ventana todavía vivo no cuenta hacia las
+ * 03:00: ya no hay cierre que esperar. Cuenta hacia la *siguiente* apertura
+ * (15:00). Sin esta distinción el portal decía «cierra en 6 h» mientras el
+ * panel decía «día cerrado · abre en 18 h».
+ *
+ * Una sola función: `/calendario/ahora` y `/p/{token}` no pueden divergir.
+ */
+export function timestampsVentana(input: {
+  ventanaAbierta: boolean;
+  estadoCaptura: DiaEstadoCalendario;
+  cierraDate: Date | null;
+  proximaAperturaDesde: (from: Date) => Date | null;
+  now: Date;
+}): { cierraAt: string | null; proximaAperturaAt: string | null } {
+  const capturaCerrada = input.estadoCaptura === "CERRADO";
+  const proximaDate =
+    capturaCerrada && input.ventanaAbierta && input.cierraDate
+      ? input.proximaAperturaDesde(input.cierraDate)
+      : input.proximaAperturaDesde(input.now);
+  return {
+    cierraAt:
+      input.ventanaAbierta && input.cierraDate && !capturaCerrada
+        ? instanteAIso(input.cierraDate)
+        : null,
+    proximaAperturaAt:
+      (!input.ventanaAbierta || capturaCerrada) && proximaDate
+        ? instanteAIso(proximaDate)
+        : null,
+  };
 }
 
 /**

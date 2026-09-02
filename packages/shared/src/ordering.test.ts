@@ -222,6 +222,7 @@ describe("portalSesionSchema", () => {
       abierta: true,
       fechaOperacion: "2026-08-21",
       fechaEntrega: "2026-08-22",
+      diaEstado: "SIN_CIERRE",
       cierraAt: "2026-08-21T00:00:00.000-06:00",
       proximaAperturaAt: "2026-08-21T15:00:00.000-06:00",
       horarioEntregaFijo: "08:30",
@@ -248,6 +249,20 @@ describe("portalSesionSchema", () => {
     });
     expect(ok.saludo).toBe("tardes");
     expect(ok.ultimoPedido).toBeNull();
+    expect(ok.ventana.diaEstado).toBe("SIN_CIERRE");
+  });
+
+  test("rechaza una sesión sin diaEstado: el portal no puede omitir el bit del navbar", () => {
+    const { diaEstado: _omitido, ...sinEstado } = sesionBase.ventana;
+    expect(
+      portalSesionSchema.safeParse({
+        ...sesionBase,
+        ahoraIso: "2026-08-20T16:00:00.000-06:00",
+        saludo: "tardes",
+        ultimoPedido: null,
+        ventana: sinEstado,
+      }).success,
+    ).toBe(false);
   });
 });
 

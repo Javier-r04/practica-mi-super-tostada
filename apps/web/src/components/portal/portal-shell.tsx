@@ -3,6 +3,9 @@
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/brand/wordmark";
 import { PortalNav } from "@/components/portal/portal-nav";
+import { VentanaBadge } from "@/components/domain/ventana-badge";
+import { usePortalSession } from "@/components/portal/portal-session";
+import { propsVentanaPedido } from "@/lib/portal-vista";
 import { cn } from "@/lib/utils";
 
 /* El portal lo abre el dueño del restaurante desde su teléfono, sin
@@ -20,13 +23,25 @@ export function PortalShell({
   footer?: ReactNode;
   mainClassName?: string;
 }) {
+  const { sesion } = usePortalSession();
+  const { abierta, reabierta, diaCerrado } = propsVentanaPedido(sesion.ventana);
   return (
     <div className="flex min-h-[100dvh] w-full flex-col bg-[var(--surface-page)]">
       <header className="sticky top-0 z-[var(--z-sticky)] flex h-14 shrink-0 items-center justify-between gap-3 bg-[var(--surface-brand)] px-4 lg:px-6">
         <Wordmark compact onBrand />
-        <p className="min-w-0 truncate text-sm font-semibold text-blanco">
-          {clienteNombre}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          {/* Estado operativo, misma fuente que el navbar del panel. El
+              countdown largo vive en el hero: aquí solo cabe el chip. */}
+          <VentanaBadge
+            size="sm"
+            abierta={abierta}
+            reabierta={reabierta}
+            diaCerrado={diaCerrado}
+          />
+          <p className="min-w-0 truncate text-sm font-semibold text-blanco">
+            {clienteNombre}
+          </p>
+        </div>
       </header>
       <PortalNav variant="top" />
       <main

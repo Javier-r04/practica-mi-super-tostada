@@ -15,8 +15,17 @@ function formatearRestante(ms: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-function etiquetaAccesible(ms: number): string {
+function etiquetaAccesible(ms: number, sentido: "cierra" | "abre"): string {
   const minutos = Math.floor(ms / MIN);
+  if (sentido === "abre") {
+    if (minutos <= 0) return "El pedido abre en menos de un minuto";
+    if (minutos < 60) return `El pedido abre en ${minutos} minutos`;
+    const h = Math.floor(minutos / 60);
+    const m = minutos % 60;
+    return `El pedido abre en ${h} ${h === 1 ? "hora" : "horas"}${
+      m > 0 ? ` y ${m} minutos` : ""
+    }`;
+  }
   if (minutos <= 0) return "El pedido cierra en menos de un minuto";
   if (minutos < 60) return `El pedido cierra en ${minutos} minutos`;
   const h = Math.floor(minutos / 60);
@@ -36,10 +45,16 @@ function apremioDe(ms: number): Apremio {
   return "holgado";
 }
 
-const COPY: Record<Apremio, string> = {
+const COPY_CIERRA: Record<Apremio, string> = {
   holgado: "Cierra en",
   corriendo: "Apúrese, cierra en",
   ultimo: "Últimos minutos",
+};
+
+const COPY_ABRE: Record<Apremio, string> = {
+  holgado: "Abre en",
+  corriendo: "Abre en",
+  ultimo: "Abre en breve",
 };
 
 /* Sobre el verde de marca el tono normal es translúcido; cuando aprieta salta
@@ -66,11 +81,17 @@ const TONO_BARRA: Record<Apremio, string> = {
  */
 export function VentanaCountdown({
   cierraAt,
+  abreAt = null,
   variant = "panel",
   className,
 }: {
   /** `null` sin horario configurado: no hay cierre que contar. */
   cierraAt: string | null;
+  /**
+   * Cierre anticipado: el día ya cerró y el reloj sigue vivo. Contamos
+   * hacia la próxima apertura (como el navbar), no hacia las 03:00.
+   */
+  abreAt?: string | null;
   variant?: "panel" | "barra";
   className?: string;
 }) {
@@ -83,17 +104,25 @@ export function VentanaCountdown({
     return () => window.clearInterval(id);
   }, []);
 
-  if (ahoraMs == null || !cierraAt) return null;
-  const ms = Math.max(0, Date.parse(cierraAt) - ahoraMs);
+  const targetAt = abreAt ?? cierraAt;
+  const sentido: "cierra" | "abre" = abreAt ? "abre" : "cierra";
+  const copy = sentido === "abre" ? COPY_ABRE : COPY_CIERRA;
+
+  if (ahoraMs == null || !targetAt) return null;
+  const ms = Math.max(0, Date.parse(targetAt) - ahoraMs);
   const apremio = apremioDe(ms);
-  const cerrado = ms === 0;
-  const Icon = cerrado ? Lock : Clock;
+  const vencido = ms === 0;
+  const Icon = vencido ? Lock : Clock;
+  const etiquetaVencido =
+    sentido === "abre" ? "La ventana de pedido abrió" : "La ventana de pedido cerró";
+  const textoVencido = sentido === "abre" ? "La ventana abrió" : "La ventana cerró";
+  const tituloVencido = sentido === "abre" ? "Ventana abierta" : "Ventana cerrada";
 
   if (variant === "barra") {
     return (
       <p
         role="timer"
-        aria-label={cerrado ? "La ventana de pedido cerró" : etiquetaAccesible(ms)}
+        aria-label={vencido ? etiquetaVencido : etiquetaAccesible(ms, sentido)}
         className={cn(
           "flex min-h-9 items-center justify-center gap-2 rounded-pill px-3 text-[13px] font-semibold",
           TONO_BARRA[apremio],
@@ -102,7 +131,7 @@ export function VentanaCountdown({
       >
         <Icon size={15} aria-hidden />
         <span aria-hidden>
-          {cerrado ? "La ventana cerró" : `${COPY[apremio]} ${formatearRestante(ms)}`}
+          {vencido ? textoVencido : `${copy[apremio]} ${formatearRestante(ms)}`}
         </span>
       </p>
     );
@@ -111,7 +140,7 @@ export function VentanaCountdown({
   return (
     <div
       role="timer"
-      aria-label={cerrado ? "La ventana de pedido cerró" : etiquetaAccesible(ms)}
+      aria-label={vencido ? etiquetaVencido : etiquetaAccesible(ms, sentido)}
       className={cn(
         "flex items-center gap-3 rounded-tarjeta px-4 py-3",
         TONO_PANEL[apremio],
@@ -121,10 +150,10 @@ export function VentanaCountdown({
       <Icon size={22} className="shrink-0" aria-hidden />
       <div className="min-w-0" aria-hidden>
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] opacity-80">
-          {cerrado ? "Ventana cerrada" : COPY[apremio]}
+          {vencido ? tituloVencido : copy[apremio]}
         </p>
         <p className="text-[26px] font-semibold leading-none tabular-nums">
-          {cerrado ? "00:00" : formatearRestante(ms)}
+          {vencido ? "00:00" : formatearRestante(ms)}
         </p>
       </div>
     </div>

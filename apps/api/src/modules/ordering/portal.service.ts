@@ -12,6 +12,7 @@ import {
 import {
   capturaAbierta,
   instanteAIso,
+  timestampsVentana,
   portalHistorialSchema,
   portalPedidoDetalleClienteSchema,
   portalPedidoResumenSchema,
@@ -40,11 +41,6 @@ import type { ClientePortal } from "./portal-token.service";
 import { ABONO_PORTAL, type AbonoPortal } from "../receivables/abono-portal";
 
 const HISTORIAL_DEFAULT = 20;
-
-/** Sin horario configurado no hay cierre ni próxima apertura que prometerle al cliente. */
-function isoOpcional(instante: Date | null): string | null {
-  return instante ? instanteAIso(instante) : null;
-}
 
 @Injectable()
 export class PortalService {
@@ -85,6 +81,13 @@ export class PortalService {
     const diaEstado = ejes.estadoCaptura;
     const abierta = capturaAbierta(ejes.ventanaAbierta, diaEstado);
     const horario = horarioDe(clienteRow);
+    const { cierraAt, proximaAperturaAt } = timestampsVentana({
+      ventanaAbierta: ejes.ventanaAbierta,
+      estadoCaptura: diaEstado,
+      cierraDate: cal.getCierreVentana(now),
+      proximaAperturaDesde: (from) => cal.getProximaApertura(from),
+      now,
+    });
     const [catalogo, pedidoAbierto, cuenta, ultimoPedido] = await Promise.all([
       this.catalogoDe(clienteRow),
       this.pedidos.portalAbierto(clienteRow.id, fechaOperacion, horario),
@@ -102,22 +105,17 @@ export class PortalService {
         abierta,
         fechaOperacion,
         fechaEntrega: ejes.entregaCaptura,
-        // La cuenta atrás de cierre solo existe mientras corre la ventana del
-        // reloj. En un día reabierto no hay cierre que prometer (lo cierra el
-        // admin a mano), y `getCierreVentana` habría devuelto el de la ventana
-        // siguiente: un contador a mañana sobre una ventana abierta hoy.
+        diaEstado,
+        // Misma función que `/calendario/ahora`. En un día CERRADO con el
+        // reloj vivo, `cierraAt` queda null y `proximaAperturaAt` apunta a
+        // las 15:00: el portal cuenta lo mismo que el navbar.
         //
-        // `proximaAperturaAt` sí se manda aunque la captura esté abierta por
-        // reapertura: el portal lo usa para refrescar a las 15:00, cuando el
-        // reloj abre la operación nueva. El copy de «abre de nuevo…» solo se
-        // muestra si `abierta` es false, así que no le promete una hora al
-        // cliente que ya puede pedir.
-        cierraAt: ejes.ventanaAbierta
-          ? isoOpcional(cal.getCierreVentana(now))
-          : null,
-        proximaAperturaAt: ejes.ventanaAbierta
-          ? null
-          : isoOpcional(cal.getProximaApertura(now)),
+        // En un día REABIERTO no hay cierre de reloj que prometer (lo cierra
+        // el admin a mano). `proximaAperturaAt` sí se manda para que el
+        // portal refresque a las 15:00. El copy de «abre de nuevo» solo se
+        // muestra si `abierta` es false.
+        cierraAt,
+        proximaAperturaAt,
         horarioEntregaFijo: horario,
       },
       catalogo,

@@ -905,7 +905,8 @@ describe.skipIf(!listo)("portal E2", () => {
 
   test("portal sigue abierto si el reloj corre aunque el día esté CERRADO", async () => {
     // El seed (y un cierre que no apagó el reloj) marcan CERRADO mientras la
-    // ventana 15:00–03:00 sigue viva. El navbar dice abierta: el portal también.
+    // ventana 15:00–03:00 sigue viva. Se puede pedir, pero el countdown es el
+    // del navbar: «día cerrado · abre a las 15:00», no «cierra a las 03:00».
     const clock = relojControlado(instanteGT("2026-08-20T22:00:00"));
     const f = await fixture(clock);
     try {
@@ -933,6 +934,11 @@ describe.skipIf(!listo)("portal E2", () => {
       const clienteRow = await f.tokens.resolver(token);
       const sesion = await f.portal.abrirSesion(clienteRow, meta);
       expect(sesion.ventana.abierta).toBe(true);
+      expect(sesion.ventana.diaEstado).toBe("CERRADO");
+      expect(sesion.ventana.cierraAt).toBeNull();
+      expect(sesion.ventana.proximaAperturaAt).toBe(
+        instanteAIso(instanteGT("2026-08-21T15:00:00")),
+      );
       const creado = await f.pedidos.upsertPortal(
         clienteRow,
         { items: [{ productoId: prod.id, cantidad: 10 }] },
@@ -980,6 +986,7 @@ describe.skipIf(!listo)("portal E2", () => {
 
       expect(sesion.ventana.abierta).toBe(true);
       expect(sesion.ventana.fechaOperacion).toBe("2026-08-20");
+      expect(sesion.ventana.diaEstado).toBe("REABIERTO");
       // Sin ventana de reloj no hay cuenta atrás de cierre: lo cierra el
       // admin a mano. La próxima apertura sí se manda para que el portal
       // refresque a las 15:00 —el copy de «abre de nuevo» solo se muestra

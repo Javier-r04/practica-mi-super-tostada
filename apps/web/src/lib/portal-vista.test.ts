@@ -2,11 +2,14 @@ import { describe, expect, test } from "bun:test";
 import type { PortalProducto } from "@misupertostada/shared";
 import {
   avisoLimiteCredito,
+  cierreAnticipadoVentana,
   ctaInicio,
   ctaInicioSecundaria,
   entregaCopy,
   gruposCatalogo,
   origenPedidoLabel,
+  propsVentanaCountdown,
+  propsVentanaPedido,
   saludoCopy,
 } from "./portal-vista";
 
@@ -39,6 +42,8 @@ describe("entregaCopy", () => {
       ventana: {
         abierta: true,
         fechaOperacion: "2026-08-21",
+        fechaEntrega: "2026-08-22",
+        diaEstado: "SIN_CIERRE" as const,
         cierraAt: "x".repeat(20),
         proximaAperturaAt: "y".repeat(20),
         horarioEntregaFijo: "08:30" as string | null,
@@ -83,6 +88,67 @@ describe("ctaInicio", () => {
     );
     expect(ctaInicioSecundaria(false)?.kind).toBe("catalogo");
     expect(ctaInicioSecundaria(true)).toBeNull();
+  });
+});
+
+describe("cierreAnticipadoVentana", () => {
+  const base = {
+    abierta: true,
+    diaEstado: "SIN_CIERRE" as const,
+  };
+
+  test("true solo cuando el reloj sigue vivo y el día ya cerró", () => {
+    expect(
+      cierreAnticipadoVentana({ ...base, diaEstado: "CERRADO" }),
+    ).toBe(true);
+    expect(cierreAnticipadoVentana(base)).toBe(false);
+    expect(
+      cierreAnticipadoVentana({ abierta: false, diaEstado: "CERRADO" }),
+    ).toBe(false);
+    expect(
+      cierreAnticipadoVentana({ abierta: true, diaEstado: "REABIERTO" }),
+    ).toBe(false);
+  });
+});
+
+describe("propsVentanaPedido", () => {
+  const cerrada = {
+    abierta: true,
+    fechaOperacion: "2026-08-20",
+    fechaEntrega: "2026-08-21",
+    diaEstado: "CERRADO" as const,
+    cierraAt: null,
+    proximaAperturaAt: "2026-08-21T15:00:00.000-06:00",
+    horarioEntregaFijo: null,
+  };
+
+  test("el badge del portal recibe los mismos bits que el navbar", () => {
+    expect(propsVentanaPedido(cerrada)).toEqual({
+      abierta: true,
+      reabierta: false,
+      diaCerrado: true,
+      cierraAt: null,
+      proximaAperturaAt: "2026-08-21T15:00:00.000-06:00",
+    });
+  });
+
+  test("el countdown del cierre anticipado apunta a la apertura, no al cierre", () => {
+    expect(propsVentanaCountdown(cerrada)).toEqual({
+      cierraAt: null,
+      abreAt: "2026-08-21T15:00:00.000-06:00",
+    });
+    expect(
+      propsVentanaCountdown({
+        ...cerrada,
+        abierta: true,
+        diaEstado: "SIN_CIERRE",
+        cierraAt: "2026-08-21T03:00:00.000-06:00",
+        proximaAperturaAt: null,
+      }),
+    ).toEqual({
+      cierraAt: "2026-08-21T03:00:00.000-06:00",
+      abreAt: null,
+    });
   });
 });
 

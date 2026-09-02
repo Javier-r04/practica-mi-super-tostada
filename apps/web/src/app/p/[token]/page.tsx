@@ -12,14 +12,18 @@ import {
 } from "@misupertostada/shared";
 import {
   avisoLimiteCredito,
+  cierreAnticipadoVentana,
   ctaInicio,
   ctaInicioSecundaria,
   entregaCopy,
   copyProximaApertura,
+  propsVentanaCountdown,
+  propsVentanaPedido,
   saludoCopy,
 } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
 import { PortalShell } from "@/components/portal/portal-shell";
+import { PortalPedidoChip } from "@/components/portal/portal-pedido-chip";
 import { VentanaCountdown } from "@/components/portal/ventana-countdown";
 import { VentanaBadge } from "@/components/domain/ventana-badge";
 import { EstadoBadge } from "@/components/domain/estado-badge";
@@ -31,6 +35,7 @@ export default function PortalInicioPage() {
   const { token, sesion } = usePortalSession();
   const base = `/p/${encodeURIComponent(token)}`;
   const abierta = sesion.ventana.abierta;
+  const cierreAnticipado = cierreAnticipadoVentana(sesion.ventana);
   const cta = ctaInicio({
     abierta,
     pedidoAbierto: sesion.pedidoAbierto,
@@ -51,12 +56,17 @@ export default function PortalInicioPage() {
           <h1 className="font-display text-2xl leading-tight text-acento">
             {saludoCopy(sesion.saludo, sesion.cliente.nombre)}
           </h1>
-          <VentanaBadge abierta={abierta} />
+          <VentanaBadge {...propsVentanaPedido(sesion.ventana)} />
           {abierta ? (
-            <VentanaCountdown cierraAt={sesion.ventana.cierraAt} />
+            <VentanaCountdown {...propsVentanaCountdown(sesion.ventana)} />
           ) : null}
           <p className="text-sm leading-relaxed text-[var(--green-100)]">
-            {abierta ? (
+            {cierreAnticipado ? (
+              <>
+                {entregaCopy(sesion)} El día ya cerró.{" "}
+                {copyProximaApertura(sesion.ventana.proximaAperturaAt)}
+              </>
+            ) : abierta ? (
               entregaCopy(sesion)
             ) : (
               <>
@@ -77,7 +87,12 @@ export default function PortalInicioPage() {
             className={cta.kind === "pedidos" ? "button--accent" : undefined}
             onPress={() => router.push(hrefCta)}
           >
-            {cta.label}
+            <span className="inline-flex flex-wrap items-center justify-center gap-2">
+              <span>{cta.label}</span>
+              {cta.kind === "editar" && sesion.pedidoAbierto ? (
+                <PortalPedidoChip pedido={sesion.pedidoAbierto} tono="oscuro" />
+              ) : null}
+            </span>
           </Button>
           {ctaSec ? (
             <Button

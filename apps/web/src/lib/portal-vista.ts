@@ -4,11 +4,13 @@ import {
   fechaDeInstante,
   formatearFechaLarga,
   horaEnZona,
+  type DiaEstadoCalendario,
   type Familia,
   type PortalPedido,
   type PortalProducto,
   type PortalSaludo,
   type PortalSesion,
+  type PortalVentana,
 } from "@misupertostada/shared";
 
 export function saludoCopy(saludo: PortalSaludo, nombre: string): string {
@@ -40,6 +42,49 @@ export function copyProximaApertura(iso: string | null): string {
 export function copyEdicionHasta(cierraAt: string | null): string | null {
   if (!cierraAt) return null;
   return `Puede cambiarlo hasta las ${horaEnZona(new Date(cierraAt))}. Después entra a producción.`;
+}
+
+/**
+ * El reloj sigue vivo pero Cristian (o el cron) ya cerró el día. El navbar
+ * del panel lo rotula «Día cerrado»; el portal usa el mismo predicado para
+ * no decir «ventana abierta · cierra en…».
+ */
+export function cierreAnticipadoVentana(ventana: {
+  abierta: boolean;
+  diaEstado: DiaEstadoCalendario;
+}): boolean {
+  return ventana.abierta && ventana.diaEstado === "CERRADO";
+}
+
+/**
+ * Props del `VentanaBadge` de pedido. Viven aquí para que el chrome del
+ * portal (navbar) y las páginas no vuelvan a armar el objeto a mano.
+ */
+export function propsVentanaPedido(ventana: PortalVentana): {
+  abierta: boolean;
+  reabierta: boolean;
+  diaCerrado: boolean;
+  cierraAt: string | null;
+  proximaAperturaAt: string | null;
+} {
+  return {
+    abierta: ventana.abierta,
+    reabierta: ventana.diaEstado === "REABIERTO",
+    diaCerrado: ventana.diaEstado === "CERRADO",
+    cierraAt: ventana.cierraAt,
+    proximaAperturaAt: ventana.proximaAperturaAt,
+  };
+}
+
+/** Countdown del portal: hacia el cierre, o hacia la apertura si el día ya cerró. */
+export function propsVentanaCountdown(ventana: PortalVentana): {
+  cierraAt: string | null;
+  abreAt: string | null;
+} {
+  if (cierreAnticipadoVentana(ventana)) {
+    return { cierraAt: null, abreAt: ventana.proximaAperturaAt };
+  }
+  return { cierraAt: ventana.cierraAt, abreAt: null };
 }
 
 export type CtaInicio =

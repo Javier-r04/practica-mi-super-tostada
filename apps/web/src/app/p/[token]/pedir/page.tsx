@@ -20,16 +20,20 @@ import {
 import { api, ApiError } from "@/lib/api";
 import {
   avisoLimiteCredito,
+  cierreAnticipadoVentana,
   copyEdicionHasta,
   copyProximaApertura,
   entregaCopy,
   gruposCatalogo,
+  propsVentanaCountdown,
+  propsVentanaPedido,
 } from "@/lib/portal-vista";
 import {
   itemsElegidosDe,
   usePortalSession,
 } from "@/components/portal/portal-session";
 import { PortalShell } from "@/components/portal/portal-shell";
+import { PortalPedidoChip } from "@/components/portal/portal-pedido-chip";
 import { VentanaCountdown } from "@/components/portal/ventana-countdown";
 import {
   PortalProductoFila,
@@ -38,7 +42,6 @@ import {
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
 import { ContadorFacturas } from "@/components/domain/contador-facturas";
 import { VentanaBadge } from "@/components/domain/ventana-badge";
-import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -62,6 +65,8 @@ export default function PortalPedirPage() {
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
   const abierta = sesion.ventana.abierta;
+  const cierreAnticipado = cierreAnticipadoVentana(sesion.ventana);
+  const countdown = propsVentanaCountdown(sesion.ventana);
   const pedido = sesion.pedidoAbierto;
   const aviso = avisoLimiteCredito(sesion.cuenta);
 
@@ -178,15 +183,12 @@ export default function PortalPedirPage() {
                 : null}
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <EstadoBadge estado="CONFIRMADO" />
+              <PortalPedidoChip pedido={pedido} tono="oscuro" />
             </div>
           </Card>
 
           {abierta ? (
-            <VentanaCountdown
-              cierraAt={sesion.ventana.cierraAt}
-              variant="barra"
-            />
+            <VentanaCountdown {...countdown} variant="barra" />
           ) : null}
 
           <section className="grid gap-2">
@@ -244,9 +246,11 @@ export default function PortalPedirPage() {
           ) : null}
 
           <p className="text-center text-xs text-tinta-500">
-            {abierta
-              ? copyEdicionHasta(sesion.ventana.cierraAt)
-              : "La ventana ya cerró. Para anular, llame a la fábrica."}
+            {cierreAnticipado
+              ? `El día ya cerró. ${copyProximaApertura(sesion.ventana.proximaAperturaAt)}`
+              : abierta
+                ? copyEdicionHasta(sesion.ventana.cierraAt)
+                : "La ventana ya cerró. Para anular, llame a la fábrica."}
           </p>
 
           {errorAccion ? (
@@ -315,7 +319,7 @@ export default function PortalPedirPage() {
   const resumenElegido = (
     <div className="grid gap-3">
       {abierta ? (
-        <VentanaCountdown cierraAt={sesion.ventana.cierraAt} variant="barra" />
+        <VentanaCountdown {...countdown} variant="barra" />
       ) : null}
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm text-tinta-600 tabular-nums">
@@ -364,12 +368,22 @@ export default function PortalPedirPage() {
           {/* Lo primero de la pantalla: cuánto falta. Si el cliente no lo ve,
               pierde el pedido del día. */}
           <Card className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-4 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
-            <VentanaBadge abierta={abierta} />
+            <div className="flex flex-wrap items-center gap-2">
+              <VentanaBadge {...propsVentanaPedido(sesion.ventana)} />
+              {pedido ? (
+                <PortalPedidoChip pedido={pedido} tono="oscuro" />
+              ) : null}
+            </div>
             {abierta ? (
-              <VentanaCountdown cierraAt={sesion.ventana.cierraAt} />
+              <VentanaCountdown {...countdown} />
             ) : null}
             <p className="text-sm leading-relaxed text-[var(--green-100)]">
-              {abierta ? (
+              {cierreAnticipado ? (
+                <>
+                  {entregaCopy(sesion)} El día ya cerró.{" "}
+                  {copyProximaApertura(sesion.ventana.proximaAperturaAt)}
+                </>
+              ) : abierta ? (
                 <>
                   {entregaCopy(sesion)}{" "}
                   {copyEdicionHasta(sesion.ventana.cierraAt)}

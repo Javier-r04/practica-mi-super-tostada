@@ -44,10 +44,7 @@ export function VentanaBadge({
 
   const tieneTimer =
     (tipo === "whatsapp" && Boolean(expiraAt)) ||
-    (tipo === "pedido" &&
-      (Boolean(cierraAt) ||
-        Boolean(proximaAperturaAt) ||
-        (diaCerrado && abierta)));
+    (tipo === "pedido" && (Boolean(cierraAt) || Boolean(proximaAperturaAt)));
 
   useEffect(() => {
     if (!tieneTimer) return;

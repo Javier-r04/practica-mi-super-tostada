@@ -10,7 +10,10 @@ import {
 } from "./estados";
 import { MESSAGING_SSE_TIPOS } from "./messaging";
 import { COBRANZA_SSE_TIPOS } from "./receivables";
-import { formatearFechaLarga } from "./calendar";
+import {
+  DIA_ESTADOS_CALENDARIO,
+  formatearFechaLarga,
+} from "./calendar";
 import { centavosSchema, formatearCentavos } from "./money";
 
 /** Query string: `""` y ausente → `undefined`, compatible con `parseBody`/`ZodType<T>`. */
@@ -82,6 +85,12 @@ export const portalVentanaSchema = z.object({
   fechaOperacion: z.string().min(10),
   /** Día de reparto de esta ventana. Es la fecha que se le dice al cliente. */
   fechaEntrega: z.string().min(10),
+  /**
+   * Estado de la operación de captura. El navbar del panel lo usa para
+   * «Día cerrado»; el portal tiene que ver el mismo bit, no reinventarlo
+   * con `abierta` (que sigue true si el reloj no ha vencido).
+   */
+  diaEstado: z.enum(DIA_ESTADOS_CALENDARIO),
   /** `null` cuando no hay horario configurado: no hay cierre que prometer. */
   cierraAt: z.string().min(20).nullable(),
   /** `null` cuando la semana entera está apagada. */
