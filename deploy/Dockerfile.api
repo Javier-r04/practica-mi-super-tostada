@@ -1,18 +1,16 @@
 # API NestJS. Build con Bun; runtime Node LTS (AGENTS.md §3.1).
 # Plataforma linux/amd64: el VPS es AMD EPYC, no el chip del Mac.
 #
-# Una sola imagen base (node:22-bookworm-slim): evita dos pulls a Docker Hub
-# en paralelo, que en el VPS suelen terminar en timeout (DeadlineExceeded).
+# Build en oven/bun: Bun ya viene en la imagen — sin apt-get ni curl a bun.sh.
+# En el VPS, deb.debian.org:80 suele hacer timeout; instalar paquetes en build
+# rompe el deploy. argon2/sharp usan prebuilds linux/amd64.
+#
+# Runner en node:22-bookworm-slim. Bun se copia desde build (no re-pull de oven/bun).
 #
 # Un solo stage de build: copiar fuente → instalar → compilar.
 # Openship inyecta NODE_ENV=production y bun run ejecuta scripts con bash
 # sin node_modules/.bin en PATH. Por eso: --production=false y bunx.
-FROM node:22-bookworm-slim AS build
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ curl ca-certificates unzip \
-  && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.13" \
-  && rm -rf /var/lib/apt/lists/*
-ENV PATH="/root/.bun/bin:${PATH}"
+FROM oven/bun:1.3-debian AS build
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/api apps/api
@@ -29,7 +27,7 @@ RUN bunx nest build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-COPY --from=build /root/.bun/bin/bun /usr/local/bin/bun
+COPY --from=build /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps ./apps
 COPY --from=build /app/packages ./packages
