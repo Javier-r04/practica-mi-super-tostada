@@ -1,30 +1,24 @@
 # API NestJS. Build con Bun; runtime Node LTS (AGENTS.md §3.1).
 # Plataforma linux/amd64: el VPS es AMD EPYC, no el chip del Mac.
-FROM oven/bun:1.3-debian AS deps
+#
+# Un solo stage de build: copiar fuente → instalar → compilar.
+# Openship inyecta NODE_ENV=production y bun run ejecuta scripts con bash
+# sin node_modules/.bin en PATH. Por eso: --production=false y bunx.
+FROM oven/bun:1.3-debian AS build
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json bun.lock ./
-COPY apps/api/package.json apps/api/package.json
-COPY apps/web/package.json apps/web/package.json
-COPY packages/shared/package.json packages/shared/package.json
-COPY packages/db/package.json packages/db/package.json
-COPY packages/pdf/package.json packages/pdf/package.json
-# Openship pasa NODE_ENV=production al build; sin devDeps no hay `nest` en PATH.
-RUN NODE_ENV=development bun install --frozen-lockfile
-
-FROM oven/bun:1.3-debian AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
-COPY package.json bun.lock ./
 COPY apps/api apps/api
+COPY apps/web/package.json apps/web/package.json
 COPY packages/shared packages/shared
 COPY packages/db packages/db
 COPY packages/pdf packages/pdf
+RUN bun install --frozen-lockfile --production=false
+WORKDIR /app/apps/api
 ENV NODE_ENV=production
-RUN cd apps/api && bun run build
+RUN bunx nest build
 
 FROM node:22-bookworm-slim AS runner
 RUN apt-get update \
@@ -32,9 +26,8 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=oven/bun:1.3-debian /usr/local/bin/bun /usr/local/bin/bun
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/apps/api/dist ./apps/api/dist
-COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps ./apps
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/bun.lock ./bun.lock
