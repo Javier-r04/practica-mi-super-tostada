@@ -88,6 +88,7 @@ describe("clavesAInvalidar", () => {
       clienteId: CLIENTE,
     });
     expect(incluye(clavesPago, "cartera")).toBe(true);
+    expect(incluye(clavesPago, "abonos")).toBe(true);
     expect(incluye(clavesPago, "cuadre")).toBe(true);
     expect(incluye(clavesPago, "ruta")).toBe(true);
     expect(incluye(clavesPago, "hoja")).toBe(false);
@@ -100,6 +101,18 @@ describe("clavesAInvalidar", () => {
       abonoId: "00000000-0000-4000-a000-000000000055",
     });
     expect(clavesAbono).toEqual(clavesPago);
+  });
+
+  test("abono reportado desde portal refresca la bandeja de transferencias", () => {
+    const claves = clavesAInvalidar({
+      tipo: "abono.reportado",
+      fechaOperacion: FECHA,
+      clienteId: CLIENTE,
+      abonoId: "00000000-0000-4000-a000-000000000055",
+    });
+    expect(incluye(claves, "abonos")).toBe(true);
+    expect(incluye(claves, "cartera")).toBe(true);
+    expect(incluye(claves, "hoja")).toBe(false);
   });
 
   test("mensaje de WhatsApp solo invalida conversaciones", () => {

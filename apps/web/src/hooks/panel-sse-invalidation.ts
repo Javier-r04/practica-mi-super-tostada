@@ -22,7 +22,13 @@ const CLAVES_ENTREGA: string[][] = [
   ["tablero"],
 ];
 const CLAVES_FACTURA: string[][] = [["cartera"], ["pedidos"], ["tablero"]];
-const CLAVES_PAGO: string[][] = [["cartera"], ["cuadre"], ["ruta"], ["tablero"]];
+const CLAVES_PAGO: string[][] = [
+  ["cartera"],
+  ["abonos"],
+  ["cuadre"],
+  ["ruta"],
+  ["tablero"],
+];
 const CLAVES_MENSAJE: string[][] = [["conversaciones"]];
 const CLAVES_CATALOGO: string[][] = [["productos"], ["clientes"]];
 
@@ -32,6 +38,7 @@ const CLAVES_RECONEXION: string[][] = [
   ["operacion"],
   ["calendario"],
   ["cartera"],
+  ["abonos"],
   ["ruta"],
   ["cuadre"],
   ["tablero"],

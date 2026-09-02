@@ -18,7 +18,7 @@ const pillFieldClassName =
   "flex h-campo w-full items-center gap-3 rounded-pill border border-[var(--border-default)] bg-blanco px-4 shadow-[var(--shadow-inset-field)] transition-[border-color,box-shadow] duration-control ease-out hover:border-[var(--border-strong)] focus-within:border-[var(--border-focus)] focus-within:shadow-foco";
 
 const pillInputClassName =
-  "mst-search__input min-w-0 flex-1 appearance-none bg-transparent border-0 p-0 text-[16px] leading-normal text-tinta-800 shadow-none outline-none ring-0 placeholder:text-tinta-500 focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none sm:text-sm";
+  "mst-search__input min-w-0 flex-1 appearance-none bg-transparent border-0 p-0 leading-normal text-tinta-800 shadow-none outline-none ring-0 placeholder:text-tinta-500 focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:border-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none sm:text-sm";
 
 export default function LoginPage() {
   const router = useRouter();

@@ -48,3 +48,20 @@
   --height-portal-footer: var(--portal-footer-height);
   --width-sidebar: var(--sidebar-width);
 }
+
+/* Campos editables en móvil: iOS Safari hace auto-zoom si font-size < 16px al enfocar.
+   Pinch-zoom sigue habilitado (no usamos maximum-scale ni user-scalable=no).
+   Sin @layer para ganar sobre utilidades text-sm/text-base del tema MST. */
+@media (max-width: 639px) {
+  input:not([type="file"]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="range"]):not([type="color"]),
+  textarea,
+  select,
+  .mst-control,
+  .mst-search__input,
+  .mst-quantity-stepper__input,
+  .search-field__input,
+  .input,
+  .textarea {
+    font-size: 16px;
+  }
+}
