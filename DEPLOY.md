@@ -101,7 +101,7 @@ Plantilla: `deploy/openship.env.example`.
 | Clave | Notas |
 |---|---|
 | `WEB_ORIGIN` | URL pública del **web**, con `https://`. CORS y links de WhatsApp. |
-| `NEXT_PUBLIC_API_URL` | URL pública de la **api**. Queda **horneada** en el build de Next: si la cambias, hay que **volver a desplegar** `web`. Si Openship no la detecta, déjala vacía y el build deriva `api.` desde `WEB_ORIGIN` (`app.` → `api.`). |
+| `NEXT_PUBLIC_API_URL` | URL pública de la **api**. Queda **horneada** en el build de Next (`deploy/Dockerfile.web`); si cambias dominio, edita el `ARG` ahí y redeploy `web`. Openship no pasa build args al compose. |
 | `POSTGRES_PASSWORD` | Solo red interna. 32+ caracteres. |
 | `APP_ENCRYPTION_KEY` | `openssl rand -hex 32` |
 | `R2_*` | Obligatorio en production (`apps/api/src/config/env.ts`). |

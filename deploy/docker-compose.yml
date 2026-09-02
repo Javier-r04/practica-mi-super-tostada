@@ -51,7 +51,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://tostada:${POSTGRES_PASSWORD}@postgres:5432/misupertostada
       API_PORT: "3001"
-      WEB_ORIGIN: ${WEB_ORIGIN:?WEB_ORIGIN es la URL pública del panel}
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://mayoristas.larasolutions.dev}
       SESSION_COOKIE_NAME: session
       SESSION_TTL_SECONDS: "604800"
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?}
@@ -93,15 +93,11 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
-      args:
-        WEB_ORIGIN: ${WEB_ORIGIN:-}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     restart: unless-stopped
     environment:
       NODE_ENV: production
       HOSTNAME: "0.0.0.0"
       PORT: "3000"
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     ports:
       - "3000:3000"
     healthcheck:
