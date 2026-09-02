@@ -38,6 +38,6 @@ COPY --from=build /app/apps/web/public ./public
 COPY deploy/entrypoint-web.sh /app/entrypoint-web.sh
 RUN chmod +x /app/entrypoint-web.sh
 EXPOSE 3000
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=8 \
+HEALTHCHECK --interval=15s --timeout=10s --start-period=90s --retries=12 \
   CMD node -e "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["/app/entrypoint-web.sh"]
