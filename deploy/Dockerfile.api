@@ -21,10 +21,6 @@ RUN unset NODE_ENV && bun install --frozen-lockfile
 WORKDIR /app/apps/api
 ENV NODE_ENV=production
 RUN bunx nest build
-WORKDIR /app
-# bootstrap/seed usan argon2: en el runner corre Node, no Bun (ABI distinta).
-RUN bun build packages/db/src/bootstrap-prod.ts --outfile /app/ops/bootstrap.js --target=node --packages=external \
-  && bun build packages/db/src/seed.ts --outfile /app/ops/seed.js --target=node --packages=external
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
@@ -34,7 +30,6 @@ COPY --from=build /app/apps ./apps
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/bun.lock ./bun.lock
-COPY --from=build /app/ops ./ops
 COPY deploy/entrypoint-api.sh /app/deploy/entrypoint-api.sh
 RUN chmod +x /app/deploy/entrypoint-api.sh \
   && ARGON2_DIR="$(cd /app/apps/api && node -p "require('path').dirname(require.resolve('argon2/package.json'))")" \

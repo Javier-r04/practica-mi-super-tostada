@@ -24,12 +24,12 @@ until bun packages/db/src/migrate-prod.ts; do
   sleep 2
 done
 
-echo "[api] bootstrap (node + argon2)..."
-node /app/ops/bootstrap.js
+echo "[api] bootstrap..."
+bun packages/db/src/bootstrap-prod.ts
 
 if [ "${SEED_ON_BOOT:-false}" = "true" ]; then
   echo "[api] seed de catálogo (solo primer deploy)..."
-  node /app/ops/seed.js
+  bun packages/db/src/seed.ts
 fi
 
 echo "[api] arrancando Nest en 0.0.0.0:${API_PORT:-3001}"
