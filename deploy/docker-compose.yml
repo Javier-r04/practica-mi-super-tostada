@@ -14,7 +14,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
       POSTGRES_DB: misupertostada
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # Postgres 18: el mount es /var/lib/postgresql, no .../data.
+      - pgdata:/var/lib/postgresql
     command:
       - postgres
       - -c
@@ -49,6 +50,10 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      POSTGRES_USER: tostada
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
+      POSTGRES_DB: misupertostada
+      POSTGRES_HOST: postgres
       DATABASE_URL: postgresql://tostada:${POSTGRES_PASSWORD}@postgres:5432/misupertostada
       API_PORT: "3001"
       WEB_ORIGIN: ${WEB_ORIGIN:-https://mayoristas.larasolutions.dev}
