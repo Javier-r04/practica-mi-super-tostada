@@ -37,8 +37,10 @@ export default function PortalPedidosPage() {
     <PortalShell clienteNombre={sesion.cliente.nombre}>
       <div className="grid gap-4 py-4">
         <div>
-          <h1 className="text-xl font-semibold text-tinta-900">Sus pedidos</h1>
-          <p className="mt-1 text-sm text-tinta-500">
+          <h1 className="sr-only text-xl font-semibold text-tinta-900 lg:not-sr-only">
+            Sus pedidos
+          </h1>
+          <p className="mt-1 text-sm text-tinta-500 lg:mt-1">
             Últimos pedidos de este restaurante.
           </p>
         </div>
@@ -71,19 +73,19 @@ export default function PortalPedidosPage() {
                 >
                   <Link
                     href={`${base}/pedidos/${p.id}`}
-                    className="flex min-h-[60px] items-center gap-3 px-4 py-3 text-inherit no-underline transition-colors duration-control ease-out hover:bg-[var(--ink-50)] hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+                    className="flex min-h-[60px] min-w-0 items-center gap-2 px-4 py-3 text-inherit no-underline transition-colors duration-control ease-out hover:bg-[var(--ink-50)] hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco sm:gap-3"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-semibold tabular-nums text-tinta-900">
+                      <span className="block truncate text-[15px] font-semibold tabular-nums text-tinta-900">
                         {formatearFechaLarga(p.fechaEntrega)}
                       </span>
-                      <span className="block text-xs text-tinta-500">
+                      <span className="block truncate text-xs text-tinta-500">
                         <span className="font-mono">#{p.correlativo}</span> ·{" "}
                         {origenPedidoLabel(p.origen)}
                       </span>
                     </span>
-                    <span className="grid justify-items-end gap-1">
-                      <Money centavos={p.totalCentavos} />
+                    <span className="grid min-w-0 shrink-0 justify-items-end gap-1">
+                      <Money centavos={p.totalCentavos} truncate />
                       <EstadoBadge estado={p.estado} size="sm" />
                     </span>
                     <ChevronRight

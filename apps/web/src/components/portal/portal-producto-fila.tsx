@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
 function ProductoNombres({ producto }: { producto: PortalProducto }) {
   return (
     <>
-      <div className="flex items-start gap-1.5">
-        <span className="text-pretty text-[15px] font-semibold capitalize leading-snug text-tinta-900">
+      <div className="flex min-w-0 items-start gap-1.5">
+        <span className="min-w-0 line-clamp-2 text-pretty text-[15px] font-semibold capitalize leading-snug text-tinta-900">
           {producto.alias}
         </span>
         {producto.favorito ? (
@@ -34,7 +34,7 @@ function ProductoNombres({ producto }: { producto: PortalProducto }) {
         ) : null}
       </div>
       {producto.alias !== producto.nombreCanonico ? (
-        <p className="mt-0.5 text-pretty text-[12px] leading-snug text-tinta-500">
+        <p className="mt-0.5 line-clamp-1 text-pretty text-[12px] leading-snug text-tinta-500">
           {producto.nombreCanonico}
         </p>
       ) : null}
@@ -60,8 +60,8 @@ function ProductoPrecio({
   }
 
   return (
-    <p className={cn("text-[13px] tabular-nums text-tinta-600", className)}>
-      <Money centavos={producto.precioCentavos} tone="muted" /> / {unidad}
+    <p className={cn("min-w-0 text-[13px] tabular-nums text-tinta-600", className)}>
+      <Money centavos={producto.precioCentavos} tone="muted" truncate /> / {unidad}
     </p>
   );
 }
@@ -149,8 +149,9 @@ export function PortalProductoFila({
               </p>
             ) : null}
             {producto.pedible ? (
-              <p className="mt-1 text-[14px] font-bold text-tinta-900">
-                <Money centavos={producto.precioCentavos} /> <span className="font-normal text-tinta-500">/ {unidad}</span>
+              <p className="mt-1 min-w-0 text-[14px] font-bold text-tinta-900">
+                <Money centavos={producto.precioCentavos} truncate />{" "}
+                <span className="font-normal text-tinta-500">/ {unidad}</span>
               </p>
             ) : (
               <Chip className="mt-1" color="warning" size="sm" variant="soft">
@@ -208,19 +209,15 @@ export function PortalProductoFila({
           <ProductoNombres producto={producto} />
         </div>
       </div>
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <ProductoPrecio
-          producto={producto}
-          unidad={unidad}
-          className="min-w-0 shrink truncate"
-        />
+      <div className="grid min-w-0 gap-2">
+        <ProductoPrecio producto={producto} unidad={unidad} />
         <QuantityStepper
           value={cantidad}
           onChange={onChange}
           unidad={unidad}
           disabled={disabled}
           size="md"
-          className="shrink-0"
+          className="w-full"
         />
       </div>
     </div>
@@ -238,8 +235,8 @@ export function PortalSeccion({
   children: ReactNode;
 }) {
   return (
-    <section className="grid gap-2">
-      <h2 className="flex items-baseline justify-between gap-2 px-1 mst-label">
+    <section className="grid min-w-0 gap-2">
+      <h2 className="flex min-w-0 items-baseline justify-between gap-2 px-1 mst-label">
         <span>{titulo}</span>
         {cuenta != null ? (
           <span className="tabular-nums text-tinta-400">{cuenta}</span>

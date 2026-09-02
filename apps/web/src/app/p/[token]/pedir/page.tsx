@@ -166,15 +166,15 @@ export default function PortalPedirPage() {
   if (confirmado && pedido) {
     return (
       <PortalShell clienteNombre={sesion.cliente.nombre}>
-        <div className="grid gap-4 py-4" role="status">
+        <div className="grid min-w-0 gap-4 py-4" role="status">
           <Card className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-5 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
             <CheckCircle2 size={32} className="text-acento" aria-hidden />
-            <h1 className="font-display text-2xl leading-none text-acento">
+            <h1 className="min-w-0 text-balance font-display text-2xl leading-none text-acento">
               Pedido
               <br />
               confirmado
             </h1>
-            <p className="text-sm text-[var(--green-100)]">
+            <p className="min-w-0 text-pretty text-sm text-[var(--green-100)]">
               Pedido <span className="font-mono">#{pedido.correlativo}</span>
               {" · "}
               {formatearFechaLarga(pedido.fechaEntrega)}
@@ -210,9 +210,9 @@ export default function PortalPedirPage() {
                   />
                 );
               })}
-              <div className="flex items-baseline justify-between bg-[var(--ink-50)] px-4 py-3">
-                <span className="mst-label">Total</span>
-                <Money centavos={pedido.totalCentavos} className="text-[17px]" />
+              <div className="flex min-w-0 items-baseline justify-between gap-2 bg-[var(--ink-50)] px-4 py-3">
+                <span className="mst-label shrink-0">Total</span>
+                <Money centavos={pedido.totalCentavos} className="text-[17px]" truncate />
               </div>
             </Card>
           </section>
@@ -270,8 +270,8 @@ export default function PortalPedirPage() {
             if (!open) setCancelando(false);
           }}
         >
-          <Modal.Container size="md">
-            <Modal.Dialog>
+          <Modal.Container size="md" placement="bottom">
+            <Modal.Dialog className="pb-[max(1rem,env(safe-area-inset-bottom))]">
               <Modal.CloseTrigger />
               <Modal.Header>
                 <Modal.Heading>¿Cancelar su pedido?</Modal.Heading>
@@ -292,13 +292,14 @@ export default function PortalPedirPage() {
                   Cuando cierre, la fábrica tendrá que anularlo por teléfono.
                 </p>
               </Modal.Body>
-              <Modal.Footer>
+              <Modal.Footer className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button variant="tertiary" onPress={() => setCancelando(false)}>
                   Volver
                 </Button>
                 <Button
                   isPending={cancelar.isPending}
                   variant="danger"
+                  className="w-full sm:w-auto"
                   onPress={() => cancelar.mutate()}
                 >
                   {({ isPending }) => (
@@ -321,12 +322,12 @@ export default function PortalPedirPage() {
       {abierta ? (
         <VentanaCountdown {...countdown} variant="barra" />
       ) : null}
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm text-tinta-600 tabular-nums">
+      <div className="flex min-w-0 items-baseline justify-between gap-2">
+        <span className="shrink-0 text-sm text-tinta-600 tabular-nums">
           {itemsElegidos.length}{" "}
           {itemsElegidos.length === 1 ? "producto" : "productos"}
         </span>
-        <Money centavos={totalCentavos} className="text-[17px]" />
+        <Money centavos={totalCentavos} className="text-[17px]" truncate />
       </div>
       {sesion.cuenta.facturasPendientes > 0 ? (
         <ContadorFacturas
@@ -360,14 +361,13 @@ export default function PortalPedirPage() {
   return (
     <PortalShell
       clienteNombre={sesion.cliente.nombre}
-      footer={<div className="lg:hidden">{resumenElegido}</div>}
-      mainClassName="pb-4"
+      footer={<div className="min-w-0 lg:hidden">{resumenElegido}</div>}
     >
-      <div className="grid flex-1 gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        <div className="grid gap-4">
+      <div className="grid min-w-0 flex-1 gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <div className="grid min-w-0 gap-4">
           {/* Lo primero de la pantalla: cuánto falta. Si el cliente no lo ve,
               pierde el pedido del día. */}
-          <Card className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-4 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
+          <Card className="min-w-0 gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-4 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
             <div className="flex flex-wrap items-center gap-2">
               <VentanaBadge {...propsVentanaPedido(sesion.ventana)} />
               {pedido ? (
@@ -377,7 +377,7 @@ export default function PortalPedirPage() {
             {abierta ? (
               <VentanaCountdown {...countdown} />
             ) : null}
-            <p className="text-sm leading-relaxed text-[var(--green-100)]">
+            <p className="min-w-0 text-sm leading-relaxed text-[var(--green-100)]">
               {cierreAnticipado ? (
                 <>
                   {entregaCopy(sesion)} El día ya cerró.{" "}
@@ -407,10 +407,10 @@ export default function PortalPedirPage() {
             </Alert>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <SearchField
               aria-label="Buscar producto"
-              className="min-w-0 flex-1"
+              className="min-w-0 w-full flex-1 basis-[12rem]"
               value={busqueda}
               onChange={setBusqueda}
             >
@@ -421,7 +421,7 @@ export default function PortalPedirPage() {
               </SearchField.Group>
             </SearchField>
             {busqueda ? (
-              <p className="mst-label tabular-nums" aria-live="polite">
+              <p className="mst-label w-full shrink-0 tabular-nums sm:w-auto" aria-live="polite">
                 {visibles} de {sesion.catalogo.length}
               </p>
             ) : null}
@@ -498,10 +498,12 @@ export default function PortalPedirPage() {
           if (!open) setRevisando(false);
         }}
       >
-        <Modal.Container size="lg">
-          <Modal.Dialog>
+        <Modal.Container size="md" placement="bottom">
+          <Modal.Dialog className="flex max-h-[min(92dvh,40rem)] flex-col pb-[max(1rem,env(safe-area-inset-bottom))]">
             <Modal.CloseTrigger />
-            <Modal.Header>
+            <Modal.Header
+              className="sticky top-0 z-10 shrink-0 border-b border-[var(--border-subtle)] bg-blanco pb-3"
+            >
               <Modal.Heading>Revise su pedido</Modal.Heading>
               <p className="text-sm text-tinta-500">
                 {formatearFechaLarga(sesion.ventana.fechaEntrega)}
@@ -509,10 +511,17 @@ export default function PortalPedirPage() {
                   ? ` · entrega ${sesion.ventana.horarioEntregaFijo}`
                   : ""}
               </p>
+              <div className="flex min-w-0 items-baseline justify-between gap-2 pt-3">
+                <span className="shrink-0 text-sm tabular-nums text-tinta-600">
+                  {itemsElegidos.length}{" "}
+                  {itemsElegidos.length === 1 ? "producto" : "productos"}
+                </span>
+                <Money centavos={totalCentavos} className="text-[17px]" truncate />
+              </div>
             </Modal.Header>
 
-            <Modal.Body className="grid gap-4">
-              <Card className="gap-0 overflow-hidden p-0">
+            <Modal.Body className="grid min-h-0 flex-1 gap-4 overflow-y-auto">
+              <Card className="min-w-0 gap-0 overflow-hidden p-0">
                 {itemsElegidos.map(({ producto, cantidad }) => (
                   <PedidoItemRow
                     key={producto.productoId}
@@ -528,10 +537,6 @@ export default function PortalPedirPage() {
                     }
                   />
                 ))}
-                <div className="flex items-baseline justify-between bg-[var(--ink-50)] px-4 py-3">
-                  <span className="mst-label">Total</span>
-                  <Money centavos={totalCentavos} className="text-[17px]" />
-                </div>
               </Card>
 
               {sesion.cuenta.facturasPendientes > 0 ? (
@@ -545,13 +550,13 @@ export default function PortalPedirPage() {
                     {sesion.cuenta.facturas.map((fac) => (
                       <li
                         key={fac.id}
-                        className="flex items-baseline justify-between gap-2 text-sm"
+                        className="flex min-w-0 items-baseline justify-between gap-2 text-sm"
                       >
-                        <span className="text-tinta-500">
+                        <span className="min-w-0 truncate text-tinta-500">
                           {fac.numeroDte ?? "Sin DTE"} · {fac.antiguedadDias}{" "}
                           {fac.antiguedadDias === 1 ? "día" : "días"}
                         </span>
-                        <Money centavos={fac.saldoCentavos} />
+                        <Money centavos={fac.saldoCentavos} truncate className="shrink-0" />
                       </li>
                     ))}
                   </ul>
@@ -582,8 +587,12 @@ export default function PortalPedirPage() {
               </p>
             </Modal.Body>
 
-            <Modal.Footer>
-              <Button variant="tertiary" onPress={() => setRevisando(false)}>
+            <Modal.Footer className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="tertiary"
+                className="w-full sm:w-auto"
+                onPress={() => setRevisando(false)}
+              >
                 Cambiar
               </Button>
               <Button
@@ -591,6 +600,7 @@ export default function PortalPedirPage() {
                 isPending={confirmar.isPending}
                 size="lg"
                 variant="primary"
+                className="w-full sm:w-auto"
                 onPress={() => confirmar.mutate()}
               >
                 {({ isPending }) => (

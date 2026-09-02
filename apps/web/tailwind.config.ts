@@ -51,6 +51,7 @@ const config: Config = {
         fila: "var(--row-height)",
         topbar: "var(--topbar-height)",
         bottombar: "var(--bottombar-height)",
+        "portal-footer": "var(--portal-footer-height)",
       },
       width: {
         sidebar: "var(--sidebar-width)",

@@ -108,8 +108,10 @@ export default function PortalCuentaPage() {
     <PortalShell clienteNombre={sesion.cliente.nombre}>
       <div className="grid gap-4 py-4">
         <div>
-          <h1 className="text-xl font-semibold text-tinta-900">Su cuenta</h1>
-          <p className="mt-1 text-sm text-tinta-500">
+          <h1 className="sr-only text-xl font-semibold text-tinta-900 lg:not-sr-only">
+            Su cuenta
+          </h1>
+          <p className="mt-1 text-sm text-tinta-500 lg:mt-1">
             Saldo pendiente, abonos y reporte de transferencias.
           </p>
         </div>
@@ -142,6 +144,7 @@ export default function PortalCuentaPage() {
                     <Money
                       centavos={data.transferenciasEnRevisionCentavos}
                       tone="pendiente"
+                      truncate
                     />{" "}
                     en comprobantes que aún no confirma la fábrica. Su saldo no
                     baja hasta entonces.
@@ -164,7 +167,7 @@ export default function PortalCuentaPage() {
                     {data.facturas.map((f) => (
                       <li
                         key={f.id}
-                        className="flex min-h-fila flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
+                        className="flex min-w-0 items-center gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
                       >
                         <div className="min-w-0 flex-1">
                           <NumeroDtePortal numeroDte={f.numeroDte} />
@@ -173,19 +176,21 @@ export default function PortalCuentaPage() {
                             {f.antiguedadDias === 1 ? "día" : "días"}
                           </p>
                         </div>
-                        <EstadoBadge estado={f.estado} size="sm" />
-                        <div className="w-full text-right sm:w-auto">
-                          <Money
-                            centavos={f.saldoCentavos}
-                            tone={
-                              f.estado === "VENCIDO"
-                                ? "vencido"
-                                : f.estado === "ABONO_PARCIAL"
-                                  ? "pendiente"
-                                  : "default"
-                            }
-                          />
+                        <div className="shrink-0">
+                          <EstadoBadge estado={f.estado} size="sm" />
                         </div>
+                        <Money
+                          centavos={f.saldoCentavos}
+                          tone={
+                            f.estado === "VENCIDO"
+                              ? "vencido"
+                              : f.estado === "ABONO_PARCIAL"
+                                ? "pendiente"
+                                : "default"
+                          }
+                          truncate
+                          className="shrink-0 text-right"
+                        />
                       </li>
                     ))}
                   </ul>
@@ -208,8 +213,8 @@ export default function PortalCuentaPage() {
                         key={a.id}
                         className="grid gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
+                        <div className="flex min-w-0 items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-tinta-900">
                               {a.metodo === "TRANSFERENCIA"
                                 ? "Transferencia"
@@ -217,14 +222,14 @@ export default function PortalCuentaPage() {
                               · {a.fecha}
                             </p>
                             {a.descripcion ? (
-                              <p className="text-xs text-tinta-500">
+                              <p className="text-pretty text-xs text-tinta-500">
                                 {a.descripcion}
                               </p>
                             ) : null}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex shrink-0 items-center gap-2">
                             <EstadoBadge dominio="abono" estado={a.estado} size="sm" />
-                            <Money centavos={a.montoCentavos} />
+                            <Money centavos={a.montoCentavos} truncate />
                           </div>
                         </div>
                         {a.estado === "PENDIENTE" ? (
@@ -242,12 +247,12 @@ export default function PortalCuentaPage() {
                             {a.aplicaciones.map((ap) => (
                               <li
                                 key={`${a.id}-${ap.facturaId}`}
-                                className="flex justify-between gap-2"
+                                className="flex min-w-0 justify-between gap-2"
                               >
-                                <span className="font-mono">
+                                <span className="min-w-0 truncate font-mono">
                                   {ap.numeroDte ?? "Sin DTE"}
                                 </span>
-                                <Money centavos={ap.montoCentavos} tone="muted" />
+                                <Money centavos={ap.montoCentavos} tone="muted" truncate />
                               </li>
                             ))}
                           </ul>

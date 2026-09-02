@@ -100,9 +100,9 @@ function DetalleBody({
             {origenPedidoLabel(data.origen)}
           </Card.Description>
         </Card.Header>
-        <Card.Content className="flex items-baseline justify-between border-t border-[var(--border-subtle)] pt-3">
-          <span className="mst-label">Total</span>
-          <Money centavos={data.totalCentavos} className="text-[17px]" />
+        <Card.Content className="flex min-w-0 items-baseline justify-between gap-2 border-t border-[var(--border-subtle)] pt-3">
+          <span className="mst-label shrink-0">Total</span>
+          <Money centavos={data.totalCentavos} className="text-[17px]" truncate />
         </Card.Content>
       </Card>
 
@@ -132,7 +132,7 @@ function DetalleBody({
           </Card.Header>
           <Card.Content className="grid gap-2">
             <NumeroDtePortal numeroDte={data.factura.numeroDte} />
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
             <EstadoBadge estado={data.factura.estado} size="sm" />
             <Money
               centavos={data.factura.saldoCentavos}
@@ -143,6 +143,7 @@ function DetalleBody({
                     ? "pendiente"
                     : "default"
               }
+              truncate
             />
             </div>
           </Card.Content>

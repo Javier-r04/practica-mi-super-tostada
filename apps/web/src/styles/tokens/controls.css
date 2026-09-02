@@ -375,6 +375,16 @@ button.mst-control {
   transition: var(--transition-control);
 }
 
+/* Fila del portal móvil: el stepper ocupa todo el ancho disponible. */
+.mst-quantity-stepper.w-full {
+  display: flex;
+  width: 100%;
+}
+
+.mst-quantity-stepper.w-full .mst-quantity-stepper__value {
+  flex: 1;
+}
+
 .mst-quantity-stepper[data-editing="true"] {
   border-color: var(--border-focus);
 }

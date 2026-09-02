@@ -98,7 +98,7 @@ export function PortalNav({ variant }: { variant: "bottom" | "top" }) {
   return (
     <nav
       aria-label="Portal"
-      className="fixed inset-x-0 bottom-0 z-[var(--z-nav)] flex h-16 border-t border-[var(--border-subtle)] bg-blanco lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-[var(--z-nav)] flex min-h-bottombar border-t border-[var(--border-subtle)] bg-blanco pb-[env(safe-area-inset-bottom,0px)] lg:hidden"
     >
       {NAV.map((item) => {
         const href = item.href(token);
@@ -121,7 +121,7 @@ export function PortalNav({ variant }: { variant: "bottom" | "top" }) {
                 el portal se ve a plena luz y con el teléfono en la mano. */}
             <span
               className={cn(
-                "relative flex h-7 w-14 items-center justify-center rounded-pill transition-colors duration-control ease-out",
+                "relative flex h-7 w-12 items-center justify-center rounded-pill transition-colors duration-control ease-out sm:w-14",
                 active ? "bg-[var(--green-100)]" : "bg-transparent",
               )}
             >

@@ -51,9 +51,9 @@ export default function PortalInicioPage() {
         {/* Encabezado de marca: saludo, estado de la ventana y —lo que decide
             el día— cuánto falta para que cierre el pedido. */}
         <Card
-          className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-5 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]"
+          className="min-w-0 gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-5 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]"
         >
-          <h1 className="font-display text-2xl leading-tight text-acento">
+          <h1 className="min-w-0 text-balance font-display text-2xl leading-tight text-acento">
             {saludoCopy(sesion.saludo, sesion.cliente.nombre)}
           </h1>
           <VentanaBadge {...propsVentanaPedido(sesion.ventana)} />
@@ -116,7 +116,7 @@ export default function PortalInicioPage() {
           </Alert>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-3 [&>*]:min-w-0">
           <LosetaPedidoEstaNoche
             pedido={sesion.pedidoAbierto}
             abierta={abierta}
@@ -147,7 +147,7 @@ function Loseta({
   const cuerpo = (
     <Card
       className={cn(
-        "h-full gap-2 p-4",
+        "h-full min-w-0 gap-2 p-4",
         href &&
           "transition-shadow duration-control ease-out group-hover:shadow-[var(--shadow-md)]",
       )}
@@ -230,10 +230,11 @@ function LosetaCuenta({
               {pendientes === 1 ? "factura pendiente" : "facturas pendientes"}
             </span>
           </p>
-          <p className="text-sm text-tinta-600">
+          <p className="min-w-0 text-sm text-tinta-600">
             <Money
               centavos={saldoCentavos}
               tone={saldoCentavos > 0 ? "pendiente" : "default"}
+              truncate
             />{" "}
             por pagar
           </p>

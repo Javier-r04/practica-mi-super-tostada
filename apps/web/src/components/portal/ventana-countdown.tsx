@@ -124,13 +124,13 @@ export function VentanaCountdown({
         role="timer"
         aria-label={vencido ? etiquetaVencido : etiquetaAccesible(ms, sentido)}
         className={cn(
-          "flex min-h-9 items-center justify-center gap-2 rounded-pill px-3 text-[13px] font-semibold",
+          "flex min-h-9 min-w-0 items-center justify-center gap-2 rounded-pill px-3 text-[13px] font-semibold",
           TONO_BARRA[apremio],
           className,
         )}
       >
-        <Icon size={15} aria-hidden />
-        <span aria-hidden>
+        <Icon size={15} className="shrink-0" aria-hidden />
+        <span className="min-w-0 truncate" aria-hidden>
           {vencido ? textoVencido : `${copy[apremio]} ${formatearRestante(ms)}`}
         </span>
       </p>
@@ -142,17 +142,17 @@ export function VentanaCountdown({
       role="timer"
       aria-label={vencido ? etiquetaVencido : etiquetaAccesible(ms, sentido)}
       className={cn(
-        "flex items-center gap-3 rounded-tarjeta px-4 py-3",
+        "flex min-w-0 items-center gap-3 rounded-tarjeta px-4 py-3",
         TONO_PANEL[apremio],
         className,
       )}
     >
       <Icon size={22} className="shrink-0" aria-hidden />
-      <div className="min-w-0" aria-hidden>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] opacity-80">
+      <div className="min-w-0 flex-1" aria-hidden>
+        <p className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] opacity-80">
           {vencido ? tituloVencido : copy[apremio]}
         </p>
-        <p className="text-[26px] font-semibold leading-none tabular-nums">
+        <p className="truncate text-[22px] font-semibold leading-none tabular-nums sm:text-[26px]">
           {vencido ? "00:00" : formatearRestante(ms)}
         </p>
       </div>

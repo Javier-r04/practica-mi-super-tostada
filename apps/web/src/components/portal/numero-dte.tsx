@@ -31,7 +31,7 @@ export function NumeroDtePortal({ numeroDte }: { numeroDte: string | null }) {
         }}
       >
         <Copy size={14} aria-hidden />
-        Copiar
+        <span className="sr-only sm:not-sr-only">Copiar</span>
       </Button>
     </div>
   );

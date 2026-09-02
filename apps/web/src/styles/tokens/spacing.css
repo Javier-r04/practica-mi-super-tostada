@@ -7,4 +7,14 @@
 --tap-min:calc(44px * var(--ui-scale));             /* mínimo de área táctil: Tony usa guantes */
 --field-height:calc(44px * var(--ui-scale));--field-height-sm:calc(36px * var(--ui-scale));
 --sidebar-width:calc(248px * var(--ui-scale));--topbar-height:calc(56px * var(--ui-scale));--bottombar-height:calc(64px * var(--ui-scale));
+/* Portal /pedir pie sticky (móvil): py-3 + countdown barra + fila total +
+   ContadorFacturas + botón lg + tres gaps gap-3. */
+--portal-footer-height:calc(
+  var(--space-6) * 2 +
+  var(--tap-min) +
+  var(--space-6) +
+  var(--row-height) +
+  var(--field-height) +
+  var(--space-3) * 3
+);
 }

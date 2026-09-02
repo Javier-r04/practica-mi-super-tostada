@@ -45,5 +45,6 @@
   --height-fila: var(--row-height);
   --height-topbar: var(--topbar-height);
   --height-bottombar: var(--bottombar-height);
+  --height-portal-footer: var(--portal-footer-height);
   --width-sidebar: var(--sidebar-width);
 }
