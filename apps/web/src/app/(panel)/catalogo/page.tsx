@@ -434,7 +434,7 @@ function ProductoRowBody({ producto }: { producto: ProductoPublico }) {
           {producto.precioBaseCentavos != null && (
             <>
               {" · "}
-              <Money centavos={producto.precioBaseCentavos} size="sm" tone="muted" />
+              <Money centavos={producto.precioBaseCentavos} tone="muted" />
             </>
           )}
         </span>
