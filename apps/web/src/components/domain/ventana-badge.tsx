@@ -21,6 +21,7 @@ export function VentanaBadge({
   expiraAt,
   cierraAt,
   proximaAperturaAt,
+  className,
 }: {
   abierta: boolean;
   size?: "sm" | "md";
@@ -39,6 +40,7 @@ export function VentanaBadge({
   expiraAt?: string | null;
   cierraAt?: string | null;
   proximaAperturaAt?: string | null;
+  className?: string;
 }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -118,6 +120,7 @@ export function VentanaBadge({
           : viva
             ? "bg-[var(--green-100)] text-[var(--green-700)]"
             : "bg-[var(--ink-100)] text-[var(--ink-600)]",
+        className,
       )}
     >
       <Icon size={size === "sm" ? 12 : 14} aria-hidden />

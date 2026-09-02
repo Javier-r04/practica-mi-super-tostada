@@ -7,7 +7,8 @@ import {
   ClipboardList,
   Factory,
   LayoutDashboard,
-  Menu,
+  ChevronDown,
+  ChevronLeft,
   MessageCircle,
   Package,
   Sun,
@@ -26,6 +27,7 @@ import {
 } from "@misupertostada/shared";
 import {
   esSoloLectura,
+  repartirNavMovil,
   seccionVisible,
   type SeccionPanel,
 } from "@/lib/nav-vista";
@@ -33,6 +35,8 @@ import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Avatar, Button, Drawer, ScrollShadow } from "@heroui/react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MovilNav, type MovilNavItem } from "@/components/layout/movil-nav";
 import { Wordmark } from "@/components/brand/wordmark";
 import { VentanaBadge } from "@/components/domain/ventana-badge";
 import { avisoReabierto } from "@/lib/reabierto-vista";
@@ -96,30 +100,6 @@ const NAV: readonly NavItem[] = [
   },
 ];
 
-/** Máximo de ranuras de la barra inferior cuando no hay desbordamiento. */
-const MOVIL_MAX = 4;
-/** Ranuras de navegación cuando hace falta el botón "Más". */
-const MOVIL_FIJOS = 3;
-
-/**
- * Reparte las secciones visibles entre la barra inferior y la hoja "Más":
- * hasta cuatro caben todas; a partir de la quinta se fijan tres y el resto
- * pasa a la hoja.
- */
-function repartirMovil(visibles: readonly NavItem[]): {
-  barra: NavItem[];
-  extra: NavItem[];
-} {
-  const navegables = visibles.filter((item) => item.href && !item.soon);
-  // Los marcados `mobile: false` van al final: primero los de uso diario.
-  const orden = [
-    ...navegables.filter((item) => item.mobile !== false),
-    ...navegables.filter((item) => item.mobile === false),
-  ];
-  if (orden.length <= MOVIL_MAX) return { barra: orden, extra: [] };
-  return { barra: orden.slice(0, MOVIL_FIJOS), extra: orden.slice(MOVIL_FIJOS) };
-}
-
 function itemActivo(pathname: string, item: NavItem): boolean {
   if (!item.href) return false;
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -128,18 +108,23 @@ function itemActivo(pathname: string, item: NavItem): boolean {
 export function PanelShell({
   title,
   barraFija,
+  volver,
   children,
 }: {
   title: string;
   /** Barra sticky pegada al header del panel (sin hueco del padding de main). */
   barraFija?: ReactNode;
+  /** En móvil muestra ← en el header sticky (p. ej. ficha de cliente). */
+  volver?: { href: string; label: string };
   children: ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const qc = useQueryClient();
   const mainId = useId();
-  const [hojaAbierta, setHojaAbierta] = useState(false);
+  const [masAbierto, setMasAbierto] = useState(false);
+  const [cuentaAbierta, setCuentaAbierta] = useState(false);
+  const [estadoAbierto, setEstadoAbierto] = useState(false);
   const cola = useColaOffline();
   const mostrarBanner =
     pathname.startsWith("/reparto") || cola.cola.length > 0;
@@ -176,6 +161,21 @@ export function PanelShell({
     }
   }, [me.error, router]);
 
+  useEffect(() => {
+    setMasAbierto(false);
+    setCuentaAbierta(false);
+  }, [pathname]);
+
+  const abrirMas = (open: boolean) => {
+    setMasAbierto(open);
+    if (open) setCuentaAbierta(false);
+  };
+
+  const abrirCuenta = (open: boolean) => {
+    setCuentaAbierta(open);
+    if (open) setMasAbierto(false);
+  };
+
   const logout = useMutation({
     mutationFn: () => api("/auth/logout", { method: "POST" }),
     onSuccess: () => {
@@ -192,14 +192,23 @@ export function PanelShell({
   const visibles = NAV.filter((item) =>
     seccionVisible(item.id, usuario.permisos),
   );
-  const seccionActiva = NAV.find((item) => itemActivo(pathname, item))?.id;
+  const seccionActivaItem = NAV.find((item) => itemActivo(pathname, item));
+  const seccionActiva = seccionActivaItem?.id;
+  const etiquetaSeccion = seccionActivaItem?.label;
   const soloLectura = seccionActiva
     ? esSoloLectura(seccionActiva, usuario.permisos)
     : false;
-  const { barra: movilBarra, extra: movilExtra } = repartirMovil(visibles);
+  const { barra: movilBarra, extra: movilExtra } = repartirNavMovil(
+    visibles.filter((item) => item.href && !item.soon),
+    usuario.rol,
+  );
+  const aMovilNav = (items: readonly NavItem[]) =>
+    items.flatMap((item): MovilNavItem[] =>
+      item.href ? [{ href: item.href, id: item.id, label: item.label, icon: item.icon }] : [],
+    );
   const iniciales = usuario.username.slice(0, 2).toUpperCase();
   return (
-    <div className="flex min-h-[100dvh] bg-[var(--surface-page)] lg:h-[100dvh] lg:overflow-hidden">
+    <div className="flex h-[100dvh] overflow-hidden bg-[var(--surface-page)]">
       <a
         href={`#${mainId}`}
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[var(--z-toast)] focus:rounded-campo focus:bg-blanco focus:px-3 focus:py-2 focus:shadow-modal"
@@ -270,71 +279,176 @@ export function PanelShell({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-[var(--z-sticky)] flex min-h-topbar items-center gap-2 border-b border-tinta-200/50 bg-blanco/80 backdrop-blur-md px-4 py-2 sm:gap-3 lg:px-6 shadow-sm">
-          {/* En móvil la sección activa ya está en la barra inferior; el header queda para estado operativo. */}
-          <h1 className="sr-only lg:not-sr-only lg:min-w-0 lg:truncate lg:text-lg lg:font-semibold lg:text-tinta-900">
-            {title}
-          </h1>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-[var(--z-sticky)] flex min-h-topbar items-center gap-2 border-b border-tinta-200/50 bg-blanco/80 backdrop-blur-md px-3 py-2 sm:gap-3 sm:px-4 lg:px-6 shadow-sm">
+          <div className="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1 lg:flex-none">
+            {volver ? (
+              <Link
+                href={volver.href}
+                aria-label={`Volver a ${volver.label}`}
+                className="inline-flex min-h-tap min-w-tap shrink-0 items-center justify-center rounded-campo text-marca no-underline transition-colors hover:bg-tinta-50 hover:text-marca-hover hover:no-underline focus-visible:outline-none focus-visible:shadow-foco lg:hidden"
+              >
+                <ChevronLeft size={22} strokeWidth={2.25} aria-hidden />
+              </Link>
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-sm font-semibold text-tinta-900 lg:text-lg">
+                {title}
+              </h1>
+              {etiquetaSeccion && etiquetaSeccion !== title ? (
+                <p className="mst-label truncate text-tinta-500 lg:hidden">
+                  {etiquetaSeccion}
+                </p>
+              ) : null}
+            </div>
+          </div>
           {/*
             Sin este aviso, quien no puede escribir ve una pantalla sin botones
             y no sabe si es su permiso o un fallo de carga.
           */}
           {soloLectura && (
             <span
-              className="mst-label shrink-0 rounded-full bg-tinta-100 px-2 py-0.5 text-tinta-600"
+              className="mst-label hidden shrink-0 rounded-full bg-tinta-100 px-2 py-0.5 text-tinta-600 lg:inline"
               title="Puede consultar esta sección, pero no registrar acciones en ella."
             >
               Solo lectura
             </span>
           )}
-          <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
-            {calendario.data && <EjesFecha cal={calendario.data} />}
-            {aviso && (
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+            {calendario.data ? <EjesFecha cal={calendario.data} layout="horizontal" /> : null}
+            {aviso ? (
               <span
-                className="mst-label shrink-0 rounded-full bg-[var(--amber-100)] px-2 py-0.5 text-[var(--amber-700)]"
+                className="mst-label hidden shrink-0 rounded-full bg-[var(--amber-100)] px-2 py-0.5 text-[var(--amber-700)] sm:inline"
                 title={aviso.detalle}
               >
                 {aviso.chip}
               </span>
-            )}
+            ) : null}
             {transferenciasPendientes > 0 ? (
               <Link
-                className="mst-label shrink-0 rounded-full bg-[var(--amber-100)] px-2 py-0.5 text-[var(--amber-700)] no-underline hover:text-[var(--amber-800)]"
+                className="mst-label hidden shrink-0 rounded-full bg-[var(--amber-100)] px-2 py-0.5 text-[var(--amber-700)] no-underline hover:text-[var(--amber-800)] sm:inline"
                 href="/cartera?panel=transferencias"
                 title={`${transferenciasPendientes} transferencia${transferenciasPendientes === 1 ? "" : "s"} pendientes de confirmar`}
               >
-                <span className="sm:hidden">{transferenciasPendientes} transf.</span>
-                <span className="hidden sm:inline">
-                  {transferenciasPendientes} transferencia
-                  {transferenciasPendientes === 1 ? "" : "s"}
-                </span>
+                {transferenciasPendientes} transferencia
+                {transferenciasPendientes === 1 ? "" : "s"}
               </Link>
             ) : null}
-            {calendario.data && (
-              <VentanaBadge
-                size="sm"
-                abierta={calendario.data.capturaAbierta}
-                reabierta={calendario.data.diaEstado === "REABIERTO"}
-                diaCerrado={calendario.data.diaEstado === "CERRADO"}
-                cierraAt={calendario.data.cierraAt}
-                proximaAperturaAt={calendario.data.proximaAperturaAt}
-              />
-            )}
-            <button
-              type="button"
-              className="grid size-11 shrink-0 place-items-center rounded-campo text-tinta-800 lg:hidden focus-visible:outline-none focus-visible:shadow-foco"
-              aria-haspopup="dialog"
-              aria-expanded={hojaAbierta}
-              onClick={() => setHojaAbierta(true)}
-            >
-              <Avatar className="size-8 bg-marca-soft text-marca">
-                <Avatar.Fallback className="text-xs font-semibold text-marca">
-                  {iniciales}
-                </Avatar.Fallback>
-              </Avatar>
-              <span className="sr-only">Cuenta y más opciones</span>
-            </button>
+            {calendario.data ? (
+              <>
+                <VentanaBadge
+                  size="sm"
+                  abierta={calendario.data.capturaAbierta}
+                  reabierta={calendario.data.diaEstado === "REABIERTO"}
+                  diaCerrado={calendario.data.diaEstado === "CERRADO"}
+                  cierraAt={calendario.data.cierraAt}
+                  proximaAperturaAt={calendario.data.proximaAperturaAt}
+                  className="hidden lg:inline-flex"
+                />
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center gap-0.5 rounded-pill pr-1.5 focus-visible:outline-none focus-visible:shadow-foco lg:hidden"
+                  aria-haspopup="dialog"
+                  aria-expanded={estadoAbierto}
+                  aria-label="Ver estado del día y fechas de operación"
+                  onClick={() => {
+                    setMasAbierto(false);
+                    setCuentaAbierta(false);
+                    setEstadoAbierto(true);
+                  }}
+                >
+                  <VentanaBadge
+                    size="sm"
+                    abierta={calendario.data.capturaAbierta}
+                    reabierta={calendario.data.diaEstado === "REABIERTO"}
+                    diaCerrado={calendario.data.diaEstado === "CERRADO"}
+                    cierraAt={calendario.data.cierraAt}
+                    proximaAperturaAt={calendario.data.proximaAperturaAt}
+                  />
+                  <ChevronDown size={14} className="shrink-0 text-tinta-500" aria-hidden />
+                </button>
+              </>
+            ) : null}
+            <Popover open={cuentaAbierta} onOpenChange={abrirCuenta}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="grid size-11 shrink-0 place-items-center rounded-campo text-tinta-800 transition-transform active:scale-95 lg:hidden focus-visible:outline-none focus-visible:shadow-foco"
+                  aria-haspopup="dialog"
+                  aria-expanded={cuentaAbierta}
+                >
+                  <Avatar className="size-8 bg-marca-soft text-marca">
+                    <Avatar.Fallback className="text-xs font-semibold text-marca">
+                      {iniciales}
+                    </Avatar.Fallback>
+                  </Avatar>
+                  <span className="sr-only">Cuenta</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="bottom"
+                sideOffset={8}
+                collisionPadding={16}
+                className={cn(
+                  "w-[min(280px,calc(100vw-2rem))] p-0",
+                  "transition-[opacity,transform] duration-control ease-out",
+                  "data-[state=closed]:scale-95 data-[state=closed]:opacity-0",
+                  "data-[state=open]:scale-100 data-[state=open]:opacity-100",
+                )}
+              >
+                <div className="p-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="size-10 bg-marca-soft text-marca">
+                      <Avatar.Fallback className="text-xs font-semibold text-marca">
+                        {iniciales}
+                      </Avatar.Fallback>
+                    </Avatar>
+                    <span className="min-w-0 flex-1 leading-tight">
+                      <span className="block truncate text-sm font-semibold text-tinta-900">
+                        {usuario.username}
+                      </span>
+                      <span className="block mst-label text-tinta-500">{usuario.rol}</span>
+                    </span>
+                  </div>
+                  {soloLectura ? (
+                    <p className="mt-2 rounded-campo bg-tinta-50 px-2.5 py-1.5 text-[11px] font-medium text-tinta-600">
+                      Solo lectura en esta sección
+                    </p>
+                  ) : null}
+                </div>
+                <div className="grid gap-0.5 border-t border-[var(--border-subtle)] p-2">
+                  {tienePermiso(usuario.permisos, "usuarios.gestionar") ? (
+                    <Link
+                      href="/configuracion"
+                      onClick={() => setCuentaAbierta(false)}
+                      className={cn(
+                        "flex min-h-tap items-center gap-3 rounded-lg px-3 text-sm font-medium no-underline hover:no-underline transition-colors",
+                        pathname.startsWith("/configuracion")
+                          ? "bg-acento/15 font-semibold text-tinta-900"
+                          : "text-tinta-700 hover:bg-tinta-100 hover:text-tinta-900",
+                      )}
+                    >
+                      <Settings size={18} aria-hidden />
+                      Configuración
+                    </Link>
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onPress={() => {
+                      setCuentaAbierta(false);
+                      logout.mutate();
+                    }}
+                    isPending={logout.isPending}
+                    className="min-h-tap w-full justify-start gap-3 rounded-lg px-3 text-tinta-700 hover:text-peligro hover:bg-[var(--red-100)]"
+                  >
+                    <LogOut size={18} aria-hidden />
+                    Salir
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </header>
         {mostrarBanner && (
@@ -361,10 +475,10 @@ export function PanelShell({
         <main
           id={mainId}
           className={cn(
-            "relative flex-1 overflow-auto",
+            "relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain",
             barraFija
-              ? "pb-[calc(var(--bottombar-height)+1rem)] lg:pb-6"
-              : "px-4 py-4 pb-[calc(var(--bottombar-height)+1rem)] lg:px-6 lg:py-6 lg:pb-6",
+              ? "pb-[calc(var(--bottombar-height)+2rem+env(safe-area-inset-bottom,0px))] lg:pb-6"
+              : "px-4 py-4 pb-[calc(var(--bottombar-height)+2rem+env(safe-area-inset-bottom,0px))] lg:px-6 lg:py-6 lg:pb-6",
           )}
         >
           {barraFija ? (
@@ -385,123 +499,72 @@ export function PanelShell({
         </main>
       </div>
 
-      <nav
-        aria-label="Móvil"
-        className="fixed inset-x-0 bottom-0 z-[var(--z-nav)] flex h-bottombar border-t border-[var(--border-subtle)] bg-blanco lg:hidden shadow-[0_-1px_3px_rgba(0,0,0,0.05)]"
-      >
-        {movilBarra.map((item) => {
-          const Icon = item.icon;
-          const active = itemActivo(pathname, item);
-          return (
-            <Link
-              key={item.id}
-              href={item.href!}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex min-h-tap min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-[11px] font-semibold leading-tight no-underline hover:no-underline transition-colors",
-                active ? "text-marca" : "text-tinta-500 hover:text-tinta-900",
-              )}
-            >
-              <Icon size={22} className={cn("transition-transform", active && "drop-shadow-sm scale-110")} aria-hidden />
-              <span className="max-w-full truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-        {movilExtra.length > 0 ? (
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            aria-expanded={hojaAbierta}
-            onClick={() => setHojaAbierta(true)}
-            className={cn(
-              "flex min-h-tap min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-[11px] font-semibold leading-tight transition-colors",
-              movilExtra.some((item) => itemActivo(pathname, item))
-                ? "text-marca"
-                : "text-tinta-500 hover:text-tinta-900",
-            )}
-          >
-            <Menu size={22} className={cn("transition-transform", movilExtra.some((item) => itemActivo(pathname, item)) && "drop-shadow-sm scale-110")} aria-hidden />
-            <span className="max-w-full truncate">Más</span>
-          </button>
-        ) : null}
-      </nav>
+      <MovilNav
+        pathname={pathname}
+        barra={aMovilNav(movilBarra)}
+        extra={aMovilNav(movilExtra)}
+        abierto={masAbierto}
+        onAbiertoChange={abrirMas}
+      />
 
-      <Drawer isOpen={hojaAbierta} onOpenChange={setHojaAbierta}>
+      <Drawer isOpen={estadoAbierto} onOpenChange={setEstadoAbierto}>
         <Drawer.Backdrop>
           <Drawer.Content placement="bottom" className="max-h-[85dvh] rounded-t-2xl bg-blanco">
             <Drawer.Dialog className="p-4">
               <Drawer.Handle />
               <Drawer.Header className="flex items-center justify-between pb-2">
                 <Drawer.Heading className="text-base font-semibold text-tinta-900">
-                  Más opciones
+                  Estado operativo
                 </Drawer.Heading>
                 <Drawer.CloseTrigger />
               </Drawer.Header>
-              <Drawer.Body className="p-0">
-                <div className="grid gap-1 py-1">
-                  {movilExtra.map((item) => {
-                    const Icon = item.icon;
-                    const active = itemActivo(pathname, item);
-                    return (
+              <Drawer.Body className="grid gap-4 p-0">
+                {calendario.data ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <VentanaBadge
+                        size="md"
+                        abierta={calendario.data.capturaAbierta}
+                        reabierta={calendario.data.diaEstado === "REABIERTO"}
+                        diaCerrado={calendario.data.diaEstado === "CERRADO"}
+                        cierraAt={calendario.data.cierraAt}
+                        proximaAperturaAt={calendario.data.proximaAperturaAt}
+                      />
+                      {soloLectura ? (
+                        <span
+                          className="mst-label rounded-full bg-tinta-100 px-2 py-0.5 text-tinta-600"
+                          title="Puede consultar esta sección, pero no registrar acciones en ella."
+                        >
+                          Solo lectura
+                        </span>
+                      ) : null}
+                    </div>
+                    <EjesFecha cal={calendario.data} layout="stacked" />
+                    {aviso ? (
+                      <div className="rounded-campo border border-[var(--amber-200)] bg-[var(--amber-100)] px-3 py-2">
+                        <p className="text-sm font-semibold text-[var(--amber-800)]">
+                          {aviso.chip}
+                        </p>
+                        <p className="mt-1 text-xs text-[var(--amber-700)]">{aviso.detalle}</p>
+                      </div>
+                    ) : null}
+                    {transferenciasPendientes > 0 ? (
                       <Link
-                        key={item.id}
-                        href={item.href!}
-                        aria-current={active ? "page" : undefined}
-                        onClick={() => setHojaAbierta(false)}
-                        className={cn(
-                          "group flex min-h-[42px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors no-underline hover:no-underline",
-                          active
-                            ? "bg-acento/15 font-semibold text-tinta-900"
-                            : "text-tinta-700 hover:bg-tinta-100 hover:text-tinta-900",
-                        )}
+                        href="/cartera?panel=transferencias"
+                        onClick={() => setEstadoAbierto(false)}
+                        className="flex min-h-tap items-center justify-between rounded-campo border border-[var(--amber-200)] bg-[var(--amber-100)] px-3 py-2 text-sm font-semibold text-[var(--amber-800)] no-underline hover:text-[var(--amber-900)]"
                       >
-                        <Icon size={18} className={cn("shrink-0 transition-transform duration-200", active ? "scale-110 text-marca drop-shadow-sm" : "group-hover:scale-110")} aria-hidden />
-                        {item.label}
+                        <span>
+                          {transferenciasPendientes} transferencia
+                          {transferenciasPendientes === 1 ? "" : "s"} pendientes
+                        </span>
+                        <span className="text-xs font-medium">Ver en cartera →</span>
                       </Link>
-                    );
-                  })}
-                  {tienePermiso(usuario.permisos, "usuarios.gestionar") ? (
-                    <Link
-                      href="/configuracion"
-                      aria-current={
-                        pathname.startsWith("/configuracion") ? "page" : undefined
-                      }
-                      onClick={() => setHojaAbierta(false)}
-                      className={cn(
-                        "group flex min-h-[42px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors no-underline hover:no-underline",
-                        pathname.startsWith("/configuracion")
-                          ? "bg-acento/15 font-semibold text-tinta-900"
-                          : "text-tinta-700 hover:bg-tinta-100 hover:text-tinta-900",
-                      )}
-                    >
-                      <Settings size={18} className={cn("shrink-0 transition-transform duration-200", pathname.startsWith("/configuracion") ? "scale-110 text-marca drop-shadow-sm" : "group-hover:scale-110")} aria-hidden />
-                      Configuración
-                    </Link>
-                  ) : null}
-                </div>
-                <div className="mt-4 flex items-center gap-2 border-t border-[var(--border-subtle)] pt-4">
-                  <Avatar className="size-8 bg-marca-soft text-marca">
-                    <Avatar.Fallback className="text-xs font-semibold text-marca">
-                      {iniciales}
-                    </Avatar.Fallback>
-                  </Avatar>
-                  <span className="min-w-0 flex-1 leading-tight">
-                    <span className="block truncate text-sm font-semibold text-tinta-900">
-                      {usuario.username}
-                    </span>
-                    <span className="block mst-label">{usuario.rol}</span>
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onPress={() => logout.mutate()}
-                    isPending={logout.isPending}
-                    className="text-tinta-700 hover:text-peligro hover:bg-[var(--red-100)]"
-                  >
-                    <LogOut size={16} aria-hidden />
-                    Salir
-                  </Button>
-                </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-sm text-tinta-500">Cargando calendario…</p>
+                )}
               </Drawer.Body>
             </Drawer.Dialog>
           </Drawer.Content>
@@ -520,7 +583,13 @@ export function PanelShell({
  * eje tiene su celda y ninguna pantalla tiene que adivinar cuál es «hoy».
  * Ver `calendarioAhoraSchema` y `BusinessCalendarService.ejes`.
  */
-function EjesFecha({ cal }: { cal: CalendarioAhora }) {
+function EjesFecha({
+  cal,
+  layout = "horizontal",
+}: {
+  cal: CalendarioAhora;
+  layout?: "horizontal" | "stacked";
+}) {
   // La entrega solo se anota cuando no cae el mismo día que la operación
   // (sábado con carga en planta, feriados): el resto del tiempo es ruido.
   const nota =
@@ -529,6 +598,29 @@ function EjesFecha({ cal }: { cal: CalendarioAhora }) {
       : cal.esSabado
         ? "Carga en planta"
         : undefined;
+
+  if (layout === "stacked") {
+    return (
+      <dl className="grid gap-2">
+        <Eje
+          label="Captura de pedidos"
+          iso={cal.fechaOperacionCaptura}
+          nota={nota}
+          className="rounded-campo border border-[var(--border-subtle)] bg-[var(--surface-page)] px-3 py-2"
+        />
+        <Eje
+          label="En reparto hoy"
+          iso={cal.fechaOperacionEnCurso}
+          className="rounded-campo border border-[var(--border-subtle)] bg-[var(--surface-page)] px-3 py-2"
+        />
+        <Eje
+          label="Día de calendario"
+          iso={cal.hoyCivil}
+          className="rounded-campo border border-[var(--border-subtle)] bg-[var(--surface-page)] px-3 py-2"
+        />
+      </dl>
+    );
+  }
 
   return (
     <dl className="hidden min-w-0 items-center divide-x divide-[var(--border-subtle)] rounded-campo border border-[var(--border-subtle)] bg-[var(--surface-page)] px-1.5 py-1 sm:flex shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
@@ -614,7 +706,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 
 function ShellSkeleton() {
   return (
-    <div className="flex min-h-[100dvh] bg-[var(--surface-page)]">
+    <div className="flex h-[100dvh] overflow-hidden bg-[var(--surface-page)]">
       <div className="hidden w-sidebar border-r border-[var(--border-subtle)] bg-blanco lg:block">
         <div className="border-b border-[var(--border-subtle)] px-3 py-3">
           <Skeleton className="mx-auto size-24 rounded-full" />
@@ -625,7 +717,7 @@ function ShellSkeleton() {
           <Skeleton className="h-11 w-full" />
         </div>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex h-topbar items-center border-b border-[var(--border-subtle)] bg-blanco px-6">
           <Skeleton className="h-5 w-32" />
         </div>

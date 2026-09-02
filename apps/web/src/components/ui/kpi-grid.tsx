@@ -9,7 +9,9 @@ export type KpiTono = "neutro" | "ok" | "marca" | "aviso" | "peligro";
 
 const columnLayouts = {
   standard: "grid-cols-2 lg:grid-cols-4",
-  tablero: "grid-cols-2 lg:grid-cols-3 xl:grid-cols-5",
+  /** En móvil: 2 columnas; la quinta KPI ocupa el ancho completo para no dejar hueco. */
+  tablero:
+    "grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 [&>*:nth-child(5):nth-last-child(1)]:col-span-2 lg:[&>*:nth-child(5):nth-last-child(1)]:col-span-1",
   tres: "grid-cols-2 sm:grid-cols-3",
 } as const;
 
@@ -92,15 +94,15 @@ export function KpiCard({
       <dt className="mst-label line-clamp-2 text-[11px] leading-snug">{etiqueta}</dt>
       <dd
         className={cn(
-          "min-w-0 truncate font-semibold leading-none tabular-nums",
-          size === "lg" ? "text-xl sm:text-[22px]" : "text-lg sm:text-[22px]",
+          "min-w-0 font-semibold leading-tight tabular-nums [overflow-wrap:anywhere]",
+          size === "lg" ? "text-xl sm:text-[22px]" : "text-base sm:text-[22px]",
           valorTono,
         )}
       >
         {valor}
       </dd>
       {nota ? (
-        <p className="min-w-0 text-pretty text-[11px] leading-snug text-tinta-500 line-clamp-2">
+        <p className="min-w-0 text-pretty text-[11px] leading-snug text-tinta-500">
           {nota}
         </p>
       ) : null}
@@ -127,14 +129,14 @@ export function KpiCardAncla({
       <dt className="mst-label line-clamp-2 text-[11px] leading-snug">{etiqueta}</dt>
       <dd
         className={cn(
-          "min-w-0 truncate text-lg font-semibold leading-none tabular-nums sm:text-[22px]",
+          "min-w-0 text-base font-semibold leading-tight tabular-nums [overflow-wrap:anywhere] sm:text-[22px]",
           tonoClase(tono),
         )}
       >
         {valor}
       </dd>
       {nota ? (
-        <p className="min-w-0 text-pretty text-[11px] leading-snug text-tinta-500 line-clamp-2">
+        <p className="min-w-0 text-pretty text-[11px] leading-snug text-tinta-500">
           {nota}
         </p>
       ) : null}

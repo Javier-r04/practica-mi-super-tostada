@@ -36,7 +36,7 @@ export function KpiStrip({ data }: { data: Tablero }) {
       <KpiCardAncla
         ancla="chart-ventas"
         etiqueta="Ventas"
-        valor={<Money centavos={k.ventasCentavos} tone="pagado" truncate />}
+        valor={<Money centavos={k.ventasCentavos} tone="pagado" />}
         nota={deltaTexto(k.ventasDeltaCentavos, k.ventasDeltaPuntosBase)}
         tono={bajaronVentas ? "aviso" : "marca"}
       />
@@ -51,7 +51,7 @@ export function KpiStrip({ data }: { data: Tablero }) {
         etiqueta="Por cobrar"
         valor={
           data.filtrosAplicados.carteraAplica ? (
-            <Money centavos={k.porCobrarCentavos} tone="pendiente" truncate />
+            <Money centavos={k.porCobrarCentavos} tone="pendiente" />
           ) : (
             <span className="text-tinta-500">N/A</span>
           )
@@ -66,7 +66,7 @@ export function KpiStrip({ data }: { data: Tablero }) {
       <KpiCardAncla
         ancla="chart-cobrado"
         etiqueta="Cobrado"
-        valor={<Money centavos={k.cobradoCentavos} truncate />}
+        valor={<Money centavos={k.cobradoCentavos} />}
         nota={`Efectivo ${formatearCentavos(k.cobradoEfectivoCentavos)} · Transferencia ${formatearCentavos(k.cobradoTransferenciaCentavos)}`}
       />
       <KpiCardAncla

@@ -58,12 +58,12 @@ function TarjetaGrafica({
 }) {
   return (
     <div id={ancla} className="min-w-0 scroll-mt-24">
-      <Card className="h-full min-w-0 overflow-hidden">
+      <Card className="h-full min-w-0">
         <Card.Header>
           <Card.Title>{titulo}</Card.Title>
           {subtitulo && <Card.Description>{subtitulo}</Card.Description>}
         </Card.Header>
-        <Card.Content className="min-w-0 overflow-x-auto">{children}</Card.Content>
+        <Card.Content className="min-w-0 overflow-x-auto pb-1">{children}</Card.Content>
       </Card>
     </div>
   );

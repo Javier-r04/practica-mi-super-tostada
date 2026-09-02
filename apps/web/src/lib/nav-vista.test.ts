@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { permisosEfectivos, type Rol } from "@misupertostada/shared";
 import {
   esSoloLectura,
+  repartirNavMovil,
   seccionVisible,
   SECCIONES_PANEL,
   type SeccionPanel,
@@ -85,5 +86,45 @@ describe("badge de solo lectura", () => {
       expect(esSoloLectura("tablero", permisos)).toBe(false);
       expect(esSoloLectura("produccion", permisos)).toBe(false);
     }
+  });
+});
+
+describe("reparto móvil por rol", () => {
+  const items = (secciones: SeccionPanel[]) =>
+    secciones.map((id) => ({
+      id,
+      mobile: ["tablero", "conversaciones", "catalogo", "clientes"].includes(id)
+        ? false
+        : undefined,
+    }));
+
+  test("REPARTO prioriza Reparto y Cartera en la barra", () => {
+    const { barra, extra } = repartirNavMovil(items(visibles("REPARTO")), "REPARTO");
+    expect(barra.map((i) => i.id)).toEqual(["reparto", "cartera", "hoy"]);
+    expect(extra.map((i) => i.id)).toContain("pedidos");
+    expect(extra.map((i) => i.id)).toContain("tablero");
+  });
+
+  test("PRODUCCION prioriza Producción y Pedidos en la barra", () => {
+    const { barra } = repartirNavMovil(items(visibles("PRODUCCION")), "PRODUCCION");
+    expect(barra.map((i) => i.id)).toEqual(["produccion", "pedidos", "hoy"]);
+  });
+
+  test("ADMIN_JEFE con nueve secciones deja catálogo y clientes en extra", () => {
+    const { barra, extra } = repartirNavMovil(
+      items(visibles("ADMIN_JEFE")),
+      "ADMIN_JEFE",
+    );
+    expect(barra.map((i) => i.id)).toEqual(["hoy", "pedidos", "produccion"]);
+    expect(extra.map((i) => i.id)).toContain("catalogo");
+    expect(extra.map((i) => i.id)).toContain("clientes");
+    expect(extra.map((i) => i.id)).toContain("conversaciones");
+  });
+
+  test("cuatro o menos secciones caben todas sin botón Más", () => {
+    const cuatro = items(["hoy", "pedidos", "produccion", "reparto"]);
+    const { barra, extra } = repartirNavMovil(cuatro, "REPARTO");
+    expect(barra).toHaveLength(4);
+    expect(extra).toHaveLength(0);
   });
 });

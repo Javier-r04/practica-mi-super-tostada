@@ -12,9 +12,10 @@ import {
   Modal,
   Separator,
   Table,
-  Tabs,
   TextArea,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@heroui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ClipboardList, Receipt } from "lucide-react";
@@ -49,6 +50,12 @@ import { FotoPicker } from "@/components/catalog/foto-picker";
 import { cn } from "@/lib/utils";
 
 type Seccion = "operacion" | "precios" | "datos";
+
+const SECCIONES: { id: Seccion; label: string }[] = [
+  { id: "operacion", label: "Operación" },
+  { id: "precios", label: "Precios" },
+  { id: "datos", label: "Datos" },
+];
 
 export default function ClienteFichaPage() {
   const params = useParams<{ id: string }>();
@@ -110,7 +117,7 @@ export default function ClienteFichaPage() {
 
   if (cliente.isLoading || !cliente.data) {
     return (
-      <PanelShell title="Cliente">
+      <PanelShell title="Cliente" volver={{ href: "/clientes", label: "Clientes" }}>
         <div className="grid gap-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-32 w-full rounded-tarjeta" />
@@ -160,11 +167,35 @@ export default function ClienteFichaPage() {
   }
 
   return (
-    <PanelShell title={c.nombre}>
-      <div className="grid min-w-0 gap-5">
+    <PanelShell
+      title={c.nombre}
+      volver={{ href: "/clientes", label: "Clientes" }}
+      barraFija={
+        <ToggleButtonGroup
+          aria-label="Secciones del cliente"
+          className="mst-segmento-activo w-full [&_.toggle-button]:min-w-0 [&_.toggle-button]:flex-1 [&_.toggle-button]:px-2 [&_.toggle-button]:text-xs sm:[&_.toggle-button]:text-sm"
+          disallowEmptySelection
+          selectedKeys={new Set([seccion])}
+          selectionMode="single"
+          size="sm"
+          onSelectionChange={(keys) => {
+            const next = [...keys][0];
+            if (typeof next === "string") setSeccion(next as Seccion);
+          }}
+        >
+          {SECCIONES.map((s, i) => (
+            <ToggleButton key={s.id} id={s.id}>
+              {i > 0 && <ToggleButtonGroup.Separator />}
+              {s.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      }
+    >
+      <div className="grid min-w-0 gap-4 sm:gap-5">
         <Link
           href="/clientes"
-          className="inline-flex min-h-11 w-fit items-center gap-1 text-sm font-semibold text-marca no-underline hover:text-marca-hover hover:no-underline"
+          className="hidden min-h-11 w-fit items-center gap-1 text-sm font-semibold text-marca no-underline hover:text-marca-hover hover:no-underline lg:inline-flex"
         >
           <ChevronLeft size={16} aria-hidden />
           Clientes
@@ -173,14 +204,19 @@ export default function ClienteFichaPage() {
         {/* Cabecera: identidad, estado de la ficha y la acción de portal.
             Lo destructivo vive en Datos, no aquí. */}
         <Card
-          className="gap-4 border-l-[3px] border-l-[var(--border-accent)] p-5"
+          className="gap-3 border-l-[3px] border-l-[var(--border-accent)] p-4 sm:gap-4 sm:p-5"
           render={(props) => <header {...props} />}
         >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
-            <ClienteAvatar nombre={c.nombre} fotoAssetId={fotoMostrada} size="lg" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+            <ClienteAvatar
+              nombre={c.nombre}
+              fotoAssetId={fotoMostrada}
+              size="md"
+              className="sm:size-20 sm:text-base"
+            />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-pretty text-xl font-semibold text-tinta-900 sm:text-2xl">
+                <h1 className="text-pretty text-lg font-semibold text-tinta-900 sm:text-2xl">
                   {c.nombre}
                 </h1>
                 {!c.activo && (
@@ -209,7 +245,7 @@ export default function ClienteFichaPage() {
             </div>
             {canWrite && (
               <Button
-                className="shrink-0 self-start sm:self-center"
+                className="w-full shrink-0 sm:w-auto sm:self-center"
                 isDisabled={rotar.isPending}
                 size="sm"
                 variant="secondary"
@@ -247,28 +283,8 @@ export default function ClienteFichaPage() {
           </Alert>
         )}
 
-        <Tabs
-          selectedKey={seccion}
-          onSelectionChange={(k) => setSeccion(k as Seccion)}
-        >
-          <Tabs.ListContainer>
-            <Tabs.List aria-label="Secciones del cliente">
-              <Tabs.Tab id="operacion">
-                Operación
-                <Tabs.Indicator />
-              </Tabs.Tab>
-              <Tabs.Tab id="precios">
-                Precios
-                <Tabs.Indicator />
-              </Tabs.Tab>
-              <Tabs.Tab id="datos">
-                Datos
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            </Tabs.List>
-          </Tabs.ListContainer>
-
-          <Tabs.Panel id="operacion" className="grid min-w-0 gap-4 pt-4">
+        {seccion === "operacion" && (
+          <div className="grid min-w-0 gap-4">
             {cuenta.isLoading ? (
               <KpiGridSkeleton count={4} />
             ) : cuenta.data ? (
@@ -457,9 +473,11 @@ export default function ClienteFichaPage() {
                 )}
               </Card.Content>
             </Card>
-          </Tabs.Panel>
+          </div>
+        )}
 
-          <Tabs.Panel id="precios" className="grid min-w-0 gap-3 pt-4">
+        {seccion === "precios" && (
+          <div className="grid min-w-0 gap-3">
             <p className="text-sm text-pretty text-tinta-500">
               El alias es como el restaurante nombra el producto; la nota de
               producción viaja a la hoja del día. Cada cambio se guarda al salir
@@ -614,9 +632,11 @@ export default function ClienteFichaPage() {
               </Table>
               </div>
             )}
-          </Tabs.Panel>
+          </div>
+        )}
 
-          <Tabs.Panel id="datos" className="grid min-w-0 gap-4 pt-4">
+        {seccion === "datos" && (
+          <div className="grid min-w-0 gap-4">
             {canWrite && (
               <Card className="p-5">
                 <Card.Header>
@@ -702,8 +722,8 @@ export default function ClienteFichaPage() {
                 </Card.Footer>
               </Card>
             )}
-          </Tabs.Panel>
-        </Tabs>
+          </div>
+        )}
       </div>
 
       <Modal.Backdrop
