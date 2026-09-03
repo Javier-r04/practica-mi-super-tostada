@@ -197,6 +197,7 @@ export const auditListaSchema = z.object({
 
 export type AuditLista = z.infer<typeof auditListaSchema>;
 
+/** @deprecated Preferir MODULOS_ACCESO — se mantiene por compatibilidad de exports. */
 export const GRUPOS_PERMISOS_UI = [
   { grupo: "Pedidos", permisos: ["pedidos.capturar_manual"] },
   { grupo: "Reparto", permisos: ["pedidos.entregar"] },

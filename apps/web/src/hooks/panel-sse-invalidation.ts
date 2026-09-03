@@ -115,3 +115,17 @@ export function debeReconectarManual(
 ): boolean {
   return !stopped && readyState === SSE_CLOSED;
 }
+
+/**
+ * Al volver a la pestaña (visibility) o recuperar red, el EventSource puede
+ * haber quedado muerto por `ERR_NETWORK_IO_SUSPENDED` sin pasar a CLOSED.
+ * Reconectamos si no está OPEN.
+ */
+export function debeReconectarAlVolver(
+  readyState: number | null,
+  stopped: boolean,
+  visible: boolean,
+): boolean {
+  if (stopped || !visible) return false;
+  return readyState !== SSE_OPEN;
+}

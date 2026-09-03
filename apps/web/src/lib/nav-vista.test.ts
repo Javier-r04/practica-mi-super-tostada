@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { permisosEfectivos, type Rol } from "@misupertostada/shared";
+import { permisosPlantilla, type Rol } from "@misupertostada/shared";
 import {
   esSoloLectura,
   repartirNavMovil,
@@ -16,7 +16,7 @@ const ROLES: readonly Rol[] = [
   "REPARTO",
 ];
 
-/** La jornada: la misma información, distintas acciones (AGENTS F-403). */
+/** La jornada: la misma información, distintas acciones — si el puesto la trae. */
 const NUCLEO_OPERATIVO: readonly SeccionPanel[] = [
   "hoy",
   "tablero",
@@ -27,13 +27,13 @@ const NUCLEO_OPERATIVO: readonly SeccionPanel[] = [
 ];
 
 function visibles(rol: Rol): SeccionPanel[] {
-  const permisos = permisosEfectivos(rol);
+  const permisos = permisosPlantilla(rol);
   return SECCIONES_PANEL.filter((s) => seccionVisible(s, permisos));
 }
 
-describe("visibilidad del menú por rol", () => {
-  test("los cinco roles ven las seis secciones operativas", () => {
-    for (const rol of ROLES) {
+describe("visibilidad del menú por plantilla de puesto", () => {
+  test("las plantillas operativas ven las seis secciones del núcleo", () => {
+    for (const rol of ROLES.filter((r) => r !== "ADMIN_JEFE")) {
       const vistas = visibles(rol);
       for (const seccion of NUCLEO_OPERATIVO) {
         expect(vistas).toContain(seccion);
@@ -41,19 +41,19 @@ describe("visibilidad del menú por rol", () => {
     }
   });
 
-  test("PRODUCCION no tiene permisos y aun así ve toda la jornada", () => {
-    // Es el caso que motivó el cambio: el backend le servía la cartera y el
-    // menú se la escondía por no poder escribir en ella.
-    expect(permisosEfectivos("PRODUCCION")).toEqual([]);
-    expect(visibles("PRODUCCION")).toEqual([...NUCLEO_OPERATIVO]);
+  test("sin grants no se ve ninguna sección", () => {
+    expect(SECCIONES_PANEL.filter((s) => seccionVisible(s, []))).toEqual([]);
   });
 
-  test("Catálogo, Clientes y Conversaciones siguen pidiendo permiso", () => {
+  test("PRODUCCION ve la jornada pero no catálogo ni conversaciones", () => {
     const produccion = visibles("PRODUCCION");
+    expect(produccion).toEqual([...NUCLEO_OPERATIVO]);
     expect(produccion).not.toContain("catalogo");
     expect(produccion).not.toContain("clientes");
     expect(produccion).not.toContain("conversaciones");
+  });
 
+  test("Catálogo, Clientes y Conversaciones siguen pidiendo su módulo", () => {
     const reparto = visibles("REPARTO");
     expect(reparto).not.toContain("catalogo");
     expect(reparto).not.toContain("conversaciones");
@@ -66,7 +66,7 @@ describe("visibilidad del menú por rol", () => {
 
 describe("badge de solo lectura", () => {
   test("PRODUCCION lee pedidos, reparto y cartera sin poder escribir", () => {
-    const permisos = permisosEfectivos("PRODUCCION");
+    const permisos = permisosPlantilla("PRODUCCION");
     expect(esSoloLectura("pedidos", permisos)).toBe(true);
     expect(esSoloLectura("reparto", permisos)).toBe(true);
     expect(esSoloLectura("cartera", permisos)).toBe(true);
@@ -74,22 +74,22 @@ describe("badge de solo lectura", () => {
   });
 
   test("no se marca donde el usuario sí puede actuar", () => {
-    expect(esSoloLectura("reparto", permisosEfectivos("REPARTO"))).toBe(false);
-    expect(esSoloLectura("cartera", permisosEfectivos("TIENDA"))).toBe(false);
-    expect(esSoloLectura("pedidos", permisosEfectivos("TIENDA"))).toBe(false);
-    expect(esSoloLectura("hoy", permisosEfectivos("ADMIN"))).toBe(false);
+    expect(esSoloLectura("reparto", permisosPlantilla("REPARTO"))).toBe(false);
+    expect(esSoloLectura("cartera", permisosPlantilla("TIENDA"))).toBe(false);
+    expect(esSoloLectura("pedidos", permisosPlantilla("TIENDA"))).toBe(false);
+    expect(esSoloLectura("hoy", permisosPlantilla("ADMIN"))).toBe(false);
   });
 
   test("Tablero y Producción no se marcan: nadie escribe ahí", () => {
     for (const rol of ROLES) {
-      const permisos = permisosEfectivos(rol);
+      const permisos = permisosPlantilla(rol);
       expect(esSoloLectura("tablero", permisos)).toBe(false);
       expect(esSoloLectura("produccion", permisos)).toBe(false);
     }
   });
 });
 
-describe("reparto móvil por rol", () => {
+describe("reparto móvil por puesto", () => {
   const items = (secciones: SeccionPanel[]) =>
     secciones.map((id) => ({
       id,

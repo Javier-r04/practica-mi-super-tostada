@@ -19,13 +19,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, UserCog } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
-  GRUPOS_PERMISOS_UI,
-  PERMISO_DESCRIPCION,
+  MODULOS_ACCESO,
   ROLES,
-  esNoDelegable,
-  tienePermiso,
+  modulosDePermisos,
+  modulosDePlantilla,
+  tieneModulo,
   type ActorPublico,
-  type PermisoCodigo,
+  type ModuloAccesoId,
   type Rol,
 } from "@misupertostada/shared";
 import { api } from "@/lib/api";
@@ -44,14 +44,16 @@ const ROL_ETIQUETA: Record<Rol, string> = {
 };
 
 const ROL_CONSECUENCIA: Record<Rol, string> = {
-  ADMIN_JEFE: "Ve todo y es el único que administra cuentas.",
-  ADMIN: "Opera el día completo, sin administrar cuentas.",
-  PRODUCCION: "Hoja de producción y cierre de planta.",
-  TIENDA: "Captura pedidos y cobros de mostrador.",
-  REPARTO: "Entrega en ruta y cobra en la puerta.",
+  ADMIN_JEFE: "Ve todos los módulos y es el único que administra cuentas.",
+  ADMIN: "Puesto de oficina; el menú móvil prioriza el día operativo.",
+  PRODUCCION: "Puesto de planta; el menú móvil prioriza la hoja.",
+  TIENDA: "Puesto de mostrador; el menú móvil prioriza pedidos y cartera.",
+  REPARTO: "Puesto de ruta; el menú móvil prioriza reparto y cobro.",
 };
 
 const MIN_CLAVE = 10;
+
+const PUESTOS_CREABLES = ROLES.filter((r) => r !== "ADMIN_JEFE") as Rol[];
 
 export function UsuariosCard() {
   const qc = useQueryClient();
@@ -103,8 +105,8 @@ export function UsuariosCard() {
                   <Table.Column isRowHeader id="usuario">
                     Usuario
                   </Table.Column>
-                  <Table.Column id="rol">Rol</Table.Column>
-                  <Table.Column id="permisos">Permisos extra</Table.Column>
+                  <Table.Column id="puesto">Puesto</Table.Column>
+                  <Table.Column id="modulos">Módulos</Table.Column>
                   <Table.Column id="estado">Estado</Table.Column>
                   <Table.Column id="accion">Detalle</Table.Column>
                 </Table.Header>
@@ -114,7 +116,7 @@ export function UsuariosCard() {
                     <EmptyState
                       icon={<UserCog size={22} aria-hidden />}
                       title="No hay cuentas todavía"
-                      description="Cree la cuenta de quien va a capturar pedidos o repartir; el rol define de entrada a qué entra."
+                      description="Cree la cuenta y marque qué módulos del panel verá esa persona."
                       action={
                         <Button
                           size="sm"
@@ -136,7 +138,7 @@ export function UsuariosCard() {
                         {ROL_ETIQUETA[u.rol]}
                       </Table.Cell>
                       <Table.Cell className="tabular-nums text-tinta-500">
-                        {contarDelegados(u)}
+                        {resumenModulos(u)}
                       </Table.Cell>
                       <Table.Cell>
                         <Chip
@@ -208,10 +210,10 @@ export function UsuariosCard() {
   );
 }
 
-/** Permisos otorgados a mano, aparte del paquete que ya trae el rol. */
-function contarDelegados(u: ActorPublico): string {
-  const n = u.permisos.filter((p) => !esNoDelegable(p)).length;
-  return n === 0 ? "—" : String(n);
+function resumenModulos(u: ActorPublico): string {
+  if (u.rol === "ADMIN_JEFE") return "Todos";
+  const n = modulosDePermisos(u.permisos).length;
+  return n === 0 ? "Ninguno" : String(n);
 }
 
 const VACIO = { username: "", password: "" };
@@ -227,10 +229,24 @@ function CrearModal({
 }) {
   const [campos, setCampos] = useState(VACIO);
   const [rol, setRol] = useState<Rol>("ADMIN");
+  const [modulos, setModulos] = useState<ModuloAccesoId[]>(() =>
+    modulosDePlantilla("ADMIN"),
+  );
   const [error, setError] = useState<string | null>(null);
 
   const set = (k: keyof typeof VACIO) => (value: string) =>
     setCampos((prev) => ({ ...prev, [k]: value }));
+
+  const elegirPuesto = (value: Rol) => {
+    setRol(value);
+    setModulos(modulosDePlantilla(value));
+  };
+
+  const toggleModulo = (id: ModuloAccesoId, on: boolean) => {
+    setModulos((prev) =>
+      on ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((m) => m !== id),
+    );
+  };
 
   const guardar = useMutation({
     mutationFn: () =>
@@ -240,12 +256,14 @@ function CrearModal({
           username: campos.username.trim(),
           password: campos.password,
           rol,
+          modulos,
         }),
       }),
     onSuccess: () => {
       toastSuccess("Cuenta creada");
       setCampos(VACIO);
       setRol("ADMIN");
+      setModulos(modulosDePlantilla("ADMIN"));
       setError(null);
       onSaved();
     },
@@ -256,7 +274,9 @@ function CrearModal({
   });
 
   const listo =
-    campos.username.trim().length > 0 && campos.password.length >= MIN_CLAVE;
+    campos.username.trim().length > 0 &&
+    campos.password.length >= MIN_CLAVE &&
+    modulos.length > 0;
 
   return (
     <Modal.Backdrop isOpen={abierto} onOpenChange={onOpenChange}>
@@ -266,8 +286,8 @@ function CrearModal({
           <Modal.Header>
             <Modal.Heading>Nuevo usuario</Modal.Heading>
             <p className="text-sm text-tinta-500">
-              La cuenta queda activa de una vez y entra con la clave que escriba
-              aquí.
+              La cuenta queda activa de una vez. Marque los módulos del panel
+              que verá esta persona.
             </p>
           </Modal.Header>
 
@@ -302,24 +322,24 @@ function CrearModal({
               </TextField>
 
               <Select
-                placeholder="Elija el rol"
+                placeholder="Elija el puesto"
                 value={rol}
                 onChange={(value) => {
-                  if (typeof value === "string") setRol(value as Rol);
+                  if (typeof value === "string") elegirPuesto(value as Rol);
                 }}
               >
-                <Label>Rol</Label>
+                <Label>Puesto</Label>
                 <Select.Trigger>
                   <Select.Value />
                   <Select.Indicator />
                 </Select.Trigger>
                 <Description>
-                  Define el paquete base de permisos. Los extras se otorgan uno
-                  por uno al abrir la cuenta.
+                  Solo ordena el menú en el celular. Los módulos de abajo
+                  definen a qué entra.
                 </Description>
                 <Select.Popover>
                   <ListBox>
-                    {ROLES.map((r) => (
+                    {PUESTOS_CREABLES.map((r) => (
                       <ListBox.Item key={r} id={r} textValue={ROL_ETIQUETA[r]}>
                         {ROL_ETIQUETA[r]}
                         <ListBox.ItemIndicator />
@@ -329,9 +349,36 @@ function CrearModal({
                 </Select.Popover>
               </Select>
 
-              <p className="text-xs leading-relaxed text-tinta-500">
-                {ROL_CONSECUENCIA[rol]}
-              </p>
+              <div className="grid gap-3">
+                <div>
+                  <p className="mst-label">Módulos del panel</p>
+                  <p className="mt-1 text-xs leading-relaxed text-tinta-500">
+                    {ROL_CONSECUENCIA[rol]} Puede ajustar las casillas antes de
+                    crear.
+                  </p>
+                </div>
+                {MODULOS_ACCESO.map((m) => (
+                  <Checkbox
+                    key={m.id}
+                    isSelected={modulos.includes(m.id)}
+                    onChange={(on) => toggleModulo(m.id, on)}
+                  >
+                    <Checkbox.Content>
+                      <Checkbox.Control>
+                        <Checkbox.Indicator />
+                      </Checkbox.Control>
+                      <span className="grid gap-0.5">
+                        <span className="font-medium text-tinta-900">
+                          {m.etiqueta}
+                        </span>
+                        <span className="text-xs text-tinta-500">
+                          {m.descripcion}
+                        </span>
+                      </span>
+                    </Checkbox.Content>
+                  </Checkbox>
+                ))}
+              </div>
 
               {error && (
                 <Alert status="danger">
@@ -382,7 +429,7 @@ function DetalleModal({
         body: JSON.stringify({ rol }),
       }),
     onSuccess: (u) => {
-      toastSuccess("Rol actualizado");
+      toastSuccess("Puesto actualizado");
       onChanged(u);
     },
     onError: (err) => toastFromError(err, "Ocurrió un error"),
@@ -403,9 +450,9 @@ function DetalleModal({
     },
     onError: (err) => toastFromError(err, "Ocurrió un error"),
   });
-  const permMut = useMutation({
-    mutationFn: (body: { codigo: PermisoCodigo; granted: boolean }) =>
-      api<ActorPublico>(`/usuarios/${usuario.id}/permisos`, {
+  const moduloMut = useMutation({
+    mutationFn: (body: { modulo: ModuloAccesoId; granted: boolean }) =>
+      api<ActorPublico>(`/usuarios/${usuario.id}/modulos`, {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
@@ -413,10 +460,7 @@ function DetalleModal({
     onError: (err) => toastFromError(err, "Ocurrió un error"),
   });
 
-  const noDelegables = useMemo(
-    () => usuario.permisos.filter((p) => esNoDelegable(p)),
-    [usuario.permisos],
-  );
+  const esJefe = usuario.rol === "ADMIN_JEFE";
 
   return (
     <Modal.Backdrop
@@ -454,15 +498,12 @@ function DetalleModal({
                   }
                 }}
               >
-                <Label>Rol</Label>
+                <Label>Puesto</Label>
                 <Select.Trigger>
                   <Select.Value />
                   <Select.Indicator />
                 </Select.Trigger>
-                <Description>
-                  Se aplica al guardar el cambio, en el acto:{" "}
-                  {ROL_CONSECUENCIA[usuario.rol]}
-                </Description>
+                <Description>{ROL_CONSECUENCIA[usuario.rol]}</Description>
                 <Select.Popover>
                   <ListBox>
                     {ROLES.map((r) => (
@@ -475,52 +516,40 @@ function DetalleModal({
                 </Select.Popover>
               </Select>
 
-              <div className="grid gap-4">
+              <div className="grid gap-3">
                 <div>
-                  <p className="mst-label">Acceso a módulos</p>
+                  <p className="mst-label">Módulos del panel</p>
                   <p className="mt-1 text-xs leading-relaxed text-tinta-500">
-                    Cada casilla se guarda sola. Quitar una saca el módulo del
-                    menú de esta persona en su próxima carga.
+                    {esJefe
+                      ? "El administrador jefe ve todo; no se edita módulo a módulo."
+                      : "Cada casilla se guarda sola. Quitar una saca el módulo del menú en la próxima carga."}
                   </p>
                 </div>
 
-                {GRUPOS_PERMISOS_UI.map((g) => (
-                  <fieldset key={g.grupo} className="grid gap-2">
-                    <legend className="text-xs font-semibold text-tinta-700">
-                      {g.grupo}
-                    </legend>
-                    {g.permisos.map((codigo) => (
-                      <Checkbox
-                        key={codigo}
-                        isDisabled={permMut.isPending}
-                        isSelected={tienePermiso(usuario.permisos, codigo)}
-                        onChange={(granted) => permMut.mutate({ codigo, granted })}
-                      >
-                        <Checkbox.Content>
-                          <Checkbox.Control>
-                            <Checkbox.Indicator />
-                          </Checkbox.Control>
-                          {PERMISO_DESCRIPCION[codigo]}
-                        </Checkbox.Content>
-                      </Checkbox>
-                    ))}
-                  </fieldset>
+                {MODULOS_ACCESO.map((m) => (
+                  <Checkbox
+                    key={m.id}
+                    isDisabled={esJefe || moduloMut.isPending}
+                    isSelected={esJefe || tieneModulo(usuario.permisos, m.id)}
+                    onChange={(granted) =>
+                      moduloMut.mutate({ modulo: m.id, granted })
+                    }
+                  >
+                    <Checkbox.Content>
+                      <Checkbox.Control>
+                        <Checkbox.Indicator />
+                      </Checkbox.Control>
+                      <span className="grid gap-0.5">
+                        <span className="font-medium text-tinta-900">
+                          {m.etiqueta}
+                        </span>
+                        <span className="text-xs text-tinta-500">
+                          {m.descripcion}
+                        </span>
+                      </span>
+                    </Checkbox.Content>
+                  </Checkbox>
                 ))}
-
-                {noDelegables.length > 0 ? (
-                  <div className="grid gap-2 rounded-campo bg-[var(--ink-50)] p-3">
-                    <p className="mst-label text-[11px]">
-                      Ligados al rol (no se quitan a mano)
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {noDelegables.map((p) => (
-                        <Chip key={p} size="sm" variant="soft">
-                          {PERMISO_DESCRIPCION[p]}
-                        </Chip>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </div>
           </Modal.Body>

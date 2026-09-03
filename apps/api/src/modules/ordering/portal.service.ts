@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   abono,
   clienteProducto,
@@ -13,6 +13,8 @@ import {
   capturaAbierta,
   instanteAIso,
   timestampsVentana,
+  portalFacturaSchema,
+  portalFacturasSchema,
   portalHistorialSchema,
   portalPedidoDetalleClienteSchema,
   portalPedidoResumenSchema,
@@ -25,6 +27,8 @@ import {
   MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO,
   type AbonoPublico,
   type PortalCuenta,
+  type PortalFacturaFiltro,
+  type PortalFacturas,
   type PortalHistorial,
   type PortalPedidoDetalleCliente,
   type PortalPedidoResumen,
@@ -201,6 +205,98 @@ export class PortalService {
     );
 
     return portalHistorialSchema.parse({
+      items,
+      nextOffset: rows.length > limit ? offset + limit : null,
+    });
+  }
+
+  /**
+   * Facturas del cliente, con filtro. La cuenta (`GET /p/:token/cuenta`) sigue
+   * devolviendo solo lo pendiente porque viaja dentro de la sesión y no puede
+   * crecer con el historial; esto es la lista paginada aparte.
+   *
+   * Que se puedan pedir las pagadas no es un lujo: un abono se aplica por FIFO
+   * contra facturas que muchas veces ya quedaron saldadas, y si esas facturas
+   * no se pueden consultar, el enlace desde el abono no lleva a ningún lado.
+   */
+  async listarFacturas(
+    clienteRow: ClientePortal,
+    meta: PortalMeta,
+    opts?: { filtro?: PortalFacturaFiltro; limit?: number; offset?: number },
+  ): Promise<PortalFacturas> {
+    await this.audit.insert({
+      actorTipo: "cliente",
+      actorId: clienteRow.id,
+      accion: "portal.facturas",
+      entidad: "cliente",
+      entidadId: clienteRow.id,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+
+    const filtro = opts?.filtro ?? "pendientes";
+    const limit = Math.min(Math.max(opts?.limit ?? HISTORIAL_DEFAULT, 1), 50);
+    const offset = Math.max(opts?.offset ?? 0, 0);
+
+    const abonadoSql = sql<number>`coalesce((
+      select sum(${pago.montoCentavos}) from ${pago} where ${pago.facturaId} = ${factura.id}
+    ), 0)::int`;
+
+    // El filtro se resuelve en SQL: paginar en memoria obligaría a traer todas
+    // las facturas del cliente para descartar la mitad.
+    const condPagada = sql`${abonadoSql} >= ${factura.montoCentavos}`;
+    const filtroSql =
+      filtro === "pendientes"
+        ? sql`not (${condPagada})`
+        : filtro === "pagadas"
+          ? condPagada
+          : sql`true`;
+
+    const rows = await this.db
+      .select({
+        factura,
+        abonado: abonadoSql,
+        correlativo: pedido.correlativo,
+        fechaEntrega: pedido.fechaEntrega,
+      })
+      .from(factura)
+      .innerJoin(pedido, eq(pedido.id, factura.pedidoId))
+      .where(and(eq(pedido.clienteId, clienteRow.id), filtroSql))
+      .orderBy(
+        desc(sql`coalesce(${factura.emitidaAt}, ${factura.createdAt})`),
+        desc(pedido.correlativo),
+      )
+      .limit(limit + 1)
+      .offset(offset);
+
+    const cal = await this.calendar.load(clienteRow.organizacionId);
+    const now = this.calendar.now();
+
+    const items = rows.slice(0, limit).map((row) => {
+      const fac = row.factura;
+      const abonado = Number(row.abonado);
+      const emitida = fac.emitidaAt ?? fac.createdAt;
+      const antiguedadDias = emitida ? cal.diasCalendarioEntre(emitida, now) : 0;
+      return portalFacturaSchema.parse({
+        id: fac.id,
+        pedidoId: fac.pedidoId,
+        correlativo: row.correlativo,
+        fechaEntrega: row.fechaEntrega,
+        numeroDte: fac.numeroDte ?? null,
+        montoCentavos: fac.montoCentavos,
+        abonadoCentavos: abonado,
+        saldoCentavos: Math.max(0, fac.montoCentavos - abonado),
+        emitidaAt: emitida ? instanteAIso(emitida) : null,
+        antiguedadDias,
+        estado: estadoFactura({
+          montoCentavos: fac.montoCentavos,
+          abonadoCentavos: abonado,
+          antiguedadDias,
+        }),
+      });
+    });
+
+    return portalFacturasSchema.parse({
       items,
       nextOffset: rows.length > limit ? offset + limit : null,
     });
@@ -390,11 +486,15 @@ export class PortalService {
       .limit(1);
     if (!fac) return null;
 
+    // Se une con `abono` para poder decir con qué se pagó: la fila de `pago`
+    // es la aplicación, el método y el estado viven en el abono que la originó.
     const pagos = await this.db
-      .select()
+      .select({ pago, abono })
       .from(pago)
-      .where(eq(pago.facturaId, fac.id));
-    const abonado = pagos.reduce((acc, p) => acc + p.montoCentavos, 0);
+      .innerJoin(abono, eq(abono.id, pago.abonoId))
+      .where(eq(pago.facturaId, fac.id))
+      .orderBy(asc(pago.fecha));
+    const abonado = pagos.reduce((acc, p) => acc + p.pago.montoCentavos, 0);
     const saldo = Math.max(0, fac.montoCentavos - abonado);
     const cal = await this.calendar.load();
     const now = this.calendar.now();
@@ -409,8 +509,18 @@ export class PortalService {
     return {
       id: fac.id,
       numeroDte: fac.numeroDte ?? null,
+      montoCentavos: fac.montoCentavos,
+      abonadoCentavos: abonado,
       saldoCentavos: saldo,
+      antiguedadDias,
       estado,
+      abonos: pagos.map((p) => ({
+        abonoId: p.abono.id,
+        fecha: p.pago.fecha,
+        metodo: p.pago.metodo,
+        estado: p.abono.estado,
+        montoCentavos: p.pago.montoCentavos,
+      })),
     };
   }
 

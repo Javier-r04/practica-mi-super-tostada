@@ -33,7 +33,7 @@ export function BotonDte({
           variant="outline"
           onPress={onPress}
         >
-          <span className="font-mono tabular-nums">{numeroDte}</span>
+          <span className="tabular-nums">{numeroDte}</span>
           {puedeEditar ? (
             <PencilLine aria-hidden className="size-3.5 text-tinta-500" />
           ) : null}
@@ -45,7 +45,7 @@ export function BotonDte({
       <Button
         aria-label={hint}
         className={cn(
-          "inline-flex h-auto min-h-0 items-center gap-1 border-0 bg-transparent p-0 font-mono tabular-nums text-tinta-900 shadow-none",
+          "inline-flex h-auto min-h-0 items-center gap-1 border-0 bg-transparent p-0 tabular-nums text-tinta-900 shadow-none",
           puedeEditar && "hover:text-marca",
           className,
         )}

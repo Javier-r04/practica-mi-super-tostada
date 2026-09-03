@@ -106,11 +106,14 @@ export function VentanaCountdown({
 
   const targetAt = abreAt ?? cierraAt;
   const sentido: "cierra" | "abre" = abreAt ? "abre" : "cierra";
+  /* En la barra del portal el copy sí escala: los últimos treinta minutos son
+     los que deciden el día del cliente, y aplastar todo a «Cierra» dejaba el
+     apremio confiado solo al color —que es justo lo que no se puede hacer. */
   const copy =
     variant === "navbar"
       ? sentido === "abre"
         ? { holgado: "Abre", corriendo: "Abre", ultimo: "Abre" }
-        : { holgado: "Cierra", corriendo: "Cierra", ultimo: "Cierra" }
+        : { holgado: "Cierra", corriendo: "Apúrese", ultimo: "Últimos" }
       : sentido === "abre"
         ? COPY_ABRE
         : COPY_CIERRA;

@@ -6,6 +6,7 @@ import { API_URL, api, ApiError } from "@/lib/api";
 import {
   clavesAInvalidar,
   clavesAlReconectar,
+  debeReconectarAlVolver,
   debeReconectarManual,
   fusionarClaves,
   interpretarMensajeSse,
@@ -16,6 +17,8 @@ const DEBOUNCE_MS = 80;
 /**
  * Un EventSource por sesión de panel. Reconecta solo si el canal cerró.
  * Invalida queries según el tipo de evento, no el catálogo entero.
+ * Al volver a la pestaña o recuperar red, fuerza reconexión si el stream
+ * quedó suspendido por el navegador.
  */
 export function usePanelSse(activo: boolean): void {
   const qc = useQueryClient();
@@ -80,12 +83,41 @@ export function usePanelSse(activo: boolean): void {
       delayRef.current = Math.min(delayRef.current * 2, 15_000);
     }
 
+    function reconectarSiHaceFalta() {
+      const visible = document.visibilityState === "visible";
+      if (
+        !debeReconectarAlVolver(
+          source?.readyState ?? null,
+          stopped,
+          visible,
+        )
+      ) {
+        return;
+      }
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      source?.close();
+      source = null;
+      delayRef.current = 1000;
+      conectar();
+    }
+
+    function alVolver() {
+      if (document.visibilityState === "visible") reconectarSiHaceFalta();
+    }
+
     conectar();
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("online", reconectarSiHaceFalta);
     return () => {
       stopped = true;
       source?.close();
       if (timer) clearTimeout(timer);
       if (debounce) clearTimeout(debounce);
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("online", reconectarSiHaceFalta);
     };
   }, [activo, qc]);
 }

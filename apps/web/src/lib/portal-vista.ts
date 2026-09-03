@@ -87,6 +87,48 @@ export function propsVentanaCountdown(ventana: PortalVentana): {
   return { cierraAt: ventana.cierraAt, abreAt: null };
 }
 
+/**
+ * Qué muestra `/pedir`. Se deriva del pedido que tiene el servidor más la
+ * intención explícita del cliente de editarlo; congelarlo en un `useState`
+ * inicial dejaba la pantalla pegada cuando el pedido aparecía después —por SSE
+ * o porque la tienda lo capturó por teléfono— y el cliente podía sobrescribirlo
+ * sin enterarse.
+ */
+export function vistaPedir(input: {
+  pedidoAbierto: PortalPedido | null;
+  editando: boolean;
+}): "confirmacion" | "catalogo" {
+  if (input.pedidoAbierto && !input.editando) return "confirmacion";
+  return "catalogo";
+}
+
+/**
+ * Por qué no se puede confirmar. `null` = se puede.
+ *
+ * Existe porque el pie del catálogo se montaba solo si había algo en el
+ * carrito, y en el teléfono ese pie es el único camino a «Revisar pedido»: un
+ * cliente que vaciaba su pedido para rehacerlo se quedaba sin ninguna acción a
+ * la vista. La regla del repo es control deshabilitado con motivo, nunca
+ * control escondido.
+ */
+export function motivoNoConfirmar(input: {
+  abierta: boolean;
+  cierreAnticipado: boolean;
+  lineas: number;
+  proximaAperturaAt: string | null;
+}): string | null {
+  if (input.cierreAnticipado) {
+    return `El día ya cerró. ${copyProximaApertura(input.proximaAperturaAt)}`;
+  }
+  if (!input.abierta) {
+    return `La ventana de pedido está cerrada. ${copyProximaApertura(input.proximaAperturaAt)}`;
+  }
+  if (input.lineas === 0) {
+    return "Agregue al menos un producto para poder confirmar.";
+  }
+  return null;
+}
+
 export type CtaInicio =
   | { kind: "pedir"; label: "Hacer mi pedido" }
   | { kind: "editar"; label: "Ver o editar mi pedido" }
@@ -128,12 +170,26 @@ export type GrupoCatalogo = {
   productos: PortalProducto[];
 };
 
+/**
+ * El cliente escribe «tostada» con el teclado del teléfono, sin acentos, y el
+ * catálogo tiene «Tostáda»; también al revés. Comparar substrings crudos hacía
+ * que la búsqueda no encontrara nada y la pantalla culpara al cliente con
+ * «Nada con ese nombre».
+ */
+export function normalizarBusqueda(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function coincideBusqueda(p: PortalProducto, query: string): boolean {
-  const q = query.trim().toLowerCase();
+  const q = normalizarBusqueda(query);
   if (!q) return true;
   return (
-    p.alias.toLowerCase().includes(q) ||
-    p.nombreCanonico.toLowerCase().includes(q)
+    normalizarBusqueda(p.alias).includes(q) ||
+    normalizarBusqueda(p.nombreCanonico).includes(q)
   );
 }
 

@@ -59,6 +59,7 @@ const config: Config = {
       minHeight: {
         tap: "var(--tap-min)",
         fila: "var(--row-height)",
+        bottombar: "var(--bottombar-height)",
       },
       spacing: {
         gutter: "var(--gutter-mobile)",

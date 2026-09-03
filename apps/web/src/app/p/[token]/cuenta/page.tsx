@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Alert, Card } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { Banknote, ChevronRight, Receipt, Upload } from "lucide-react";
 import { formatearCentavos } from "@misupertostada/shared";
-import { ApiError } from "@/lib/api";
 import { avisoLimiteCredito } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
-import { Skeleton } from "@/components/ui/skeleton";
 import { usePortalCuenta } from "@/hooks/use-portal-cuenta";
+import {
+  PortalAvisoCredito,
+  PortalCuentaDesactualizada,
+} from "@/components/portal/portal-cuenta-paneles";
 
 export default function PortalCuentaPage() {
   const { token, sesion } = usePortalSession();
@@ -52,39 +54,19 @@ export default function PortalCuentaPage() {
   return (
       <div className="grid gap-4 py-4">
         <div>
-          <h1 className="sr-only text-xl font-semibold text-tinta-900 lg:not-sr-only">
-            Su cuenta
-          </h1>
+          <h1 className="text-xl font-semibold text-tinta-900">Su cuenta</h1>
           <p className="mt-1 text-sm text-tinta-500">
             Facturas, abonos y reporte de transferencias.
           </p>
         </div>
 
-        {cuenta.isPending && !cuenta.data ? (
-          <div className="grid gap-3 lg:grid-cols-3">
-            <Skeleton className="h-24 w-full rounded-tarjeta" />
-            <Skeleton className="h-24 w-full rounded-tarjeta" />
-            <Skeleton className="h-24 w-full rounded-tarjeta" />
-          </div>
-        ) : cuenta.error instanceof ApiError ? (
-          <Alert status="danger">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>No se pudo cargar la cuenta</Alert.Title>
-              <Alert.Description>{cuenta.error.message}</Alert.Description>
-            </Alert.Content>
-          </Alert>
-        ) : (
-          <>
-            {aviso ? (
-              <Alert status="warning">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>Facturas pendientes</Alert.Title>
-                  <Alert.Description>{aviso}</Alert.Description>
-                </Alert.Content>
-              </Alert>
-            ) : null}
+        {/* La sesión ya trae la cuenta (`initialData`), así que nunca hay estado
+            vacío que esperar: lo que sí puede fallar es la actualización de
+            fondo, y eso se dice sin tapar los datos que ya están en pantalla. */}
+        <PortalCuentaDesactualizada cuenta={cuenta} />
+
+        <>
+            <PortalAvisoCredito aviso={aviso} />
 
             <ul className="grid gap-3 lg:grid-cols-3">
               {entradas.map((item) => {
@@ -120,8 +102,7 @@ export default function PortalCuentaPage() {
                 );
               })}
             </ul>
-          </>
-        )}
+        </>
       </div>
   );
 }

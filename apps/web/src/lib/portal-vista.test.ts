@@ -7,10 +7,12 @@ import {
   ctaInicioSecundaria,
   entregaCopy,
   gruposCatalogo,
+  normalizarBusqueda,
   origenPedidoLabel,
   propsVentanaCountdown,
   propsVentanaPedido,
   saludoCopy,
+  vistaPedir,
 } from "./portal-vista";
 
 const producto = (
@@ -226,5 +228,72 @@ describe("origenPedidoLabel", () => {
   test("MANUAL → Tienda", () => {
     expect(origenPedidoLabel("PORTAL")).toBe("Portal");
     expect(origenPedidoLabel("MANUAL")).toBe("Tienda");
+  });
+});
+
+describe("normalizarBusqueda", () => {
+  test("quita acentos, espacios de sobra y mayúsculas", () => {
+    expect(normalizarBusqueda("  Tostáda  ")).toBe("tostada");
+    expect(normalizarBusqueda("PAPALINAS")).toBe("papalinas");
+  });
+
+  test("el cliente escribe sin acentos y encuentra el producto acentuado", () => {
+    const catalogo = [
+      producto({
+        productoId: "00000000-0000-4000-a000-000000000010",
+        alias: "Tostáda grande",
+        familia: "TOSTADA",
+      }),
+    ];
+    const { grupos } = gruposCatalogo({ catalogo, query: "tostada" });
+    expect(grupos[0]?.productos).toHaveLength(1);
+  });
+
+  test("y al revés: escribe con acento y el catálogo no lo tiene", () => {
+    const catalogo = [
+      producto({
+        productoId: "00000000-0000-4000-a000-000000000011",
+        alias: "papalinas",
+        familia: "FRITURA",
+      }),
+    ];
+    const { grupos } = gruposCatalogo({ catalogo, query: "papalínas" });
+    expect(grupos[0]?.productos).toHaveLength(1);
+  });
+});
+
+describe("vistaPedir", () => {
+  const pedido = {
+    id: "00000000-0000-4000-a000-000000000020",
+    correlativo: 1042,
+    estado: "CONFIRMADO",
+    fechaOperacion: "2026-08-20",
+    fechaEntrega: "2026-08-21",
+    origen: "PORTAL",
+    items: [],
+    totalCentavos: 0,
+    textoConfirmacion: "",
+  } as unknown as Parameters<typeof vistaPedir>[0]["pedidoAbierto"];
+
+  test("sin pedido abierto, el catálogo", () => {
+    expect(vistaPedir({ pedidoAbierto: null, editando: false })).toBe("catalogo");
+  });
+
+  test("con pedido abierto, la confirmación", () => {
+    expect(vistaPedir({ pedidoAbierto: pedido, editando: false })).toBe(
+      "confirmacion",
+    );
+  });
+
+  test("pidió editar: manda su intención, no el servidor", () => {
+    expect(vistaPedir({ pedidoAbierto: pedido, editando: true })).toBe("catalogo");
+  });
+
+  test("un pedido que llega después (SSE o captura por teléfono) cambia la vista", () => {
+    // El defecto que arregla: antes la vista se congelaba en el primer render.
+    expect(vistaPedir({ pedidoAbierto: null, editando: false })).toBe("catalogo");
+    expect(vistaPedir({ pedidoAbierto: pedido, editando: false })).toBe(
+      "confirmacion",
+    );
   });
 });

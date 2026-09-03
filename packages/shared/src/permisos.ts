@@ -1,6 +1,20 @@
 import { ROLES, type Rol } from "./estados";
+import { MODULOS_ACCESO, type ModuloAccesoId } from "./modulos-acceso";
+
+/** Núcleo operativo: antes era visible para todos; ahora se otorga por módulo. */
+const PANEL_VER = [
+  "panel.hoy",
+  "panel.tablero",
+  "panel.pedidos",
+  "panel.produccion",
+  "panel.reparto",
+  "panel.cartera",
+  "panel.conversaciones",
+  "panel.catalogo",
+] as const;
 
 export const PERMISOS = [
+  ...PANEL_VER,
   "precios.cambiar",
   "catalogo.escribir",
   "pedidos.capturar_manual",
@@ -20,7 +34,7 @@ export const PERMISOS = [
 
 export type PermisoCodigo = (typeof PERMISOS)[number];
 
-/** No se pueden otorgar por API, aunque el actor sea ADMIN_JEFE. Van con el rol. */
+/** No se pueden otorgar por API, aunque el actor sea ADMIN_JEFE. Van con el puesto. */
 export const PERMISOS_NO_DELEGABLES = [
   "usuarios.gestionar",
   "permisos.delegar",
@@ -32,9 +46,25 @@ export const PERMISOS_NO_DELEGABLES = [
 
 export type PermisoNoDelegable = (typeof PERMISOS_NO_DELEGABLES)[number];
 
+const NUCLEO_PANEL: readonly PermisoCodigo[] = [
+  "panel.hoy",
+  "panel.tablero",
+  "panel.pedidos",
+  "panel.produccion",
+  "panel.reparto",
+  "panel.cartera",
+];
+
+/**
+ * Plantillas de puesto: solo siembran grants al crear (o migrar) una cuenta.
+ * El acceso efectivo ya no se deriva del rol — vive en `usuario_permiso`.
+ */
 export const ROL_PERMISOS: Record<Rol, readonly PermisoCodigo[]> = {
   ADMIN_JEFE: PERMISOS,
   ADMIN: [
+    ...NUCLEO_PANEL,
+    "panel.conversaciones",
+    "panel.catalogo",
     "catalogo.escribir",
     "pedidos.capturar_manual",
     "pedidos.entregar",
@@ -44,14 +74,19 @@ export const ROL_PERMISOS: Record<Rol, readonly PermisoCodigo[]> = {
     "ventana.cerrar",
     "mensajeria.enviar",
   ],
-  PRODUCCION: [],
+  PRODUCCION: [...NUCLEO_PANEL],
   TIENDA: [
+    ...NUCLEO_PANEL,
     "pedidos.capturar_manual",
     "pedidos.entregar",
     "cobranza.capturar_dte",
     "cobranza.registrar_pago",
   ],
-  REPARTO: ["pedidos.entregar", "cobranza.registrar_pago"],
+  REPARTO: [
+    ...NUCLEO_PANEL,
+    "pedidos.entregar",
+    "cobranza.registrar_pago",
+  ],
 };
 
 export function esPermisoCodigo(value: string): value is PermisoCodigo {
@@ -62,15 +97,27 @@ export function esNoDelegable(codigo: PermisoCodigo): boolean {
   return (PERMISOS_NO_DELEGABLES as readonly string[]).includes(codigo);
 }
 
+/**
+ * Permisos efectivos de una sesión.
+ *
+ * - ADMIN_JEFE: catálogo completo (no depende de filas en `usuario_permiso`).
+ * - Cualquier otro puesto: **solo** los grants explícitos. El rol ya no aporta
+ *   un preset invisible que no se pueda quitar.
+ */
 export function permisosEfectivos(
   rol: Rol,
   extras: readonly PermisoCodigo[] = [],
 ): PermisoCodigo[] {
-  const set = new Set<PermisoCodigo>(ROL_PERMISOS[rol]);
-  for (const extra of extras) {
-    set.add(extra);
+  if (rol === "ADMIN_JEFE") {
+    return [...PERMISOS];
   }
+  const set = new Set<PermisoCodigo>(extras);
   return PERMISOS.filter((codigo) => set.has(codigo));
+}
+
+/** Paquete que se escribe en `usuario_permiso` al crear con un puesto. */
+export function permisosPlantilla(rol: Rol): PermisoCodigo[] {
+  return permisosEfectivos(rol, ROL_PERMISOS[rol]);
 }
 
 export function tienePermiso(
@@ -85,6 +132,14 @@ export function puedeDelegar(actorRol: Rol, codigo: PermisoCodigo): boolean {
 }
 
 export const PERMISO_DESCRIPCION: Record<PermisoCodigo, string> = {
+  "panel.hoy": "Ver el módulo Hoy",
+  "panel.tablero": "Ver el módulo Tablero",
+  "panel.pedidos": "Ver el módulo Pedidos",
+  "panel.produccion": "Ver el módulo Producción",
+  "panel.reparto": "Ver el módulo Reparto",
+  "panel.cartera": "Ver el módulo Cartera",
+  "panel.conversaciones": "Ver el módulo Conversaciones",
+  "panel.catalogo": "Ver Catálogo y clientes",
   "precios.cambiar": "Cambiar precios por cliente",
   "catalogo.escribir": "Crear y editar productos y clientes",
   "pedidos.capturar_manual": "Capturar pedidos recibidos por llamada",
@@ -104,3 +159,9 @@ export const PERMISO_DESCRIPCION: Record<PermisoCodigo, string> = {
 };
 
 export const ROLES_CONOCIDOS = ROLES;
+
+/** Módulos que incluye la plantilla de un puesto (para UI al crear). */
+export function modulosDePlantilla(rol: Rol): ModuloAccesoId[] {
+  const plantilla = new Set(ROL_PERMISOS[rol]);
+  return MODULOS_ACCESO.filter((m) => plantilla.has(m.ver)).map((m) => m.id);
+}

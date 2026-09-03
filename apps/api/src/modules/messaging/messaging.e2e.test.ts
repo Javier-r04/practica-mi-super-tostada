@@ -24,6 +24,7 @@ import {
   ZONA_NEGOCIO,
   extraerCuerpoPlantilla,
   permisosEfectivos,
+  permisosPlantilla,
   renderCuerpoPlantilla,
   type Clock,
 } from "@misupertostada/shared";
@@ -130,7 +131,7 @@ async function fixture(clock: Clock) {
   const actorProd: Actor = {
     ...actor,
     rol: "PRODUCCION",
-    permisos: permisosEfectivos("PRODUCCION"),
+    permisos: permisosPlantilla("PRODUCCION"),
   };
   await plantillas.ensureFakeSeed(org!.id, clock.now());
   // La BD de test es compartida y nunca se limpia: con 4 dígitos aleatorios

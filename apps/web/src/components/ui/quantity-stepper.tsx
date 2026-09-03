@@ -13,6 +13,7 @@ export function QuantityStepper({
   onChange,
   min = 0,
   max = 9999,
+  paso = 1,
   unidad,
   disabled = false,
   size = "md",
@@ -24,6 +25,12 @@ export function QuantityStepper({
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  /**
+   * Salto de «+/−». Las libras van de 5 en 5 (ver `UNIDAD_PASO`): pedir 50 lb
+   * de uno en uno eran cincuenta toques. Escribir la cantidad sigue siendo
+   * exacto — el paso solo afecta a los botones.
+   */
+  paso?: number;
   unidad?: string;
   disabled?: boolean;
   size?: "md" | "lg";
@@ -37,10 +44,26 @@ export function QuantityStepper({
   const [borrador, setBorrador] = useState(String(value));
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Fuera de edición, el borrador es el valor. Se sincroniza al renderizar en
+  // vez de en un efecto: un `setState` dentro de `useEffect` encadena renders
+  // y aquí el dato no viene de ningún sistema externo.
+  const [valorPrevio, setValorPrevio] = useState(value);
+  if (valorPrevio !== value) {
+    setValorPrevio(value);
+    if (!editando) setBorrador(String(value));
+  }
+
   const set = (next: number) => {
     const clamped = Math.min(max, Math.max(min, Math.trunc(next)));
     onChange(clamped);
   };
+
+  /* Sumar: si el valor no cae en la rejilla del paso, primero se alinea, así
+     «+» sobre 3 lb con paso 5 da 5 y no 8. Restar es simétrico. */
+  const sumar = () =>
+    set(value <= min ? min + paso : (Math.floor(value / paso) + 1) * paso);
+  const restar = () =>
+    set(value % paso === 0 ? value - paso : Math.floor(value / paso) * paso);
 
   const s = sizes[size];
   const puedeEditar = editableOnClick && !disabled;
@@ -52,10 +75,6 @@ export function QuantityStepper({
     "disabled:cursor-not-allowed disabled:opacity-40",
     s.btn,
   );
-
-  useEffect(() => {
-    if (!editando) setBorrador(String(value));
-  }, [value, editando]);
 
   useEffect(() => {
     if (!editando) return;
@@ -121,14 +140,14 @@ export function QuantityStepper({
       onClick={iniciarEdicion}
       className={
         variant === "plain"
-          ? "flex h-full w-full flex-col items-center justify-center"
+          ? "flex h-full w-full cursor-text flex-col items-center justify-center"
           : "mst-quantity-stepper__trigger"
       }
     >
       <span
         className={cn(
           variant === "plain"
-            ? "text-sm font-semibold tabular-nums leading-none"
+            ? "text-[15px] font-semibold tabular-nums leading-none"
             : "mst-quantity-stepper__num",
           activo && "text-marca",
         )}
@@ -177,7 +196,7 @@ export function QuantityStepper({
           type="button"
           aria-label="Restar"
           disabled={disabled || value <= min}
-          onClick={() => set(value - 1)}
+          onClick={restar}
           className={cn(
             btnPlain,
             "bg-tinta-100 text-tinta-800 hover:bg-tinta-200 active:bg-tinta-200",
@@ -185,12 +204,26 @@ export function QuantityStepper({
         >
           −
         </button>
-        <div className="grid h-full min-w-10 place-items-center px-1">{valor}</div>
+        {/* Caja de campo, no número suelto: el teclado para escribir «50» ya
+            existía, pero nada decía que se podía tocar. */}
+        <div
+          className={cn(
+            "grid h-full min-w-14 place-items-center rounded-campo border bg-blanco px-1",
+            "transition-colors duration-control ease-out",
+            editando
+              ? "border-[var(--border-focus)]"
+              : activo
+                ? "border-[var(--green-300)]"
+                : "border-[var(--border-default)]",
+          )}
+        >
+          {valor}
+        </div>
         <button
           type="button"
           aria-label="Sumar"
           disabled={disabled || value >= max}
-          onClick={() => set(value + 1)}
+          onClick={sumar}
           className={cn(
             btnPlain,
             activo
@@ -221,7 +254,7 @@ export function QuantityStepper({
         type="button"
         aria-label="Restar"
         disabled={disabled || value <= min}
-        onClick={() => set(value - 1)}
+        onClick={restar}
         className={cn(
           "grid shrink-0 place-items-center text-lg font-semibold text-marca disabled:cursor-not-allowed disabled:text-tinta-500",
           "transition-colors duration-control ease-out",
@@ -240,7 +273,7 @@ export function QuantityStepper({
         type="button"
         aria-label="Sumar"
         disabled={disabled || value >= max}
-        onClick={() => set(value + 1)}
+        onClick={sumar}
         className={cn(
           "grid shrink-0 place-items-center text-lg font-semibold text-marca disabled:cursor-not-allowed disabled:text-tinta-500",
           "transition-colors duration-control ease-out",

@@ -34,6 +34,17 @@ export const UNIDAD_CORTA = {
 } as const;
 
 /**
+ * Salto del botón «+/−» según la unidad. Un restaurante pide tortillas por
+ * decenas de libras: de uno en uno son cincuenta toques para un solo renglón.
+ * Las bolsas y las unidades sí se piden de a poco.
+ */
+export const UNIDAD_PASO = {
+  LIBRA: 5,
+  BOLSA: 1,
+  UNIDAD: 1,
+} as const;
+
+/**
  * Total del pedido: suma de cantidad × precio_unitario, ambos enteros en
  * centavos. No hay redondeo: el producto de dos enteros ya es entero.
  * El redondeo bancario de `money.ts` aplica si algún día entra un factor no entero.
@@ -126,21 +137,54 @@ export const portalPedidoSchema = z.object({
 
 export type PortalPedido = z.infer<typeof portalPedidoSchema>;
 
-export const portalFacturaPendienteSchema = z.object({
+/**
+ * Factura del cliente en el portal. Lleva el pedido que la originó
+ * (`factura.pedidoId` es único por pedido) porque sin el correlativo el DTE es
+ * un número suelto: el cliente no puede saber a qué entrega corresponde.
+ *
+ * `PAGADO` entra en el enum a propósito. La lista de cobranza sigue contando
+ * solo lo pendiente, pero una factura saldada tiene que seguir siendo
+ * consultable: si desaparece, el abono que la pagó apunta a la nada.
+ */
+export const portalFacturaSchema = z.object({
   id: z.string().uuid(),
+  pedidoId: z.string().uuid(),
+  correlativo: z.number().int().positive(),
+  fechaEntrega: z.string(),
   numeroDte: z.string().nullable(),
   montoCentavos: centavosSchema,
   abonadoCentavos: centavosSchema,
   saldoCentavos: centavosSchema,
   emitidaAt: z.string().nullable(),
   antiguedadDias: z.number().int().nonnegative(),
-  estado: z.enum(["PENDIENTE", "ABONO_PARCIAL", "VENCIDO"]),
+  estado: z.enum(["PENDIENTE", "ABONO_PARCIAL", "VENCIDO", "PAGADO"]),
 });
 
-export type PortalFacturaPendiente = z.infer<typeof portalFacturaPendienteSchema>;
+export type PortalFactura = z.infer<typeof portalFacturaSchema>;
 
+/** Nombre anterior; la forma ya no es solo de pendientes. */
+export const portalFacturaPendienteSchema = portalFacturaSchema;
+export type PortalFacturaPendiente = PortalFactura;
+
+export const PORTAL_FACTURA_FILTROS = ["pendientes", "pagadas", "todas"] as const;
+export type PortalFacturaFiltro = (typeof PORTAL_FACTURA_FILTROS)[number];
+
+export const portalFacturasSchema = z.object({
+  items: z.array(portalFacturaSchema),
+  nextOffset: z.number().int().nonnegative().nullable(),
+});
+export type PortalFacturas = z.infer<typeof portalFacturasSchema>;
+
+/**
+ * A qué factura fue a parar cada quetzal de un abono. Trae el pedido para que
+ * el DTE deje de ser texto muerto y se pueda abrir la entrega que se está
+ * pagando.
+ */
 export const portalAbonoAplicacionSchema = z.object({
   facturaId: z.string().uuid(),
+  pedidoId: z.string().uuid(),
+  correlativo: z.number().int().positive(),
+  fechaEntrega: z.string(),
   numeroDte: z.string().nullable(),
   montoCentavos: centavosSchema,
 });
@@ -164,7 +208,7 @@ export const portalCuentaSchema = z.object({
   facturasPendientes: z.number().int().nonnegative(),
   limiteFacturasPendientes: z.number().int().nullable(),
   saldoCentavos: centavosSchema,
-  facturas: z.array(portalFacturaPendienteSchema),
+  facturas: z.array(portalFacturaSchema),
   abonos: z.array(portalAbonoSchema),
   transferenciasEnRevisionCentavos: centavosSchema,
 });
@@ -205,11 +249,26 @@ export type PortalPedidoDetalleItem = z.infer<
   typeof portalPedidoDetalleItemSchema
 >;
 
+/** Abono aplicado a la factura de un pedido, visto por el cliente. */
+export const portalFacturaAbonoSchema = z.object({
+  abonoId: z.string().uuid(),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  metodo: z.enum(PAGO_METODOS),
+  estado: z.enum(ABONO_ESTADOS),
+  montoCentavos: centavosSchema,
+});
+export type PortalFacturaAbono = z.infer<typeof portalFacturaAbonoSchema>;
+
 export const portalPedidoDetalleFacturaSchema = z.object({
   id: z.string().uuid(),
   numeroDte: z.string().nullable(),
+  montoCentavos: centavosSchema,
+  abonadoCentavos: centavosSchema,
   saldoCentavos: centavosSchema,
+  antiguedadDias: z.number().int().nonnegative(),
   estado: z.enum(["PENDIENTE", "ABONO_PARCIAL", "VENCIDO", "PAGADO"]),
+  /** Lo ya pagado de esta factura, para responder «cuánto me falta». */
+  abonos: z.array(portalFacturaAbonoSchema),
 });
 
 export type PortalPedidoDetalleFactura = z.infer<

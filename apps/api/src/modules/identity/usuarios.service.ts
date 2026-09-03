@@ -1,16 +1,22 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { permiso, usuario, usuarioPermiso } from "@misupertostada/db";
 import {
   actorPublicoSchema,
   activarUsuarioRequestSchema,
   cambiarRolRequestSchema,
   crearUsuarioRequestSchema,
+  delegarModuloRequestSchema,
   delegarPermisoRequestSchema,
+  modulosDePlantilla,
+  permisosDelModulo,
   puedeDelegar,
   permisosEfectivos,
+  permisosPlantilla,
   resetPasswordRequestSchema,
   type ActorPublico,
+  type ModuloAccesoId,
+  type PermisoCodigo,
 } from "@misupertostada/shared";
 import { DRIZZLE } from "../shared/tokens";
 import type { AppDatabase } from "../shared/database.module";
@@ -78,13 +84,30 @@ export class UsuariosService {
       throw new DomainException("USERNAME_EN_USO", "Ya existe una cuenta con ese usuario", 409);
     }
 
+    const modulosSembrados =
+      input.rol === "ADMIN_JEFE"
+        ? []
+        : (input.modulos ?? modulosDePlantilla(input.rol));
+    const grants =
+      input.rol === "ADMIN_JEFE"
+        ? []
+        : this.grantsAlCrear(input.rol, modulosSembrados);
+
+    if (grants.length > 0) {
+      await this.otorgarCodigos(created.id, grants, actor.usuarioId);
+    }
+
     await this.audit.insert({
       actorTipo: "usuario",
       actorId: actor.usuarioId,
       accion: "usuarios.crear",
       entidad: "usuario",
       entidadId: created.id,
-      despues: { username: input.username, rol: input.rol },
+      despues: {
+        username: input.username,
+        rol: input.rol,
+        modulos: modulosSembrados,
+      },
       ip: actor.ip,
       userAgent: actor.userAgent,
     });
@@ -97,8 +120,63 @@ export class UsuariosService {
         organizacionId: actor.organizacionId,
         activo: true,
       },
-      [],
+      grants,
     );
+  }
+
+  async delegarModulo(
+    usuarioId: string,
+    body: unknown,
+    actor: Actor,
+  ): Promise<ActorPublico> {
+    const input = parseBody(delegarModuloRequestSchema, body);
+    if (actor.rol !== "ADMIN_JEFE") {
+      throw new DomainException(
+        "PERMISO_DENEGADO",
+        "Solo el administrador jefe otorga módulos",
+        403,
+      );
+    }
+
+    const [target] = await this.db
+      .select()
+      .from(usuario)
+      .where(eq(usuario.id, usuarioId))
+      .limit(1);
+    if (!target) {
+      throw new DomainException("NO_ENCONTRADO", "Usuario no encontrado", 404);
+    }
+    if (target.rol === "ADMIN_JEFE") {
+      throw new DomainException(
+        "VALIDACION",
+        "El administrador jefe ya ve todos los módulos",
+        400,
+      );
+    }
+
+    const codigos = permisosDelModulo(input.modulo);
+    const extrasAntes = await this.sessions.extras(usuarioId);
+
+    if (input.granted) {
+      await this.otorgarCodigos(usuarioId, codigos, actor.usuarioId);
+    } else {
+      await this.revocarCodigos(usuarioId, codigos);
+    }
+
+    const extrasDespues = await this.sessions.extras(usuarioId);
+    await this.audit.insert({
+      actorTipo: "usuario",
+      actorId: actor.usuarioId,
+      accion: input.granted ? "modulos.otorgar" : "modulos.revocar",
+      entidad: "usuario",
+      entidadId: usuarioId,
+      antes: { permisos: extrasAntes },
+      despues: { permisos: extrasDespues, modulo: input.modulo },
+      ip: actor.ip,
+      userAgent: actor.userAgent,
+    });
+
+    return this.publico(target, extrasDespues);
   }
 
   async delegar(
@@ -124,36 +202,12 @@ export class UsuariosService {
       throw new DomainException("NO_ENCONTRADO", "Usuario no encontrado", 404);
     }
 
-    const [perm] = await this.db
-      .select()
-      .from(permiso)
-      .where(eq(permiso.codigo, input.codigo))
-      .limit(1);
-    if (!perm) {
-      throw new DomainException("NO_ENCONTRADO", "Permiso no encontrado", 404);
-    }
-
     const extrasAntes = await this.sessions.extras(usuarioId);
 
     if (input.granted) {
-      await this.db
-        .insert(usuarioPermiso)
-        .values({
-          usuarioId,
-          permisoId: perm.id,
-          grantedBy: actor.usuarioId,
-        })
-        .onConflictDoNothing();
+      await this.otorgarCodigos(usuarioId, [input.codigo], actor.usuarioId);
     } else {
-      // Quita el grant; no es una entidad de negocio (pedido/pago/cliente).
-      await this.db
-        .delete(usuarioPermiso)
-        .where(
-          and(
-            eq(usuarioPermiso.usuarioId, usuarioId),
-            eq(usuarioPermiso.permisoId, perm.id),
-          ),
-        );
+      await this.revocarCodigos(usuarioId, [input.codigo]);
     }
 
     const extrasDespues = await this.sessions.extras(usuarioId);
@@ -296,6 +350,16 @@ export class UsuariosService {
       .update(usuario)
       .set({ rol: input.rol })
       .where(eq(usuario.id, usuarioId));
+
+    // Al pasar a un puesto no-jefe sin grants, siembra la plantilla para que
+    // no quede una cuenta ciega. Si ya tenía módulos, se respetan.
+    let extras = await this.sessions.extras(usuarioId);
+    if (input.rol !== "ADMIN_JEFE" && extras.length === 0) {
+      const plantilla = permisosPlantilla(input.rol);
+      await this.otorgarCodigos(usuarioId, plantilla, actor.usuarioId);
+      extras = plantilla;
+    }
+
     await this.audit.insert({
       actorTipo: "usuario",
       actorId: actor.usuarioId,
@@ -307,8 +371,83 @@ export class UsuariosService {
       ip: actor.ip,
       userAgent: actor.userAgent,
     });
-    const extras = await this.sessions.extras(usuarioId);
     return this.publico({ ...target, rol: input.rol }, extras);
+  }
+
+  private grantsAlCrear(
+    rol: ActorPublico["rol"],
+    modulos: readonly ModuloAccesoId[],
+  ): PermisoCodigo[] {
+    // Si dejó la plantilla del puesto sin tocar, materializa exactamente
+    // ROL_PERMISOS (p. ej. Producción ve el núcleo sin poder cerrar). Si
+    // ajustó casillas, cada módulo va completo (ver + escrituras).
+    const plantilla = modulosDePlantilla(rol);
+    const igual =
+      modulos.length === plantilla.length &&
+      plantilla.every((id) => modulos.includes(id));
+    return igual ? permisosPlantilla(rol) : this.permisosDeModulos(modulos);
+  }
+
+  private permisosDeModulos(modulos: readonly ModuloAccesoId[]): PermisoCodigo[] {
+    const set = new Set<PermisoCodigo>();
+    for (const id of modulos) {
+      for (const codigo of permisosDelModulo(id)) {
+        set.add(codigo);
+      }
+    }
+    return [...set];
+  }
+
+  private async otorgarCodigos(
+    usuarioId: string,
+    codigos: readonly PermisoCodigo[],
+    grantedBy: string,
+  ): Promise<void> {
+    if (codigos.length === 0) return;
+    const rows = await this.db
+      .select()
+      .from(permiso)
+      .where(inArray(permiso.codigo, [...codigos]));
+    if (rows.length !== codigos.length) {
+      throw new DomainException(
+        "NO_ENCONTRADO",
+        "Falta un permiso en el catálogo; corra la migración",
+        500,
+      );
+    }
+    await this.db
+      .insert(usuarioPermiso)
+      .values(
+        rows.map((perm) => ({
+          usuarioId,
+          permisoId: perm.id,
+          grantedBy,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
+  private async revocarCodigos(
+    usuarioId: string,
+    codigos: readonly PermisoCodigo[],
+  ): Promise<void> {
+    if (codigos.length === 0) return;
+    const rows = await this.db
+      .select()
+      .from(permiso)
+      .where(inArray(permiso.codigo, [...codigos]));
+    if (rows.length === 0) return;
+    await this.db
+      .delete(usuarioPermiso)
+      .where(
+        and(
+          eq(usuarioPermiso.usuarioId, usuarioId),
+          inArray(
+            usuarioPermiso.permisoId,
+            rows.map((r) => r.id),
+          ),
+        ),
+      );
   }
 
   private publico(

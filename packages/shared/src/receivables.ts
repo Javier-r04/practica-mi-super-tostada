@@ -463,8 +463,16 @@ export const pagoPublicoSchema = z.object({
 });
 export type PagoPublico = z.infer<typeof pagoPublicoSchema>;
 
+/**
+ * A qué factura se aplicó cada parte de un abono. Lleva el pedido porque el
+ * DTE solo identifica la factura ante el SAT: quien mira la pantalla —cliente
+ * o cobranza— necesita saber de qué entrega se trata.
+ */
 export const aplicacionAbonoSchema = z.object({
   facturaId: z.string().uuid(),
+  pedidoId: z.string().uuid(),
+  correlativo: z.number().int().positive(),
+  fechaEntrega: z.string(),
   numeroDte: z.string().nullable(),
   montoCentavos: centavosSchema,
 });

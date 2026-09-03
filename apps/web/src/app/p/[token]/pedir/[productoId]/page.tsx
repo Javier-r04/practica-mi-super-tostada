@@ -2,10 +2,18 @@
 
 import { use } from "react";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { Button, Chip } from "@heroui/react";
 import { Package, Star } from "lucide-react";
-import { UNIDAD_CORTA } from "@misupertostada/shared";
-import { usePortalSession } from "@/components/portal/portal-session";
+import {
+  UNIDAD_CORTA,
+  UNIDAD_PASO,
+  totalPedidoCentavos,
+} from "@misupertostada/shared";
+import {
+  itemsElegidosDe,
+  usePortalSession,
+} from "@/components/portal/portal-session";
 import { PortalBackButton } from "@/components/portal/portal-back-button";
 import { Money } from "@/components/domain/money";
 import { QuantityStepper } from "@/components/ui/quantity-stepper";
@@ -24,6 +32,29 @@ export default function PortalProductoPage({
   const base = `/p/${encodeURIComponent(token)}`;
   const producto = sesion.catalogo.find((p) => p.productoId === productoId);
   const abierta = sesion.ventana.abierta;
+
+  const elegidos = useMemo(
+    () => itemsElegidosDe(sesion.catalogo, cantidades),
+    [sesion.catalogo, cantidades],
+  );
+  const totalCentavos = useMemo(
+    () =>
+      totalPedidoCentavos(
+        elegidos.map((i) => ({
+          cantidad: i.cantidad,
+          precioUnitarioCentavos: i.producto.precioCentavos ?? 0,
+        })),
+      ),
+    [elegidos],
+  );
+
+  /* Volver al catálogo con `router.push` lo remonta desde arriba y pierde el
+     scroll: abrir tres fichas seguidas obligaba a bajar tres veces. Si se
+     llegó navegando desde el catálogo, se vuelve por el historial. */
+  const volver = () => {
+    if (window.history.length > 1) router.back();
+    else router.push(`${base}/pedir`);
+  };
 
   if (!producto) {
     return (
@@ -48,7 +79,7 @@ export default function PortalProductoPage({
   return (
     <div className="grid gap-5 py-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-10">
       <div className="grid gap-4">
-        <PortalBackButton href={`${base}/pedir`} label="Pedir" />
+        <PortalBackButton onPress={volver} label="Pedir" />
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-tarjeta bg-tinta-50">
           {producto.fotoAssetId ? (
             <AssetImage
@@ -106,6 +137,7 @@ export default function PortalProductoPage({
           <QuantityStepper
             value={cantidad}
             onChange={(n) => setCantidad(producto.productoId, n)}
+            paso={UNIDAD_PASO[producto.unidadMedida]}
             unidad={unidad}
             disabled={disabled}
             size="lg"
@@ -119,15 +151,28 @@ export default function PortalProductoPage({
           ) : null}
         </div>
 
-        <Button
-          fullWidth
-          size="lg"
-          variant="primary"
-          className="button--accent lg:w-auto"
-          onPress={() => router.push(`${base}/pedir`)}
-        >
-          Listo
-        </Button>
+        <div className="grid gap-2">
+          {/* La ficha ya no es un callejón: se ve el pedido que se lleva
+              armado sin tener que volver al catálogo a contarlo. */}
+          {elegidos.length > 0 ? (
+            <div className="flex min-w-0 items-baseline justify-between gap-2 rounded-campo bg-[var(--ink-50)] px-3 py-2">
+              <span className="shrink-0 text-sm tabular-nums text-tinta-600">
+                {elegidos.length}{" "}
+                {elegidos.length === 1 ? "producto" : "productos"}
+              </span>
+              <Money centavos={totalCentavos} truncate />
+            </div>
+          ) : null}
+          <Button
+            fullWidth
+            size="lg"
+            variant="primary"
+            className="button--accent lg:w-auto"
+            onPress={volver}
+          >
+            Listo
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -1,29 +1,69 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, Label, TextArea } from "@heroui/react";
-import { Receipt } from "lucide-react";
+import { ChevronRight, Receipt } from "lucide-react";
 import { ComprobantePicker } from "@/components/receivables/comprobante-picker";
 import {
+  formatearFechaLarga,
   MENSAJE_ABONO_PENDIENTE,
   MENSAJE_DESCRIPCION_REQUERIDA,
   PAGO_METODO_ETIQUETA,
   quetzalesTextoACentavos,
   type PortalCuenta,
+  type PortalFactura,
+  type PortalFacturaFiltro,
 } from "@misupertostada/shared";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { toastError, toastPromise } from "@/lib/toast";
 import { usePortalSession } from "@/components/portal/portal-session";
 import { PortalBackButton } from "@/components/portal/portal-back-button";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { NumeroDtePortal } from "@/components/portal/numero-dte";
 import { ComprobanteAssetPreview } from "@/components/receivables/comprobante-asset-preview";
 import { subirComprobanteAbonoPortal } from "@/lib/upload-asset";
 import { usePortalCuenta } from "@/hooks/use-portal-cuenta";
+import { hrefPedidoPortal, resumenAplicacion } from "@/lib/portal-cuenta-vista";
+import { PortalErrorAviso } from "@/components/portal/portal-error-estado";
+
+/**
+ * La cuenta viaja dentro de la sesión (`initialData` en `usePortalCuenta`), así
+ * que la query nunca está `pending` ni se queda sin datos. Lo que sí puede
+ * fallar es el refresco de fondo: se avisa sin borrar lo que ya se ve, porque
+ * un saldo de hace un minuto es mucho mejor que una pantalla vacía.
+ */
+export function PortalCuentaDesactualizada({
+  cuenta,
+}: {
+  cuenta: ReturnType<typeof usePortalCuenta>;
+}) {
+  if (!cuenta.isError) return null;
+  return (
+    <PortalErrorAviso
+      error={cuenta.error}
+      titulo="No pudimos actualizar su cuenta"
+      reintentando={cuenta.isFetching}
+      onReintentar={() => void cuenta.refetch()}
+    />
+  );
+}
+
+/** Aviso de acumulación de facturas. Avisa, nunca bloquea. */
+export function PortalAvisoCredito({ aviso }: { aviso: string | null }) {
+  if (!aviso) return null;
+  return (
+    <Alert status="warning">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>Facturas pendientes</Alert.Title>
+        <Alert.Description>{aviso}</Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
 
 export function PortalCuentaFrame({
   titulo,
@@ -41,64 +81,100 @@ export function PortalCuentaFrame({
       <div className="grid gap-4 py-4">
         <PortalBackButton href={`${base}/cuenta`} label="Cuenta" />
         <h1 className="text-xl font-semibold text-tinta-900">{titulo}</h1>
-        {cuenta.isPending && !cuenta.data ? (
-          <Skeleton className="h-20 w-full rounded-tarjeta" />
-        ) : cuenta.error instanceof ApiError ? (
-          <Alert status="danger">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>No se pudo cargar la cuenta</Alert.Title>
-              <Alert.Description>{cuenta.error.message}</Alert.Description>
-            </Alert.Content>
-          </Alert>
-        ) : (
-          children(data)
-        )}
+        <PortalCuentaDesactualizada cuenta={cuenta} />
+        {children(data)}
       </div>
   );
 }
 
-export function PortalFacturasLista({ data }: { data: PortalCuenta }) {
+function tonoSaldo(estado: PortalFactura["estado"]) {
+  if (estado === "VENCIDO") return "vencido" as const;
+  if (estado === "ABONO_PARCIAL") return "pendiente" as const;
+  if (estado === "PAGADO") return "pagado" as const;
+  return "default" as const;
+}
+
+/**
+ * Cada factura lleva a su pedido. El DTE por sí solo no le dice nada al
+ * cliente: identifica la factura ante el SAT, no la entrega. Por eso manda el
+ * correlativo y la fecha, y el renglón entero es el enlace.
+ */
+export function PortalFacturasLista({
+  items,
+  filtro,
+  vacio,
+}: {
+  items: readonly PortalFactura[];
+  filtro: PortalFacturaFiltro;
+  vacio?: ReactNode;
+}) {
+  const { token } = usePortalSession();
+
+  if (items.length === 0) {
+    return (
+      <Card className="p-0">
+        {vacio ?? (
+          <EmptyState
+            icon={<Receipt size={22} aria-hidden />}
+            title={
+              filtro === "pagadas"
+                ? "Todavía no hay facturas saldadas."
+                : "No tiene facturas pendientes."
+            }
+            description={
+              filtro === "pagadas"
+                ? "Cuando termine de pagar una factura, queda aquí para consulta."
+                : "Cuando haya saldo, lo verá aquí."
+            }
+          />
+        )}
+      </Card>
+    );
+  }
+
   return (
     <Card className="gap-0 overflow-hidden p-0">
-      {data.facturas.length === 0 ? (
-        <EmptyState
-          icon={<Receipt size={22} aria-hidden />}
-          title="No tiene facturas pendientes."
-          description="Cuando haya saldo, lo verá aquí."
-        />
-      ) : (
-        <ul>
-          {data.facturas.map((f) => (
-            <li
-              key={f.id}
-              className="flex min-w-0 items-center gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
+      <ul>
+        {items.map((f) => (
+          <li
+            key={f.id}
+            className="border-b border-[var(--border-subtle)] last:border-b-0"
+          >
+            <Link
+              href={hrefPedidoPortal(token, f.pedidoId)}
+              className="flex min-h-[60px] min-w-0 items-center gap-3 px-4 py-3 text-inherit no-underline transition-colors duration-control ease-out hover:bg-[var(--ink-50)] hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
             >
-              <div className="min-w-0 flex-1">
-                <NumeroDtePortal numeroDte={f.numeroDte} />
-                <p className="text-xs tabular-nums text-tinta-500">
-                  {f.antiguedadDias} {f.antiguedadDias === 1 ? "día" : "días"}
-                </p>
-              </div>
-              <div className="shrink-0">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[15px] font-semibold text-tinta-900">
+                  <span className="font-mono tabular-nums">#{f.correlativo}</span>
+                  {" · "}
+                  {formatearFechaLarga(f.fechaEntrega)}
+                </span>
+                <span className="block truncate text-xs text-tinta-500">
+                  {f.numeroDte ? `DTE ${f.numeroDte}` : "Sin DTE"}
+                  {" · "}
+                  <span className="tabular-nums">
+                    {f.antiguedadDias} {f.antiguedadDias === 1 ? "día" : "días"}
+                  </span>
+                </span>
+              </span>
+              <span className="grid min-w-0 shrink-0 justify-items-end gap-1">
+                <Money
+                  centavos={f.estado === "PAGADO" ? f.montoCentavos : f.saldoCentavos}
+                  tone={tonoSaldo(f.estado)}
+                  truncate
+                />
                 <EstadoBadge estado={f.estado} size="sm" />
-              </div>
-              <Money
-                centavos={f.saldoCentavos}
-                tone={
-                  f.estado === "VENCIDO"
-                    ? "vencido"
-                    : f.estado === "ABONO_PARCIAL"
-                      ? "pendiente"
-                      : "default"
-                }
-                truncate
-                className="shrink-0 text-right"
+              </span>
+              <ChevronRight
+                size={18}
+                className="shrink-0 text-tinta-400"
+                aria-hidden
               />
-            </li>
-          ))}
-        </ul>
-      )}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }
@@ -169,24 +245,39 @@ export function PortalAbonosLista({ data }: { data: PortalCuenta }) {
                     srcPath={`/p/${encodeURIComponent(token)}/assets/${a.comprobanteAssetId}`}
                   />
                 ) : null}
+                {/* A dónde fue el dinero. El abono se reparte por FIFO entre
+                    varias facturas, así que aquí es donde el cliente responde
+                    «¿este pago a qué pedido fue?» — y por eso cada renglón
+                    abre esa entrega. */}
                 {a.aplicaciones.length > 0 ? (
-                  <ul className="grid gap-1 rounded-campo bg-tinta-50 px-3 py-2 text-xs text-tinta-600">
-                    {a.aplicaciones.map((ap) => (
-                      <li
-                        key={`${a.id}-${ap.facturaId}`}
-                        className="flex min-w-0 justify-between gap-2"
-                      >
-                        <span className="min-w-0 truncate font-mono">
-                          {ap.numeroDte ?? "Sin DTE"}
-                        </span>
-                        <Money
-                          centavos={ap.montoCentavos}
-                          tone="muted"
-                          truncate
-                        />
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="grid gap-1 rounded-campo bg-tinta-50 px-2 py-1.5">
+                    <p className="px-1 mst-label">Aplicado a</p>
+                    <ul className="grid">
+                      {a.aplicaciones.map((ap) => (
+                        <li key={`${a.id}-${ap.facturaId}`}>
+                          <Link
+                            href={hrefPedidoPortal(token, ap.pedidoId)}
+                            className="flex min-h-tap min-w-0 items-center gap-2 rounded-campo px-1 text-inherit no-underline transition-colors duration-control ease-out hover:bg-tinta-100 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-xs text-tinta-600">
+                              {resumenAplicacion(ap)}
+                            </span>
+                            <Money
+                              centavos={ap.montoCentavos}
+                              tone="muted"
+                              truncate
+                              className="shrink-0"
+                            />
+                            <ChevronRight
+                              size={16}
+                              className="shrink-0 text-tinta-400"
+                              aria-hidden
+                            />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
               </li>
             ))}

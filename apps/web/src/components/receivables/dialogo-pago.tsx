@@ -231,12 +231,12 @@ function FormularioPago({
 
               <ComprobantePicker
                 label="Comprobante"
-                placeholder="Toque para tomar foto del recibo"
                 hint={
                   pagoRequiereComprobante(metodo)
                     ? "Obligatorio en transferencia y cheque."
                     : "Opcional en efectivo."
                 }
+                selectorOrigen
                 value={archivo}
                 onChange={setArchivo}
               />

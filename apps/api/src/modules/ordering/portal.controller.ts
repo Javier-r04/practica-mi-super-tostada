@@ -15,7 +15,10 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Request } from "express";
-import { envelopeOk } from "@misupertostada/shared";
+import {
+  envelopeOk,
+  PORTAL_FACTURA_FILTROS,
+} from "@misupertostada/shared";
 import { Public } from "../shared/public.decorator";
 import { CurrentPortalCliente, PortalTokenGuard } from "./portal.guard";
 import type { ClientePortal } from "./portal-token.service";
@@ -80,6 +83,26 @@ export class PortalController {
     const offset = offsetRaw ? Number.parseInt(offsetRaw, 10) : undefined;
     return envelopeOk(
       await this.portal.listarPedidos(clienteRow, meta(req), {
+        limit: Number.isFinite(limit) ? limit : undefined,
+        offset: Number.isFinite(offset) ? offset : undefined,
+      }),
+    );
+  }
+
+  @Get(":token/facturas")
+  async facturas(
+    @Req() req: Request,
+    @CurrentPortalCliente() clienteRow: ClientePortal,
+    @Query("estado") estadoRaw?: string,
+    @Query("limit") limitRaw?: string,
+    @Query("offset") offsetRaw?: string,
+  ) {
+    const limit = limitRaw ? Number.parseInt(limitRaw, 10) : undefined;
+    const offset = offsetRaw ? Number.parseInt(offsetRaw, 10) : undefined;
+    const filtro = PORTAL_FACTURA_FILTROS.find((f) => f === estadoRaw);
+    return envelopeOk(
+      await this.portal.listarFacturas(clienteRow, meta(req), {
+        filtro,
         limit: Number.isFinite(limit) ? limit : undefined,
         offset: Number.isFinite(offset) ? offset : undefined,
       }),

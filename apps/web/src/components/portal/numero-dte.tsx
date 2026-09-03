@@ -7,7 +7,7 @@ import { toastSuccess } from "@/lib/toast";
 export function NumeroDtePortal({ numeroDte }: { numeroDte: string | null }) {
   if (!numeroDte) {
     return (
-      <p className="font-mono text-[13px] text-tinta-500">
+      <p className="text-[13px] text-tinta-500">
         Sin DTE · la fábrica lo registra al facturar
       </p>
     );
@@ -15,10 +15,12 @@ export function NumeroDtePortal({ numeroDte }: { numeroDte: string | null }) {
 
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <p className="truncate font-mono text-[13px] text-tinta-900">{numeroDte}</p>
+      <p className="truncate text-[13px] text-tinta-900">{numeroDte}</p>
       <Button
         aria-label={`Copiar DTE ${numeroDte}`}
-        className="shrink-0"
+        // 44 px reales: en el teléfono la etiqueta es `sr-only` y sin altura
+        // mínima quedaba un icono de ~32 px.
+        className="min-h-tap shrink-0"
         size="sm"
         variant="ghost"
         onPress={async () => {

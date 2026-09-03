@@ -361,7 +361,7 @@ export default function ClienteFichaPage() {
                         className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-t border-[var(--border-subtle)] px-4 py-3 sm:px-5"
                       >
                         <div className="min-w-0">
-                          <p className="truncate font-mono text-xs text-tinta-500">
+                          <p className="truncate text-xs text-tinta-500">
                             {f.numeroDte ?? "Sin DTE"}
                           </p>
                           <p className="text-sm text-tinta-500">

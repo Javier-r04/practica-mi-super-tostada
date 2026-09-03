@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Chip, Disclosure } from "@heroui/react";
+import { ChevronDown } from "lucide-react";
 import {
   FAMILIA_ETIQUETA,
   UNIDAD_CORTA,
@@ -39,14 +40,14 @@ export function HojaGrupos({
   }
 
   return (
-    <div>
+    <div className="hoja-grupos">
       {grupos.map((grupo) => {
         /* En «Solo cambios» la hoja está recortada: sumar lo visible daría un
            subtotal que no es el de la familia. Ahí solo se cuentan renglones. */
         const subtotal = soloCambios ? null : subtotalDe(grupo.lineas);
         return (
           <section key={grupo.familia}>
-            <h3 className="sticky top-0 z-[1] flex items-baseline justify-between gap-2 border-y border-[var(--border-subtle)] bg-[var(--ink-50)] px-4 py-2 mst-label first:border-t-0 sm:px-5">
+            <h3 className="sticky top-0 z-[1] flex items-baseline justify-between gap-2 border-y border-[var(--border-subtle)] bg-[var(--ink-50)] px-4 py-2.5 mst-label first:border-t-0 sm:px-5">
               <span>{FAMILIA_ETIQUETA[grupo.familia]}</span>
               {subtotal ? (
                 <span className="flex items-baseline gap-1.5">
@@ -99,6 +100,18 @@ function subtotalDe(
   };
 }
 
+/** Especiales primero: Alex los busca al abrir. Luego nombre. */
+function ordenDesglose(
+  desglose: readonly ClienteDeProducto[],
+): ClienteDeProducto[] {
+  return [...desglose].sort((a, b) => {
+    const ae = Boolean(a.notaProduccion);
+    const be = Boolean(b.notaProduccion);
+    if (ae !== be) return ae ? -1 : 1;
+    return a.nombre.localeCompare(b.nombre, "es");
+  });
+}
+
 function FilaHoja({
   linea,
   clientes,
@@ -108,108 +121,160 @@ function FilaHoja({
 }) {
   const delta = deltaCantidad(linea);
   const eliminado = linea.cambio === "eliminado";
-  const desglose = desgloseProductoConNotas(linea, clientes);
+  const desglose = ordenDesglose(desgloseProductoConNotas(linea, clientes));
   const conEspeciales = desglose.some((c) => Boolean(c.notaProduccion));
+  const nEspeciales = desglose.filter((c) => c.notaProduccion).length;
   const puedeDesplegar = desglose.length > 0;
 
-  const cabecera = (
-    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-2 sm:gap-3">
-      <p
+  const meta = (
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <EstadoBadge estado={linea.puntoCargaEfectivo} size="sm" />
+      {linea.cambio === "nuevo" && (
+        <Chip color="warning" size="sm" variant="soft">
+          nuevo
+        </Chip>
+      )}
+      {linea.cambio === "ajustado" && !delta && (
+        <Chip color="warning" size="sm" variant="soft">
+          ajustado
+        </Chip>
+      )}
+      {eliminado && (
+        <Chip color="warning" size="sm" variant="soft">
+          eliminado
+        </Chip>
+      )}
+      {conEspeciales && (
+        <Chip color="warning" size="sm" variant="soft">
+          {nEspeciales === 1
+            ? "1 especial"
+            : `${nEspeciales} especiales`}
+        </Chip>
+      )}
+    </div>
+  );
+
+  const cantidad = (
+    <div className="flex shrink-0 items-baseline justify-end gap-1.5 tabular-nums">
+      <span
+        aria-label={delta ? `${delta.de} antes, ${delta.a} ahora` : undefined}
         className={cn(
-          "min-w-0 flex-1 basis-full text-sm font-semibold text-pretty text-tinta-900 sm:basis-auto",
+          "font-display text-2xl leading-none text-marca",
           eliminado && "line-through",
         )}
       >
-        {linea.nombreCanonico}
-      </p>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <EstadoBadge estado={linea.puntoCargaEfectivo} size="sm" />
-        {linea.cambio === "nuevo" && (
-          <Chip color="warning" size="sm" variant="soft">
-            nuevo
-          </Chip>
+        {delta ? (
+          <>
+            <span className="text-base text-tinta-500" aria-hidden>
+              {delta.de}
+            </span>
+            <span className="mx-1 text-base text-tinta-400" aria-hidden>
+              →
+            </span>
+            <span aria-hidden>{delta.a}</span>
+          </>
+        ) : (
+          linea.cantidad
         )}
-        {linea.cambio === "ajustado" && !delta && (
-          <Chip color="warning" size="sm" variant="soft">
-            ajustado
-          </Chip>
-        )}
-        {eliminado && (
-          <Chip color="warning" size="sm" variant="soft">
-            eliminado
-          </Chip>
-        )}
-        {conEspeciales && (
-          <Chip color="warning" size="sm" variant="soft">
-            especiales
-          </Chip>
-        )}
-        {desglose.length > 0 && (
-          <span className="text-xs tabular-nums text-tinta-500">
-            {desglose.length === 1
-              ? "1 cliente"
-              : `${desglose.length} clientes`}
-          </span>
-        )}
-        <span
-          aria-label={
-            delta ? `${delta.de} antes, ${delta.a} ahora` : undefined
-          }
-          className={cn(
-            "shrink-0 font-display text-2xl leading-none tabular-nums text-marca",
-            eliminado && "line-through",
-          )}
-        >
-          {delta ? (
-            <>
-              <span className="text-base text-tinta-500" aria-hidden>
-                {delta.de}
-              </span>
-              <span className="mx-1 text-base text-tinta-400" aria-hidden>
-                →
-              </span>
-              <span aria-hidden>{delta.a}</span>
-            </>
-          ) : (
-            linea.cantidad
-          )}
-        </span>
-        <span className="w-10 shrink-0 text-xs text-tinta-500 sm:w-14">
-          {UNIDAD_CORTA[linea.unidadMedida]}
-        </span>
-      </div>
+      </span>
+      <span className="w-8 text-xs text-tinta-500 sm:w-10">
+        {UNIDAD_CORTA[linea.unidadMedida]}
+      </span>
     </div>
   );
+
+  if (!puedeDesplegar) {
+    return (
+      <li
+        className={cn(
+          "border-b border-[var(--border-subtle)] last:border-b-0",
+          linea.cambio ? "bg-[var(--amber-100)]/50" : "bg-blanco",
+          eliminado && "opacity-70",
+        )}
+      >
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 py-3 sm:px-5">
+          <div className="min-w-0 space-y-1.5">
+            <p
+              className={cn(
+                "text-sm font-semibold text-pretty text-tinta-900",
+                eliminado && "line-through",
+              )}
+            >
+              {linea.nombreCanonico}
+            </p>
+            {meta}
+          </div>
+          {cantidad}
+        </div>
+      </li>
+    );
+  }
 
   return (
     <li
       className={cn(
         "border-b border-[var(--border-subtle)] last:border-b-0",
-        linea.cambio ? "bg-[var(--amber-100)]/60" : "bg-blanco",
+        linea.cambio ? "bg-[var(--amber-100)]/50" : "bg-blanco",
         eliminado && "opacity-70",
       )}
     >
-      {puedeDesplegar ? (
-        <Disclosure>
-          <Disclosure.Heading>
-            <Button
-              className="flex h-auto w-full items-start justify-between gap-2 rounded-none px-4 py-2.5 text-left sm:px-5"
-              slot="trigger"
-              variant="ghost"
-            >
-              {cabecera}
-              <Disclosure.Indicator className="mt-1.5 shrink-0 text-tinta-500" />
-            </Button>
-          </Disclosure.Heading>
-          <Disclosure.Content>
-            <Disclosure.Body className="border-t border-[var(--border-subtle)] bg-[var(--ink-50)]/50 p-0">
-              <DesgloseClientes desglose={desglose} />
-            </Disclosure.Body>
-          </Disclosure.Content>
-        </Disclosure>
-      ) : (
-        <div className="px-4 py-2.5 sm:px-5">{cabecera}</div>
-      )}
+      <Disclosure>
+        {({ isExpanded }) => (
+          <>
+            <Disclosure.Heading>
+              <Button
+                aria-label={
+                  isExpanded
+                    ? `Ocultar clientes de ${linea.nombreCanonico}`
+                    : `Ver clientes de ${linea.nombreCanonico}`
+                }
+                className={cn(
+                  "grid h-auto w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2.5 rounded-none px-4 py-3 text-left sm:gap-3 sm:px-5",
+                  "transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)]",
+                  "hover:bg-[var(--ink-50)]/80 data-[pressed]:bg-[var(--ink-50)]",
+                )}
+                slot="trigger"
+                variant="ghost"
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-0.5 grid size-7 shrink-0 place-items-center rounded-campo bg-[var(--ink-50)] text-tinta-600",
+                    "transition-transform duration-[var(--dur-normal)] ease-[var(--ease-out)]",
+                    isExpanded && "rotate-180 bg-[var(--ink-100)]",
+                  )}
+                >
+                  <ChevronDown size={16} strokeWidth={2.25} />
+                </span>
+                <span className="min-w-0 space-y-1.5">
+                  <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span
+                      className={cn(
+                        "text-sm font-semibold text-pretty text-tinta-900",
+                        eliminado && "line-through",
+                      )}
+                    >
+                      {linea.nombreCanonico}
+                    </span>
+                    <span className="text-xs tabular-nums text-tinta-500">
+                      {desglose.length === 1
+                        ? "1 cliente"
+                        : `${desglose.length} clientes`}
+                    </span>
+                  </span>
+                  {meta}
+                </span>
+                {cantidad}
+              </Button>
+            </Disclosure.Heading>
+            <Disclosure.Content>
+              <Disclosure.Body>
+                <DesgloseClientes desglose={desglose} />
+              </Disclosure.Body>
+            </Disclosure.Content>
+          </>
+        )}
+      </Disclosure>
     </li>
   );
 }
@@ -219,49 +284,59 @@ function DesgloseClientes({
 }: {
   desglose: readonly ClienteDeProducto[];
 }) {
+  const especiales = desglose.filter((c) => c.notaProduccion);
+  const normales = desglose.filter((c) => !c.notaProduccion);
+
   return (
-    <ul>
-      {desglose.map((cliente, i) => {
-        const especial = Boolean(cliente.notaProduccion);
-        return (
-          <li
-            key={`${cliente.nombre}-${i}`}
+    <div className="border-t border-[var(--border-subtle)] bg-[var(--ink-50)]/70 px-3 py-2.5 sm:px-4">
+      <div className="grid gap-2">
+        {especiales.length > 0 ? (
+          <ul className="grid gap-1.5" aria-label="Clientes con nota especial">
+            {especiales.map((cliente, i) => (
+              <li
+                key={`esp-${cliente.nombre}-${i}`}
+                className="rounded-campo border border-[var(--yellow-400)]/50 border-l-[3px] border-l-[var(--yellow-400)] bg-[var(--yellow-100)] px-3 py-2"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="min-w-0 flex-1 text-sm font-semibold text-pretty text-[var(--amber-700)]">
+                    {cliente.nombre}
+                  </p>
+                  <p className="shrink-0 text-sm font-semibold tabular-nums text-[var(--amber-700)]">
+                    {cliente.cantidad} {UNIDAD_CORTA[cliente.unidadMedida]}
+                  </p>
+                </div>
+                <p className="mt-0.5 text-[11px] font-semibold leading-snug text-pretty text-[var(--amber-700)]">
+                  {cliente.notaProduccion}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {normales.length > 0 ? (
+          <ul
             className={cn(
-              "border-b border-[var(--border-subtle)] px-4 py-2 last:border-b-0 sm:px-5",
-              especial &&
-                "border-l-[3px] border-l-[var(--yellow-400)] bg-[var(--yellow-100)]",
+              "grid gap-0 overflow-hidden rounded-campo border border-[var(--border-subtle)] bg-blanco",
+              especiales.length > 0 && "mt-0.5",
             )}
+            aria-label="Resto de clientes"
           >
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <p
-                className={cn(
-                  "min-w-0 flex-1 text-sm text-pretty",
-                  especial
-                    ? "font-semibold text-[var(--amber-700)]"
-                    : "font-medium text-tinta-900",
-                )}
+            {normales.map((cliente, i) => (
+              <li
+                key={`ok-${cliente.nombre}-${i}`}
+                className="flex items-baseline justify-between gap-3 border-b border-[var(--border-subtle)] px-3 py-2 last:border-b-0"
               >
-                {cliente.nombre}
-              </p>
-              <p
-                className={cn(
-                  "shrink-0 tabular-nums text-sm",
-                  especial
-                    ? "font-semibold text-[var(--amber-700)]"
-                    : "text-tinta-700",
-                )}
-              >
-                {cliente.cantidad} {UNIDAD_CORTA[cliente.unidadMedida]}
-              </p>
-            </div>
-            {especial ? (
-              <p className="mt-0.5 text-[11px] font-semibold leading-snug text-pretty text-[var(--amber-700)]">
-                {cliente.notaProduccion}
-              </p>
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
+                <p className="min-w-0 flex-1 text-sm font-medium text-pretty text-tinta-900">
+                  {cliente.nombre}
+                </p>
+                <p className="shrink-0 text-sm tabular-nums text-tinta-700">
+                  {cliente.cantidad} {UNIDAD_CORTA[cliente.unidadMedida]}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </div>
   );
 }

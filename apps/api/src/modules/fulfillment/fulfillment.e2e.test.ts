@@ -17,6 +17,7 @@ import {
   TIPO_EVENTO_VENTANA_CERRADA,
   ZONA_NEGOCIO,
   permisosEfectivos,
+  permisosPlantilla,
   type Clock,
 } from "@misupertostada/shared";
 import { AuditWriter } from "../shared/audit.writer";
@@ -118,7 +119,7 @@ async function fixture(clock: Clock) {
     organizacionId: org!.id,
     username: alexUser,
     rol: "PRODUCCION",
-    permisos: permisosEfectivos("PRODUCCION"),
+    permisos: permisosPlantilla("PRODUCCION"),
     sesionId: crypto.randomUUID(),
     ip: "127.0.0.1",
     userAgent: "test-alex",
@@ -140,7 +141,7 @@ async function fixture(clock: Clock) {
     organizacionId: org!.id,
     username: adminUser,
     rol: "ADMIN",
-    permisos: permisosEfectivos("ADMIN"),
+    permisos: permisosPlantilla("ADMIN"),
     sesionId: crypto.randomUUID(),
     ip: "127.0.0.1",
     userAgent: "test-admin",

@@ -6,6 +6,7 @@ import { Card, Chip } from "@heroui/react";
 import { Star, Package } from "lucide-react";
 import {
   UNIDAD_CORTA,
+  UNIDAD_PASO,
   type PortalProducto,
 } from "@misupertostada/shared";
 import { Money } from "@/components/domain/money";
@@ -93,6 +94,7 @@ export function PortalProductoFila({
     <QuantityStepper
       value={cantidad}
       onChange={onChange}
+      paso={UNIDAD_PASO[producto.unidadMedida]}
       unidad={unidad}
       disabled={disabled}
       size="md"

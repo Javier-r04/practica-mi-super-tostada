@@ -15,6 +15,7 @@ import {
   ZONA_NEGOCIO,
   fixedClock,
   permisosEfectivos,
+  permisosPlantilla,
   type Clock,
   type PedidoSseEvent,
 } from "@misupertostada/shared";
@@ -103,7 +104,7 @@ async function fixture(clock: Clock) {
     organizacionId: org!.id,
     username: alexUser,
     rol: "PRODUCCION",
-    permisos: permisosEfectivos("PRODUCCION"),
+    permisos: permisosPlantilla("PRODUCCION"),
     sesionId: crypto.randomUUID(),
     ip: "127.0.0.1",
     userAgent: "test-alex",

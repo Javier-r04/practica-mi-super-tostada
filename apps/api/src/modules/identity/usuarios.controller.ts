@@ -39,6 +39,16 @@ export class UsuariosController {
     return envelopeOk(await this.usuarios.delegar(id, body, actor));
   }
 
+  @Patch(":id/modulos")
+  @RequierePermiso("permisos.delegar")
+  async delegarModulo(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.usuarios.delegarModulo(id, body, actor));
+  }
+
   @Patch(":id/desactivar")
   @RequierePermiso("usuarios.gestionar")
   async desactivar(

@@ -63,13 +63,24 @@ export function AssetImage({
   const failed = vigente && estado.failed;
   const src = vigente ? estado.src : null;
 
-  if (failed || !src) {
+  // Cargando y roto se pintaban igual, así que una foto lenta en el catálogo
+  // era indistinguible de una que nunca va a llegar. La que carga late; la
+  // que falló se queda quieta y con nombre accesible.
+  if (failed) {
     return (
       <span
         className={cn("block bg-tinta-100", className)}
-        aria-hidden={failed ? undefined : true}
-        role={failed ? "img" : undefined}
-        aria-label={failed ? alt : undefined}
+        role="img"
+        aria-label={alt}
+      />
+    );
+  }
+
+  if (!src) {
+    return (
+      <span
+        className={cn("block animate-pulse bg-tinta-100", className)}
+        aria-hidden
       />
     );
   }

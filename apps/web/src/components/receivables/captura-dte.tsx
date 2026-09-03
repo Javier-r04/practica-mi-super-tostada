@@ -40,7 +40,7 @@ export function CapturaDte({
         <Label>Número de DTE</Label>
         <Input
           autoFocus
-          className="font-mono tabular-nums"
+          className="tabular-nums"
           id={id}
           inputMode="numeric"
           placeholder="Número DTE"

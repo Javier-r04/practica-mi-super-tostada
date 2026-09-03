@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ROLES } from "./estados";
+import { MODULO_IDS } from "./modulos-acceso";
 import { PERMISOS } from "./permisos";
 
 /** Login interno: usuario corto, no correo. */
@@ -24,7 +25,10 @@ export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export const crearUsuarioRequestSchema = z.object({
   username: usernameSchema,
   password: z.string().min(10).max(200),
+  /** Puesto: fija ADMIN_JEFE y el orden del menú móvil; no otorga módulos. */
   rol: z.enum(ROLES),
+  /** Módulos que se siembran al crear. Ignorado si el rol es ADMIN_JEFE. */
+  modulos: z.array(z.enum(MODULO_IDS)).optional(),
 });
 
 export type CrearUsuarioRequest = z.infer<typeof crearUsuarioRequestSchema>;
@@ -35,6 +39,13 @@ export const delegarPermisoRequestSchema = z.object({
 });
 
 export type DelegarPermisoRequest = z.infer<typeof delegarPermisoRequestSchema>;
+
+export const delegarModuloRequestSchema = z.object({
+  modulo: z.enum(MODULO_IDS),
+  granted: z.boolean(),
+});
+
+export type DelegarModuloRequest = z.infer<typeof delegarModuloRequestSchema>;
 
 export const actorPublicoSchema = z.object({
   id: z.string().uuid(),

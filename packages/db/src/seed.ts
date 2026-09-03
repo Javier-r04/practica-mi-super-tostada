@@ -11,7 +11,13 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { eq, and, sql, notInArray } from "drizzle-orm";
 import postgres from "postgres";
 import * as argon2 from "argon2";
-import { PERMISO_DESCRIPCION, PERMISOS } from "@misupertostada/shared";
+import {
+  PERMISO_DESCRIPCION,
+  PERMISOS,
+  ROL_PERMISOS,
+  type PermisoCodigo,
+  type Rol,
+} from "@misupertostada/shared";
 import * as schema from "./schema";
 import { PRODUCTOS_SEED, PRECIOS_BASE_SEED_CENTAVOS } from "./catalogo-seed";
 import { sembrarVentanaSemanal } from "./ventana-semanal";
@@ -296,6 +302,40 @@ export async function seed(databaseUrl: string) {
           },
         ])
         .onConflictDoNothing();
+
+      // Acceso por módulos: el puesto ya no aporta permisos solos; hay que
+      // materializar la plantilla en usuario_permiso (igual que la migración).
+      const sembrados = await db
+        .select({
+          id: schema.usuario.id,
+          rol: schema.usuario.rol,
+        })
+        .from(schema.usuario)
+        .where(eq(schema.usuario.organizacionId, ORG_ID));
+      const catalogoPermisos = await db.select().from(schema.permiso);
+      const porCodigo = new Map(
+        catalogoPermisos.map((p) => [p.codigo as PermisoCodigo, p.id]),
+      );
+      const grants: {
+        usuarioId: string;
+        permisoId: string;
+        grantedBy: null;
+      }[] = [];
+      for (const u of sembrados) {
+        if (u.rol === "ADMIN_JEFE") continue;
+        for (const codigo of ROL_PERMISOS[u.rol as Rol]) {
+          const permisoId = porCodigo.get(codigo);
+          if (permisoId) {
+            grants.push({ usuarioId: u.id, permisoId, grantedBy: null });
+          }
+        }
+      }
+      if (grants.length > 0) {
+        await db
+          .insert(schema.usuarioPermiso)
+          .values(grants)
+          .onConflictDoNothing();
+      }
     }
 
     await db

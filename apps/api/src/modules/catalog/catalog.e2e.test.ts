@@ -8,7 +8,7 @@ import {
   producto,
   usuario,
 } from "@misupertostada/db";
-import { permisosEfectivos } from "@misupertostada/shared";
+import { permisosEfectivos, permisosPlantilla } from "@misupertostada/shared";
 import { AuditWriter } from "../shared/audit.writer";
 import { DomainException } from "../shared/domain.exception";
 import {
@@ -67,7 +67,7 @@ async function fixture() {
   const actorSinPrecio: Actor = {
     ...actor,
     rol: "ADMIN",
-    permisos: permisosEfectivos("ADMIN"),
+    permisos: permisosPlantilla("ADMIN"),
   };
 
   return {

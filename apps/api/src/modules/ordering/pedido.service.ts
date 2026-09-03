@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
+  abono,
   auditLog,
   cliente,
   clienteProducto,
@@ -824,11 +825,14 @@ export class PedidoService {
       .limit(1);
     if (!fac) return null;
 
+    // `pago` es la aplicación; método/estado viven en el `abono` que la originó.
     const pagos = await this.db
-      .select()
+      .select({ pago, abono })
       .from(pago)
-      .where(eq(pago.facturaId, fac.factura.id));
-    const abonado = pagos.reduce((acc, p) => acc + p.montoCentavos, 0);
+      .innerJoin(abono, eq(abono.id, pago.abonoId))
+      .where(eq(pago.facturaId, fac.factura.id))
+      .orderBy(asc(pago.fecha));
+    const abonado = pagos.reduce((acc, p) => acc + p.pago.montoCentavos, 0);
     const saldo = Math.max(0, fac.factura.montoCentavos - abonado);
     const cal = await this.calendar.load(organizacionId);
     const now = this.calendar.now();
@@ -843,14 +847,24 @@ export class PedidoService {
     return {
       id: fac.factura.id,
       numeroDte: fac.factura.numeroDte ?? null,
+      montoCentavos: fac.factura.montoCentavos,
+      abonadoCentavos: abonado,
       saldoCentavos: saldo,
+      antiguedadDias,
       estado,
+      abonos: pagos.map((p) => ({
+        abonoId: p.abono.id,
+        fecha: p.pago.fecha,
+        metodo: p.pago.metodo,
+        estado: p.abono.estado,
+        montoCentavos: p.pago.montoCentavos,
+      })),
       pagos: pagos.map((p) => ({
-        id: p.id,
-        montoCentavos: p.montoCentavos,
-        metodo: p.metodo,
-        fecha: p.fecha,
-        comprobanteAssetId: p.comprobanteAssetId ?? null,
+        id: p.pago.id,
+        montoCentavos: p.pago.montoCentavos,
+        metodo: p.pago.metodo,
+        fecha: p.pago.fecha,
+        comprobanteAssetId: p.pago.comprobanteAssetId ?? null,
       })),
     };
   }

@@ -16,7 +16,7 @@ import {
 import {
   TIPO_EVENTO_LIMITE_CREDITO,
   ZONA_NEGOCIO,
-  permisosEfectivos,
+  permisosPlantilla,
   type Clock,
 } from "@misupertostada/shared";
 import { AuditWriter } from "../shared/audit.writer";
@@ -74,7 +74,7 @@ function actorDe(
     organizacionId: orgId,
     username: row.username,
     rol: row.rol,
-    permisos: permisosEfectivos(row.rol),
+    permisos: permisosPlantilla(row.rol),
     sesionId: crypto.randomUUID(),
     ip: "127.0.0.1",
     userAgent: ua,

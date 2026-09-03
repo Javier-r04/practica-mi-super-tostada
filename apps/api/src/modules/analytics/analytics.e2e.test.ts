@@ -7,7 +7,7 @@ import { DateTime } from "luxon";
 import { auditLog, organizacion, usuario } from "@misupertostada/db";
 import {
   ZONA_NEGOCIO,
-  permisosEfectivos,
+  permisosPlantilla,
   type Clock,
 } from "@misupertostada/shared";
 import { renderQuincenaPdf } from "@misupertostada/pdf";
@@ -62,7 +62,7 @@ function actorDe(
     organizacionId: orgId,
     username: row.username,
     rol: row.rol,
-    permisos: permisosEfectivos(row.rol),
+    permisos: permisosPlantilla(row.rol),
     sesionId: crypto.randomUUID(),
     ip: "127.0.0.1",
     userAgent: "test-e6",

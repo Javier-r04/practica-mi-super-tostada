@@ -6,6 +6,7 @@ import {
   SSE_OPEN,
   clavesAInvalidar,
   clavesAlReconectar,
+  debeReconectarAlVolver,
   debeReconectarManual,
   fusionarClaves,
   interpretarMensajeSse,
@@ -175,6 +176,23 @@ describe("debeReconectarManual", () => {
   test("reconecta solo si cerró y el efecto sigue activo", () => {
     expect(debeReconectarManual(SSE_CLOSED, false)).toBe(true);
     expect(debeReconectarManual(SSE_CLOSED, true)).toBe(false);
+  });
+});
+
+describe("debeReconectarAlVolver", () => {
+  test("no toca un stream abierto al volver a la pestaña", () => {
+    expect(debeReconectarAlVolver(SSE_OPEN, false, true)).toBe(false);
+  });
+
+  test("reconecta si el canal quedó suspendido o cerrado", () => {
+    expect(debeReconectarAlVolver(SSE_CONNECTING, false, true)).toBe(true);
+    expect(debeReconectarAlVolver(SSE_CLOSED, false, true)).toBe(true);
+    expect(debeReconectarAlVolver(null, false, true)).toBe(true);
+  });
+
+  test("no reconecta en background ni si el efecto ya paró", () => {
+    expect(debeReconectarAlVolver(SSE_CLOSED, false, false)).toBe(false);
+    expect(debeReconectarAlVolver(null, true, true)).toBe(false);
   });
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
-import { organizacion, permiso, usuario } from "@misupertostada/db";
-import { permisosEfectivos, systemClock } from "@misupertostada/shared";
+import { permiso, usuario } from "@misupertostada/db";
+import { permisosEfectivos, PERMISO_DESCRIPCION, PERMISOS, systemClock } from "@misupertostada/shared";
 import { AuthService } from "./auth.service";
 import { PasswordService } from "./password.service";
 import { SessionService } from "./session.service";
@@ -32,6 +32,16 @@ async function fixture() {
   const usuarios = new UsuariosService(db, passwords, sessions, audit);
 
   const org = await crearOrgDePrueba(db, "org-");
+
+  await db
+    .insert(permiso)
+    .values(
+      PERMISOS.map((codigo) => ({
+        codigo,
+        descripcion: PERMISO_DESCRIPCION[codigo],
+      })),
+    )
+    .onConflictDoNothing();
 
   const password = "clave-dev-local-10";
   const hash = await passwords.hash(password);
@@ -167,18 +177,7 @@ describe.skipIf(!listo)("UsuariosService", () => {
         jefe,
       );
       expect(creado.permisos).not.toContain("precios.cambiar");
-
-      const [permRow] = await f.db
-        .select()
-        .from(permiso)
-        .where(eq(permiso.codigo, "precios.cambiar"))
-        .limit(1);
-      if (!permRow) {
-        await f.db.insert(permiso).values({
-          codigo: "precios.cambiar",
-          descripcion: "Cambiar precios por cliente",
-        });
-      }
+      expect(creado.permisos).toContain("panel.hoy");
 
       const conPrecio = await f.usuarios.delegar(
         creado.id,
@@ -194,6 +193,14 @@ describe.skipIf(!listo)("UsuariosService", () => {
           jefe,
         ),
       ).rejects.toMatchObject({ code: "PERMISO_NO_DELEGABLE" });
+
+      const sinCartera = await f.usuarios.delegarModulo(
+        creado.id,
+        { modulo: "cartera", granted: false },
+        jefe,
+      );
+      expect(sinCartera.permisos).not.toContain("panel.cartera");
+      expect(sinCartera.permisos).not.toContain("cobranza.registrar_pago");
     } finally {
       await f.client.end({ timeout: 1 });
     }

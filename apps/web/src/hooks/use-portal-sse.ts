@@ -3,6 +3,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { API_URL, api, ApiError } from "@/lib/api";
+import {
+  SSE_CLOSED,
+  debeReconectarAlVolver,
+} from "./panel-sse-invalidation";
 
 const DEBOUNCE_MS = 80;
 
@@ -42,12 +46,13 @@ export function usePortalSse(token: string): void {
         try {
           const parsed = JSON.parse(msg.data);
           if (parsed && parsed.tipo === "heartbeat") return;
-          // Invalida la sesión del portal ante cualquier evento
           encolar([["portal", token]]);
-        } catch {}
+        } catch {
+          /* mensaje ilegible: se ignora */
+        }
       };
       source.onerror = () => {
-        if (source?.readyState === EventSource.CLOSED || stopped) return;
+        if (stopped || source?.readyState !== SSE_CLOSED) return;
         source?.close();
         source = null;
         void decidirReconexion();
@@ -67,12 +72,41 @@ export function usePortalSse(token: string): void {
       delayRef.current = Math.min(delayRef.current * 2, 15_000);
     }
 
+    function reconectarSiHaceFalta() {
+      const visible = document.visibilityState === "visible";
+      if (
+        !debeReconectarAlVolver(
+          source?.readyState ?? null,
+          stopped,
+          visible,
+        )
+      ) {
+        return;
+      }
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      source?.close();
+      source = null;
+      delayRef.current = 1000;
+      conectar();
+    }
+
+    function alVolver() {
+      if (document.visibilityState === "visible") reconectarSiHaceFalta();
+    }
+
     conectar();
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("online", reconectarSiHaceFalta);
     return () => {
       stopped = true;
       source?.close();
       if (timer) clearTimeout(timer);
       if (debounce) clearTimeout(debounce);
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("online", reconectarSiHaceFalta);
     };
   }, [token, qc]);
 }

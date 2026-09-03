@@ -10,13 +10,11 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { PortalProducto, PortalSesion } from "@misupertostada/shared";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { cantidadesDesdePedido } from "@/lib/portal-vista";
 import { intervaloRefetchVentana } from "@/lib/ventana-refetch";
 import { usePortalSse } from "@/hooks/use-portal-sse";
-import { Card } from "@heroui/react";
-import { Unlink } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
+import { PortalErrorPantalla } from "@/components/portal/portal-error-estado";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type PortalSessionValue = {
@@ -105,21 +103,18 @@ export function PortalSessionProvider({
     return <PortalChromeSkeleton />;
   }
 
-  if (sesion.error instanceof ApiError) {
+  // Sin datos no hay portal que pintar. Da igual si el servidor contestó un
+  // error o si el fetch nunca llegó a salir: lo que no puede pasar es que el
+  // cliente se quede viendo una pantalla en blanco sin forma de reintentar.
+  if (!sesion.data) {
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-[var(--surface-page)] p-6">
-        <Card className="w-full max-w-sm p-0">
-          <EmptyState
-            icon={<Unlink size={22} aria-hidden />}
-            title="No encontramos esa página"
-            description="El enlace no es válido o ya no está activo. Pida uno nuevo a la fábrica."
-          />
-        </Card>
-      </div>
+      <PortalErrorPantalla
+        error={sesion.error}
+        reintentando={sesion.isFetching}
+        onReintentar={() => void sesion.refetch()}
+      />
     );
   }
-
-  if (!sesion.data) return null;
 
   const value: PortalSessionValue = {
     token,
@@ -144,6 +139,25 @@ export function itemsElegidosDe(
 ) {
   return catalogo
     .filter((p) => (cantidades[p.productoId] ?? 0) > 0 && p.pedible)
+    .map((p) => ({
+      producto: p,
+      cantidad: cantidades[p.productoId] ?? 0,
+    }));
+}
+
+/**
+ * Lo que `itemsElegidosDe` descarta: producto con cantidad pero sin precio
+ * cargado. Por la UI no se llega —el stepper de un producto sin precio va
+ * deshabilitado—, pero sí por el pedido que ya existía: si la fábrica le quita
+ * el precio a un producto entre la captura y la edición, la línea desaparece
+ * del `PUT` sin que nadie lo diga. Eso es plata, así que se avisa.
+ */
+export function itemsBloqueadosDe(
+  catalogo: readonly PortalProducto[],
+  cantidades: Record<string, number>,
+) {
+  return catalogo
+    .filter((p) => (cantidades[p.productoId] ?? 0) > 0 && !p.pedible)
     .map((p) => ({
       producto: p,
       cantidad: cantidades[p.productoId] ?? 0,

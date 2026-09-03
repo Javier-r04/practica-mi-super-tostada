@@ -24,8 +24,11 @@ import {
   copyProximaApertura,
   entregaCopy,
   gruposCatalogo,
+  motivoNoConfirmar,
+  vistaPedir,
 } from "@/lib/portal-vista";
 import {
+  itemsBloqueadosDe,
   itemsElegidosDe,
   usePortalSession,
 } from "@/components/portal/portal-session";
@@ -38,6 +41,7 @@ import {
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useAnchoLg } from "@/hooks/use-ancho-lg";
 
 export default function PortalPedirPage() {
   const qc = useQueryClient();
@@ -50,23 +54,37 @@ export default function PortalPedirPage() {
     vaciarCantidades,
     assetPath,
   } = usePortalSession();
-  const [confirmado, setConfirmado] = useState(
-    () => sesion.pedidoAbierto != null,
-  );
+  // Intención del cliente, no estado del servidor: la vista se deriva de los
+  // dos juntos en `vistaPedir`. Ver el comentario de esa función.
+  const [editando, setEditando] = useState(false);
   const [revisando, setRevisando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const esLg = useAnchoLg();
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
   const abierta = sesion.ventana.abierta;
   const cierreAnticipado = cierreAnticipadoVentana(sesion.ventana);
   const pedido = sesion.pedidoAbierto;
+  const vista = vistaPedir({ pedidoAbierto: pedido, editando });
   const base = `/p/${encodeURIComponent(token)}`;
 
   const itemsElegidos = useMemo(
     () => itemsElegidosDe(sesion.catalogo, cantidades),
     [sesion.catalogo, cantidades],
   );
+
+  const itemsBloqueados = useMemo(
+    () => itemsBloqueadosDe(sesion.catalogo, cantidades),
+    [sesion.catalogo, cantidades],
+  );
+
+  const avisoBloqueados =
+    itemsBloqueados.length === 0
+      ? null
+      : `${itemsBloqueados
+          .map((i) => i.producto.alias)
+          .join(", ")} no tiene precio cargado, así que no entra en este pedido. Avise a la fábrica.`;
 
   const totalCentavos = useMemo(
     () =>
@@ -114,7 +132,7 @@ export default function PortalPedirPage() {
           : actual,
       );
       setRevisando(false);
-      setConfirmado(true);
+      setEditando(false);
     },
     onError: (err) => {
       setErrorAccion(
@@ -133,7 +151,7 @@ export default function PortalPedirPage() {
     onSuccess: () => {
       setErrorAccion(null);
       setCancelando(false);
-      setConfirmado(false);
+      setEditando(false);
       vaciarCantidades();
       qc.setQueryData<PortalSesion>(["portal", token], (actual) =>
         actual ? { ...actual, pedidoAbierto: null } : actual,
@@ -156,16 +174,19 @@ export default function PortalPedirPage() {
     [sesion.catalogo],
   );
 
-  if (confirmado && pedido) {
+  if (vista === "confirmacion" && pedido) {
     return (
       <>
-        <div className="grid min-w-0 gap-4 py-4" role="status">
-          <Card className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-5 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
+        <div className="grid min-w-0 gap-4 py-4">
+          {/* `role="status"` solo sobre el encabezado: envolviendo toda la
+              pantalla, el lector releía la tabla de ítems en cada render. */}
+          <Card
+            className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-5 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]"
+            role="status"
+          >
             <CheckCircle2 size={32} className="text-acento" aria-hidden />
-            <h1 className="min-w-0 text-balance font-display text-2xl leading-none text-acento">
-              Pedido
-              <br />
-              confirmado
+            <h1 className="min-w-0 text-balance font-display text-2xl leading-tight text-acento">
+              Pedido confirmado
             </h1>
             <p className="min-w-0 text-pretty text-sm text-[var(--green-100)]">
               Pedido <span className="font-mono">#{pedido.correlativo}</span>
@@ -214,7 +235,7 @@ export default function PortalPedirPage() {
                 variant="secondary"
                 onPress={() => {
                   resetDesdePedido();
-                  setConfirmado(false);
+                  setEditando(true);
                 }}
               >
                 Editar mi pedido
@@ -281,8 +302,12 @@ export default function PortalPedirPage() {
                   Cuando cierre, la fábrica tendrá que anularlo por teléfono.
                 </p>
               </Modal.Body>
-              <Modal.Footer className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Button variant="tertiary" onPress={() => setCancelando(false)}>
+              <Modal.Footer className="flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  variant="tertiary"
+                  className="w-full sm:w-auto"
+                  onPress={() => setCancelando(false)}
+                >
                   Volver
                 </Button>
                 <Button
@@ -306,6 +331,13 @@ export default function PortalPedirPage() {
     );
   }
 
+  const motivo = motivoNoConfirmar({
+    abierta,
+    cierreAnticipado,
+    lineas: itemsElegidos.length,
+    proximaAperturaAt: sesion.ventana.proximaAperturaAt,
+  });
+
   const resumenElegido = (
     <div className="grid gap-2">
       <div className="flex min-w-0 items-baseline justify-between gap-2">
@@ -320,7 +352,7 @@ export default function PortalPedirPage() {
         size="lg"
         variant="primary"
         className="button--accent"
-        isDisabled={!abierta || itemsElegidos.length === 0}
+        isDisabled={motivo != null}
         onPress={() => {
           setErrorAccion(null);
           setRevisando(true);
@@ -328,6 +360,11 @@ export default function PortalPedirPage() {
       >
         Revisar pedido
       </Button>
+      {/* El botón deshabilitado dice por qué: es la regla del repo, y aquí es
+          lo único que el cliente ve en el teléfono. */}
+      {motivo ? (
+        <p className="text-pretty text-center text-xs text-tinta-500">{motivo}</p>
+      ) : null}
     </div>
   );
 
@@ -340,49 +377,37 @@ export default function PortalPedirPage() {
 
   return (
     <>
-      {itemsElegidos.length > 0 ? (
-        <PortalFooter>
-          <div className="min-w-0 lg:hidden">{resumenElegido}</div>
-        </PortalFooter>
-      ) : null}
+      {/* Siempre montado: ver `motivoNoConfirmar`. */}
+      <PortalFooter>
+        <div className="min-w-0 lg:hidden">{resumenElegido}</div>
+      </PortalFooter>
       <div className="grid min-w-0 flex-1 gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <div className="grid min-w-0 gap-4">
           <div>
-            <h1 className="sr-only text-xl font-semibold text-tinta-900 lg:not-sr-only">
-              Pedir
-            </h1>
-            <p className="mt-1 text-pretty text-sm text-tinta-500">
-              {cierreAnticipado ? (
-                <>
-                  {entregaCopy(sesion)} El día ya cerró.{" "}
-                  {copyProximaApertura(sesion.ventana.proximaAperturaAt)}
-                </>
-              ) : abierta ? (
-                <>
-                  {entregaCopy(sesion)}
-                  {pedido ? (
-                    <>
-                      {" "}
-                      Pedido #{pedido.correlativo}.{" "}
-                      {copyEdicionHasta(sesion.ventana.cierraAt)}
-                    </>
-                  ) : (
-                    <> {copyEdicionHasta(sesion.ventana.cierraAt)}</>
-                  )}
-                </>
-              ) : (
-                <>
-                  La ventana de pedido está cerrada.{" "}
-                  {copyProximaApertura(sesion.ventana.proximaAperturaAt)}
-                </>
-              )}
-            </p>
+            <h1 className="text-xl font-semibold text-tinta-900">Pedir</h1>
+            {/* Con la ventana abierta esto dice cuándo llega y hasta cuándo se
+                puede cambiar. Cuando está cerrada, el motivo lo da el aviso de
+                abajo, que queda a la vista del catálogo. */}
+            {abierta && !cierreAnticipado ? (
+              <p className="mt-1 text-pretty text-sm text-tinta-500">
+                {entregaCopy(sesion)}
+                {pedido ? (
+                  <>
+                    {" "}
+                    Pedido #{pedido.correlativo}.{" "}
+                    {copyEdicionHasta(sesion.ventana.cierraAt)}
+                  </>
+                ) : (
+                  <> {copyEdicionHasta(sesion.ventana.cierraAt)}</>
+                )}
+              </p>
+            ) : null}
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <SearchField
               aria-label="Buscar producto"
-              className="min-w-0 w-full flex-1 basis-[12rem]"
+              className="min-w-0 flex-1"
               value={busqueda}
               onChange={setBusqueda}
             >
@@ -393,11 +418,25 @@ export default function PortalPedirPage() {
               </SearchField.Group>
             </SearchField>
             {busqueda ? (
-              <p className="mst-label w-full shrink-0 tabular-nums sm:w-auto" aria-live="polite">
-                {visibles} de {sesion.catalogo.length}
+              <p className="mst-label shrink-0 tabular-nums" aria-live="polite">
+                {visibles}/{sesion.catalogo.length}
               </p>
             ) : null}
           </div>
+
+          {!abierta || cierreAnticipado ? (
+            <Alert status="default">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>Solo puede ver el catálogo</Alert.Title>
+                <Alert.Description>
+                  {cierreAnticipado
+                    ? `El día ya cerró. ${copyProximaApertura(sesion.ventana.proximaAperturaAt)}`
+                    : copyProximaApertura(sesion.ventana.proximaAperturaAt)}
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
 
           {secciones.map((s) => (
             <PortalSeccion
@@ -405,7 +444,18 @@ export default function PortalPedirPage() {
               titulo={s.titulo}
               cuenta={s.productos.length}
             >
-              <div className="divide-y divide-[var(--border-subtle)] lg:hidden">
+              {/* Una sola lista. Antes se montaban las dos —filas y tarjetas—
+                  y se escondía una con `lg:hidden`, pero `AssetImage` pide la
+                  foto al montarse y cada layout usa una variante distinta
+                  (`?v=thumb` / `?v=card`): el teléfono descargaba el catálogo
+                  entero dos veces. */}
+              <div
+                className={
+                  esLg
+                    ? "grid grid-cols-2 gap-3 xl:grid-cols-3"
+                    : "divide-y divide-[var(--border-subtle)]"
+                }
+              >
                 {s.productos.map((p) => (
                   <PortalProductoFila
                     key={p.productoId}
@@ -414,20 +464,7 @@ export default function PortalPedirPage() {
                     onChange={(n) => setCantidad(p.productoId, n)}
                     bloqueado={!abierta}
                     assetPath={assetPath}
-                    href={`${base}/pedir/${p.productoId}`}
-                  />
-                ))}
-              </div>
-              <div className="hidden grid-cols-2 gap-3 lg:grid xl:grid-cols-3">
-                {s.productos.map((p) => (
-                  <PortalProductoFila
-                    key={p.productoId}
-                    producto={p}
-                    cantidad={cantidades[p.productoId] ?? 0}
-                    onChange={(n) => setCantidad(p.productoId, n)}
-                    bloqueado={!abierta}
-                    assetPath={assetPath}
-                    layout="card"
+                    layout={esLg ? "card" : "row"}
                     href={`${base}/pedir/${p.productoId}`}
                   />
                 ))}
@@ -462,13 +499,7 @@ export default function PortalPedirPage() {
               <Card.Title>Su pedido</Card.Title>
             </Card.Header>
             <Card.Content>
-              {itemsElegidos.length === 0 ? (
-                <p className="text-sm text-tinta-500">
-                  Toque un producto para armar el pedido.
-                </p>
-              ) : (
-                resumenElegido
-              )}
+              {resumenElegido}
             </Card.Content>
           </Card>
         </aside>
@@ -521,6 +552,16 @@ export default function PortalPedirPage() {
                 ))}
               </Card>
 
+              {avisoBloqueados ? (
+                <Alert status="warning">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>Falta un precio</Alert.Title>
+                    <Alert.Description>{avisoBloqueados}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              ) : null}
+
               {errorAccion ? (
                 <Alert status="danger">
                   <Alert.Indicator />
@@ -538,7 +579,7 @@ export default function PortalPedirPage() {
               ) : null}
             </Modal.Body>
 
-            <Modal.Footer className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Modal.Footer className="flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
                 variant="tertiary"
                 className="w-full sm:w-auto"
@@ -547,7 +588,7 @@ export default function PortalPedirPage() {
                 Cambiar
               </Button>
               <Button
-                isDisabled={!abierta || itemsElegidos.length === 0}
+                isDisabled={motivo != null}
                 isPending={confirmar.isPending}
                 size="lg"
                 variant="primary"

@@ -134,4 +134,32 @@
     --button-bg-pressed: var(--yellow-500);
     --button-fg: var(--text-on-accent);
   }
+
+  /*
+   * Hoja de producción: HeroUI anima height + overflow:clip en
+   * .disclosure__content. A mitad del tween las cajas amarillas y chips
+   * se ven «cuadrados rotos». Solo fade de opacidad; el alto salta.
+   */
+  .hoja-grupos .disclosure__content {
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+
+  .hoja-grupos .disclosure__content[data-expanded="true"] {
+    will-change: opacity;
+  }
+
+  .hoja-grupos .disclosure__body {
+    padding: 0;
+  }
+
+  .hoja-grupos .disclosure__indicator {
+    transition:
+      transform var(--dur-normal) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+
+  .hoja-grupos .button[slot="trigger"],
+  .hoja-grupos .button[data-slot="trigger"] {
+    overflow: visible;
+  }
 }

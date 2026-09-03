@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Spinner } from "@heroui/react";
+import { Button, Card, Spinner } from "@heroui/react";
 import { ChevronRight, ClipboardList } from "lucide-react";
 import {
   formatearFechaLarga,
   type PortalHistorial,
 } from "@misupertostada/shared";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { origenPedidoLabel } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PortalErrorAviso } from "@/components/portal/portal-error-estado";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PortalPedidosPage() {
@@ -35,9 +36,7 @@ export default function PortalPedidosPage() {
   return (
       <div className="grid gap-4 py-4">
         <div>
-          <h1 className="sr-only text-xl font-semibold text-tinta-900 lg:not-sr-only">
-            Sus pedidos
-          </h1>
+          <h1 className="text-xl font-semibold text-tinta-900">Sus pedidos</h1>
           <p className="mt-1 text-sm text-tinta-500 lg:mt-1">
             Últimos pedidos de este restaurante.
           </p>
@@ -45,14 +44,13 @@ export default function PortalPedidosPage() {
 
         {historial.isPending ? (
           <PedidosSkeleton />
-        ) : historial.error instanceof ApiError ? (
-          <Alert status="danger">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>No se pudo cargar el historial</Alert.Title>
-              <Alert.Description>{historial.error.message}</Alert.Description>
-            </Alert.Content>
-          </Alert>
+        ) : historial.isError ? (
+          <PortalErrorAviso
+            error={historial.error}
+            titulo="No se pudo cargar el historial"
+            reintentando={historial.isFetching}
+            onReintentar={() => void historial.refetch()}
+          />
         ) : items.length === 0 ? (
           <Card className="p-0">
             <EmptyState

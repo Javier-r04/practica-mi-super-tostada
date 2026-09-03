@@ -110,7 +110,6 @@ export function MovilNav({
               side="top"
               sideOffset={12}
               collisionPadding={12}
-              onOpenAutoFocus={(e) => e.preventDefault()}
               className={cn(
                 "border-0 bg-transparent p-0 shadow-none outline-none",
                 "w-[min(calc(100vw-1.25rem),360px)]",

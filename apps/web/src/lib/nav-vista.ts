@@ -16,32 +16,24 @@ export const SECCIONES_PANEL = [
 export type SeccionPanel = (typeof SECCIONES_PANEL)[number];
 
 /**
- * Permisos que hacen **visible** una sección. `null` = la ve cualquier usuario
- * autenticado.
+ * Permisos que hacen **visible** una sección.
  *
- * El núcleo operativo —Hoy, Tablero, Pedidos, Producción, Reparto, Cartera— no
- * pide permiso: es la misma jornada vista desde distintos oficios y el backend
- * no restringe ningún GET de esas pantallas. Ocultarlas por permiso de
- * *escritura* dejaba a Producción sin poder mirar la cartera que la API ya le
- * servía, justo lo contrario de F-403 («misma información, distintas
- * acciones»).
- *
- * Catálogo, Clientes y Conversaciones sí se ocultan: no son la jornada, y
- * Conversaciones además expone historial de WhatsApp.
+ * Admin jefe otorga módulos enteros (`panel.*`). Sin el permiso de ver, la
+ * sección no aparece en el menú. Catálogo y Clientes comparten `panel.catalogo`.
  */
 export const PERMISOS_SECCION: Record<
   SeccionPanel,
-  readonly PermisoCodigo[] | null
+  readonly PermisoCodigo[]
 > = {
-  hoy: null,
-  tablero: null,
-  pedidos: null,
-  produccion: null,
-  reparto: null,
-  cartera: null,
-  conversaciones: ["mensajeria.enviar", "mensajeria.conectar"],
-  catalogo: ["catalogo.escribir", "precios.cambiar"],
-  clientes: ["catalogo.escribir", "precios.cambiar"],
+  hoy: ["panel.hoy"],
+  tablero: ["panel.tablero"],
+  pedidos: ["panel.pedidos"],
+  produccion: ["panel.produccion"],
+  reparto: ["panel.reparto"],
+  cartera: ["panel.cartera"],
+  conversaciones: ["panel.conversaciones"],
+  catalogo: ["panel.catalogo"],
+  clientes: ["panel.catalogo"],
 };
 
 /**
@@ -77,7 +69,6 @@ export function seccionVisible(
   permisos: readonly PermisoCodigo[],
 ): boolean {
   const requeridos = PERMISOS_SECCION[seccion];
-  if (!requeridos) return true;
   return requeridos.some((codigo) => tienePermiso(permisos, codigo));
 }
 
@@ -101,8 +92,8 @@ export const MOVIL_NAV_MAX = 4;
 export const MOVIL_NAV_FIJOS = 3;
 
 /**
- * Orden de prioridad en la barra inferior por rol. Las secciones de uso diario
- * del oficio quedan visibles; el resto pasa al menú flotante «Más».
+ * Orden de prioridad en la barra inferior por puesto. Las secciones de uso
+ * diario del oficio quedan visibles; el resto pasa al menú flotante «Más».
  */
 export const PRIORIDAD_MOVIL_POR_ROL: Record<Rol, readonly SeccionPanel[]> = {
   REPARTO: ["reparto", "cartera", "hoy", "pedidos", "produccion", "tablero"],
@@ -116,7 +107,7 @@ type NavMovilItem = { id: SeccionPanel; mobile?: boolean };
 
 /**
  * Reparte secciones visibles entre la barra inferior y el menú «Más».
- * Prioriza por rol; las marcadas `mobile: false` van al final del orden.
+ * Prioriza por puesto; las marcadas `mobile: false` van al final del orden.
  */
 export function repartirNavMovil<T extends NavMovilItem>(
   visibles: readonly T[],

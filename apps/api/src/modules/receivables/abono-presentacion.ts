@@ -66,12 +66,21 @@ export async function aplicacionesDeAbono(
       facturaId: pago.facturaId,
       montoCentavos: pago.montoCentavos,
       numeroDte: factura.numeroDte,
+      pedidoId: factura.pedidoId,
+      correlativo: pedido.correlativo,
+      fechaEntrega: pedido.fechaEntrega,
     })
     .from(pago)
     .innerJoin(factura, eq(factura.id, pago.facturaId))
+    // La factura es 1:1 con el pedido (`factura_pedido_unique`), así que el
+    // correlativo sale sin multiplicar filas.
+    .innerJoin(pedido, eq(pedido.id, factura.pedidoId))
     .where(eq(pago.abonoId, abonoId));
   return filas.map((f) => ({
     facturaId: f.facturaId,
+    pedidoId: f.pedidoId,
+    correlativo: f.correlativo,
+    fechaEntrega: f.fechaEntrega,
     numeroDte: f.numeroDte ?? null,
     montoCentavos: f.montoCentavos,
   }));
@@ -166,6 +175,9 @@ export async function construirCuentaCliente(
     if (estado === "PAGADO") continue;
     pendientes.push({
       id: fac.id,
+      pedidoId: fac.pedidoId,
+      correlativo: fila.pedido.correlativo,
+      fechaEntrega: fila.pedido.fechaEntrega,
       numeroDte: fac.numeroDte ?? null,
       montoCentavos: fac.montoCentavos,
       abonadoCentavos: abonado,
