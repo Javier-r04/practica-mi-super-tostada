@@ -97,6 +97,7 @@ export function ListaConversaciones({
               tipo="whatsapp"
               expiraAt={v.ventanaExpiraAt}
               size="sm"
+              compacto
             />
           </ListBox.Item>
         );

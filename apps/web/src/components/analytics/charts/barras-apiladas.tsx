@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { formatearCentavos } from "@misupertostada/shared";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +27,7 @@ type Dia = {
   chequeCentavos: number;
 };
 
-/* Amarillo = efectivo (mano), verde = transferencia (sistema), tinta = cheque. */
+/* Amarillo = efectivo (mano), verde = transferencia (sistema), anaranjado = cheque. */
 const chartConfig = {
   efectivoCentavos: {
     label: "Efectivo",
@@ -39,7 +39,7 @@ const chartConfig = {
   },
   chequeCentavos: {
     label: "Cheque",
-    color: SERIE_COLOR.neutral,
+    color: SERIE_COLOR.cheque,
   },
 } satisfies ChartConfig;
 
@@ -88,13 +88,6 @@ export function ChartBarrasApiladas({
     transferenciaCentavos: d.transferenciaCentavos,
     chequeCentavos: d.chequeCentavos,
   }));
-
-  function strokeEntre(
-    inferior: number,
-    superior: number,
-  ): string {
-    return inferior > 0 && superior > 0 ? "var(--surface-card)" : "none";
-  }
 
   return (
     <ChartContainer
@@ -153,60 +146,30 @@ export function ChartBarrasApiladas({
           dataKey="efectivoCentavos"
           stackId="cobrado"
           fill="var(--color-efectivoCentavos)"
-          strokeWidth={2}
           maxBarSize={24}
           isAnimationActive={animar}
           animationDuration={560}
           animationEasing="ease-out"
-        >
-          {data.map((d) => (
-            <Cell
-              key={d.fecha}
-              fill="var(--color-efectivoCentavos)"
-              stroke={strokeEntre(
-                d.efectivoCentavos,
-                d.transferenciaCentavos + d.chequeCentavos,
-              )}
-            />
-          ))}
-        </Bar>
+        />
         <Bar
           dataKey="transferenciaCentavos"
           stackId="cobrado"
           fill="var(--color-transferenciaCentavos)"
-          strokeWidth={2}
           maxBarSize={24}
           isAnimationActive={animar}
           animationDuration={560}
           animationEasing="ease-out"
-        >
-          {data.map((d) => (
-            <Cell
-              key={d.fecha}
-              fill="var(--color-transferenciaCentavos)"
-              stroke={strokeEntre(d.transferenciaCentavos, d.chequeCentavos)}
-            />
-          ))}
-        </Bar>
+        />
         <Bar
           dataKey="chequeCentavos"
           stackId="cobrado"
           fill="var(--color-chequeCentavos)"
-          strokeWidth={2}
           maxBarSize={24}
           radius={[4, 4, 0, 0]}
           isAnimationActive={animar}
           animationDuration={560}
           animationEasing="ease-out"
-        >
-          {data.map((d) => (
-            <Cell
-              key={d.fecha}
-              fill="var(--color-chequeCentavos)"
-              stroke="none"
-            />
-          ))}
-        </Bar>
+        />
       </BarChart>
     </ChartContainer>
   );

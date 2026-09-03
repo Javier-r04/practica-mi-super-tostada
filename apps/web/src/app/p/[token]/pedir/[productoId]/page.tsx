@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { Button, Chip } from "@heroui/react";
 import { Package, Star } from "lucide-react";
-import {
-  UNIDAD_CORTA,
-  UNIDAD_PASO,
-  totalPedidoCentavos,
-} from "@misupertostada/shared";
+import { UNIDAD_CORTA, totalPedidoCentavos } from "@misupertostada/shared";
 import {
   itemsElegidosDe,
   usePortalSession,
@@ -85,7 +81,7 @@ export default function PortalProductoPage({
             <AssetImage
               assetId={producto.fotoAssetId}
               alt={producto.alias}
-              variante="card"
+              variante="full"
               srcPath={srcPath}
               className="absolute inset-0 size-full object-cover"
             />
@@ -137,7 +133,6 @@ export default function PortalProductoPage({
           <QuantityStepper
             value={cantidad}
             onChange={(n) => setCantidad(producto.productoId, n)}
-            paso={UNIDAD_PASO[producto.unidadMedida]}
             unidad={unidad}
             disabled={disabled}
             size="lg"

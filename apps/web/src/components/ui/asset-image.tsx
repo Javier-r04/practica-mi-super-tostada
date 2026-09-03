@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { API_URL } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type Variante = "thumb" | "card";
+import type { AssetVariante } from "@misupertostada/shared";
+
+export type Variante = AssetVariante;
 
 export function AssetImage({
   assetId,

@@ -268,7 +268,7 @@ function FilaHoja({
               </Button>
             </Disclosure.Heading>
             <Disclosure.Content>
-              <Disclosure.Body>
+              <Disclosure.Body className="p-0">
                 <DesgloseClientes desglose={desglose} />
               </Disclosure.Body>
             </Disclosure.Content>

@@ -22,7 +22,8 @@
     "db:test:create": "bun packages/db/src/create-test-db.ts",
     "db:test:migrate": "bun packages/db/src/migrate-test-db.ts",
     "db:test:setup": "bun run db:test:create && bun run db:test:migrate",
-    "r2:cors": "bun scripts/r2-cors.ts"
+    "r2:cors": "bun scripts/r2-cors.ts",
+    "assets:variants:regenerate": "bun apps/api/scripts/regenerate-variants.ts"
   },
   "packageManager": "bun@1.3.13",
   "dependencies": {

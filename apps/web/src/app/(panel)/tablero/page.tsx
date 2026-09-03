@@ -49,11 +49,13 @@ function TarjetaGrafica({
   ancla,
   titulo,
   subtitulo,
+  className,
   children,
 }: {
   ancla: string;
   titulo: string;
   subtitulo?: string;
+  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -63,7 +65,11 @@ function TarjetaGrafica({
           <Card.Title>{titulo}</Card.Title>
           {subtitulo && <Card.Description>{subtitulo}</Card.Description>}
         </Card.Header>
-        <Card.Content className="min-w-0 overflow-x-auto pb-1">{children}</Card.Content>
+        <Card.Content
+          className={cn("min-w-0 overflow-x-auto pb-1", className)}
+        >
+          {children}
+        </Card.Content>
       </Card>
     </div>
   );
@@ -300,7 +306,7 @@ function TableroInner() {
               <TarjetaGrafica
                 ancla="chart-cobrado"
                 titulo="Cobrado"
-                subtitulo="Quetzales por fecha del pago · efectivo y transferencia"
+                subtitulo="Quetzales por fecha del pago · efectivo, transferencia y cheque"
               >
                 <ChartBarrasApiladas serie={data.cobradoPorDia} />
               </TarjetaGrafica>
@@ -312,6 +318,7 @@ function TableroInner() {
                 ancla="chart-participacion"
                 titulo="Participación por cliente"
                 subtitulo="Quién mueve la planta · top 5 + otros"
+                className="overflow-visible"
               >
                 <ChartBarrasH
                   items={participacion}
@@ -323,6 +330,7 @@ function TableroInner() {
                 ancla="chart-productos"
                 titulo="Volumen por producto"
                 subtitulo="Top 5 del recorte · punto de carga"
+                className="overflow-visible"
               >
                 {volumenProductos.items.length === 0 ? (
                   <EmptyState

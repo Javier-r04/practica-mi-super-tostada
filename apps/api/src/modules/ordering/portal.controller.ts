@@ -133,14 +133,16 @@ export class PortalController {
   }
 
   @Get(":token/assets/:id")
-  @Header("Cache-Control", "private, max-age=86400, immutable")
+  @Header("Cache-Control", "private, max-age=3600, stale-while-revalidate=86400")
   async asset(
     @CurrentPortalCliente() clienteRow: ClientePortal,
     @Param("id", ParseUUIDPipe) id: string,
     @Query("v") variante: string | undefined,
   ) {
     const v =
-      variante === "thumb" || variante === "card" ? variante : undefined;
+      variante === "thumb" || variante === "card" || variante === "full"
+        ? variante
+        : undefined;
     const { bytes, mime } = await this.portal.assetContent(
       clienteRow,
       id,

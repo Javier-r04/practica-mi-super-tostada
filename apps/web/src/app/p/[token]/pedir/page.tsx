@@ -10,7 +10,7 @@ import {
   SearchField,
   Spinner,
 } from "@heroui/react";
-import { CheckCircle2, PackageSearch } from "lucide-react";
+import { CheckCircle2, PackageSearch, Star } from "lucide-react";
 import {
   formatearFechaLarga,
   totalPedidoCentavos,
@@ -340,25 +340,32 @@ export default function PortalPedirPage() {
 
   const resumenElegido = (
     <div className="grid gap-2">
-      <div className="flex min-w-0 items-baseline justify-between gap-2">
-        <span className="shrink-0 text-sm text-tinta-600 tabular-nums">
+      <div className="flex min-w-0 items-baseline justify-between gap-2 px-0.5">
+        <span className="shrink-0 text-sm font-semibold text-tinta-700 tabular-nums">
           {itemsElegidos.length}{" "}
-          {itemsElegidos.length === 1 ? "producto" : "productos"}
+          {itemsElegidos.length === 1 ? "producto en pedido" : "productos en pedido"}
         </span>
-        <Money centavos={totalCentavos} className="text-[17px]" truncate />
+        <Money centavos={totalCentavos} className="text-lg font-bold text-[var(--green-900)]" truncate />
       </div>
       <Button
         fullWidth
         size="lg"
         variant="primary"
-        className="button--accent"
+        className="button--accent shadow-xs"
         isDisabled={motivo != null}
         onPress={() => {
           setErrorAccion(null);
           setRevisando(true);
         }}
       >
-        Revisar pedido
+        <span className="inline-flex items-center gap-2">
+          <span>Revisar pedido</span>
+          {itemsElegidos.length > 0 ? (
+            <span className="rounded-full bg-[var(--green-900)]/15 px-2 py-0.5 text-xs font-bold text-[var(--green-900)]">
+              {itemsElegidos.length}
+            </span>
+          ) : null}
+        </span>
       </Button>
       {/* El botón deshabilitado dice por qué: es la regla del repo, y aquí es
           lo único que el cliente ve en el teléfono. */}
@@ -377,10 +384,12 @@ export default function PortalPedirPage() {
 
   return (
     <>
-      {/* Siempre montado: ver `motivoNoConfirmar`. */}
-      <PortalFooter>
-        <div className="min-w-0 lg:hidden">{resumenElegido}</div>
-      </PortalFooter>
+      {/* En móvil (<lg) se monta en el pie pegajoso del portal; en escritorio vive en el aside derecho. */}
+      {!esLg ? (
+        <PortalFooter>
+          <div className="min-w-0">{resumenElegido}</div>
+        </PortalFooter>
+      ) : null}
       <div className="grid min-w-0 flex-1 gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <div className="grid min-w-0 gap-4">
           <div>
@@ -424,6 +433,32 @@ export default function PortalPedirPage() {
             ) : null}
           </div>
 
+          {/* Atajos a categorías para no tener que hacer scroll infinito en teléfono */}
+          {secciones.length > 1 && !busqueda ? (
+            <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 py-0.5 scrollbar-none sm:-mx-6 sm:px-6">
+              {secciones.map((s) => (
+                <a
+                  key={s.key}
+                  href={`#seccion-${s.key}`}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-pill border border-[var(--border-subtle)] bg-blanco px-3 py-1.5 text-xs font-semibold text-tinta-700 shadow-xs transition-colors hover:border-[var(--green-700)] hover:text-[var(--green-800)]"
+                >
+                  {s.key === "favoritos" ? (
+                    <Star
+                      size={12}
+                      className="text-[var(--gold-500)]"
+                      fill="currentColor"
+                      aria-hidden
+                    />
+                  ) : null}
+                  <span>{s.titulo}</span>
+                  <span className="text-[10px] text-tinta-400 tabular-nums">
+                    ({s.productos.length})
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : null}
+
           {!abierta || cierreAnticipado ? (
             <Alert status="default">
               <Alert.Indicator />
@@ -441,6 +476,7 @@ export default function PortalPedirPage() {
           {secciones.map((s) => (
             <PortalSeccion
               key={s.key}
+              id={`seccion-${s.key}`}
               titulo={s.titulo}
               cuenta={s.productos.length}
             >
@@ -453,7 +489,7 @@ export default function PortalPedirPage() {
                 className={
                   esLg
                     ? "grid grid-cols-2 gap-3 xl:grid-cols-3"
-                    : "divide-y divide-[var(--border-subtle)]"
+                    : "grid gap-2.5 sm:gap-3"
                 }
               >
                 {s.productos.map((p) => (
@@ -512,11 +548,18 @@ export default function PortalPedirPage() {
         }}
       >
         <Modal.Container size="md" placement="bottom">
-          <Modal.Dialog className="flex max-h-[min(92dvh,40rem)] flex-col pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {/* Sin alto ni scroll a mano: `Modal.Container` ya trae
+              `scroll="inside"` por defecto, que acota el diálogo a la altura
+              del viewport y hace scrollear el cuerpo. Las clases propias que
+              había aquí (`max-h`, `flex-col`, `overflow-y-auto`) pisaban ese
+              contrato y dejaban la lista sin poder desplazarse.
+
+              La cabecera tampoco puede ser `sticky z-10 bg-blanco`: no está
+              dentro del área que scrollea, y al crear un contexto de apilado
+              opaco tapaba la «X», que HeroUI posiciona en absoluto. */}
+          <Modal.Dialog className="pb-[max(1rem,env(safe-area-inset-bottom))]">
             <Modal.CloseTrigger />
-            <Modal.Header
-              className="sticky top-0 z-10 shrink-0 border-b border-[var(--border-subtle)] bg-blanco pb-3"
-            >
+            <Modal.Header className="shrink-0 border-b border-[var(--border-subtle)] pb-3">
               <Modal.Heading>Revise su pedido</Modal.Heading>
               <p className="text-sm text-tinta-500">
                 {formatearFechaLarga(sesion.ventana.fechaEntrega)}
@@ -524,7 +567,10 @@ export default function PortalPedirPage() {
                   ? ` · entrega ${sesion.ventana.horarioEntregaFijo}`
                   : ""}
               </p>
-              <div className="flex min-w-0 items-baseline justify-between gap-2 pt-3">
+              <div
+                className="flex min-w-0 items-baseline justify-between gap-2 pt-3"
+                aria-live="polite"
+              >
                 <span className="shrink-0 text-sm tabular-nums text-tinta-600">
                   {itemsElegidos.length}{" "}
                   {itemsElegidos.length === 1 ? "producto" : "productos"}
@@ -533,7 +579,7 @@ export default function PortalPedirPage() {
               </div>
             </Modal.Header>
 
-            <Modal.Body className="grid min-h-0 flex-1 gap-4 overflow-y-auto">
+            <Modal.Body className="grid gap-4">
               <Card className="min-w-0 gap-0 overflow-hidden p-0">
                 {itemsElegidos.map(({ producto, cantidad }) => (
                   <PedidoItemRow
@@ -563,7 +609,7 @@ export default function PortalPedirPage() {
               ) : null}
 
               {errorAccion ? (
-                <Alert status="danger">
+                <Alert status="danger" role="alert">
                   <Alert.Indicator />
                   <Alert.Content>
                     <Alert.Title>No se confirmó</Alert.Title>

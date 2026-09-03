@@ -9,6 +9,9 @@ export const ASSET_OWNER_TYPES = [
 ] as const;
 export type AssetOwnerType = (typeof ASSET_OWNER_TYPES)[number];
 
+export const ASSET_VARIANTES = ["thumb", "card", "full"] as const;
+export type AssetVariante = (typeof ASSET_VARIANTES)[number];
+
 export const ASSET_MIME_PERMITIDOS = [
   "image/jpeg",
   "image/png",

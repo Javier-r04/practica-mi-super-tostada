@@ -47,11 +47,11 @@ export function ChartBarrasH({
   if (cargando) {
     // Misma silueta que la fila real: avatar, nombre, cifra y barra.
     return (
-      <ul className="grid gap-3" aria-hidden>
+      <ul className="grid gap-1" aria-hidden>
         {Array.from({ length: filasCargando }, (_, i) => (
-          <li key={i} className="grid gap-1.5">
-            <div className="flex min-h-11 items-center gap-3">
-              <Skeleton className="size-8 rounded-full" />
+          <li key={i}>
+            <div className="flex min-h-11 items-center gap-3 rounded-campo px-3 py-2">
+              <Skeleton className="size-9 shrink-0 rounded-full" />
               <div className="grid flex-1 gap-1.5">
                 <Skeleton className="h-3 w-2/5" />
                 <Skeleton className="h-3.5 w-full rounded-pill" />
@@ -68,61 +68,65 @@ export function ChartBarrasH({
     return <EmptyState title={vacioTitulo} description={vacioHint} />;
   }
   return (
-    <ul className="grid gap-3">
+    <ul className="grid gap-1">
       {items.map((item) => {
-        const label = (
-          <span className="min-w-0 text-pretty text-sm font-semibold text-tinta-900">
-            {item.label}
-          </span>
-        );
         const pct = Math.round((item.valor / max) * 100);
-        return (
-          <li key={item.id} className="grid gap-1.5">
-            <div className="flex min-h-11 items-center gap-3">
-              {item.leading}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  {item.href && item.id !== "otros" ? (
-                    <Link
-                      href={item.href}
-                      className="min-w-0 rounded-campo focus-visible:outline-none focus-visible:shadow-foco"
-                    >
-                      {label}
-                    </Link>
-                  ) : (
-                    label
-                  )}
-                  <span className="shrink-0 text-right">
-                    <span className="font-mono text-sm tabular-nums text-tinta-900">
-                      {item.etiqueta}
-                    </span>
-                    {item.meta ? (
-                      <span className="ml-1.5 text-xs tabular-nums text-tinta-500">
-                        {item.meta}
-                      </span>
-                    ) : null}
+        const esLink = Boolean(item.href && item.id !== "otros");
+        const fila = (
+          <>
+            {item.leading}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 text-pretty text-sm font-semibold text-tinta-900">
+                  {item.label}
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="font-mono text-sm tabular-nums text-tinta-900">
+                    {item.etiqueta}
                   </span>
-                </div>
+                  {item.meta ? (
+                    <span className="ml-1.5 text-xs tabular-nums text-tinta-500">
+                      {item.meta}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+              <div
+                role="meter"
+                aria-valuenow={item.valor}
+                aria-valuemin={0}
+                aria-valuemax={max}
+                aria-label={item.label}
+                className="mt-1.5 h-3.5 overflow-hidden rounded-pill bg-[var(--ink-100)]"
+              >
                 <div
-                  role="meter"
-                  aria-valuenow={item.valor}
-                  aria-valuemin={0}
-                  aria-valuemax={max}
-                  aria-label={item.label}
-                  className="mt-1.5 h-3.5 overflow-hidden rounded-pill bg-[var(--ink-100)]"
-                >
-                  <div
-                    className={cn(
-                      "h-full rounded-pill transition-[width] duration-slow ease-out",
-                    )}
-                    style={{
-                      width: listo ? `${pct}%` : "0%",
-                      background: colorDeBarra(item),
-                    }}
-                  />
-                </div>
+                  className={cn(
+                    "h-full rounded-pill transition-[width] duration-slow ease-out",
+                  )}
+                  style={{
+                    width: listo ? `${pct}%` : "0%",
+                    background: colorDeBarra(item),
+                  }}
+                />
               </div>
             </div>
+          </>
+        );
+
+        return (
+          <li key={item.id}>
+            {esLink ? (
+              <Link
+                href={item.href!}
+                className="flex min-h-11 items-center gap-3 rounded-campo px-3 py-2 text-inherit no-underline transition-colors hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+              >
+                {fila}
+              </Link>
+            ) : (
+              <div className="flex min-h-11 items-center gap-3 px-3 py-2">
+                {fila}
+              </div>
+            )}
           </li>
         );
       })}

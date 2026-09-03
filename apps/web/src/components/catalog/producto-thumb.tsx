@@ -1,12 +1,13 @@
 "use client";
 
 import { Package } from "lucide-react";
-import { AssetImage } from "@/components/ui/asset-image";
+import { AssetImage, type Variante } from "@/components/ui/asset-image";
 import { cn } from "@/lib/utils";
 
 const SIZE = {
   sm: "size-11",
   md: "size-14",
+  lg: "size-[68px]",
 } as const;
 
 export function ProductoThumb({
@@ -15,7 +16,7 @@ export function ProductoThumb({
   size = "sm",
   className,
   srcPath,
-  variante = "thumb",
+  variante = size === "lg" ? "card" : "thumb",
 }: {
   nombre: string;
   fotoAssetId?: string | null;
@@ -23,10 +24,10 @@ export function ProductoThumb({
   className?: string;
   /** Path API sin cookie de staff (portal). */
   srcPath?: string;
-  variante?: "thumb" | "card";
+  variante?: Variante;
 }) {
   const box = cn(
-    "relative shrink-0 overflow-hidden rounded-campo bg-tinta-50",
+    "relative shrink-0 overflow-hidden rounded-tarjeta bg-[var(--surface-secondary)]",
     "ring-1 ring-inset ring-[var(--border-subtle)]",
     SIZE[size],
     className,
@@ -40,7 +41,7 @@ export function ProductoThumb({
           alt={nombre}
           variante={variante}
           srcPath={srcPath}
-          className="absolute inset-0 size-full"
+          className="absolute inset-0 size-full object-cover"
         />
       </span>
     );
@@ -48,10 +49,13 @@ export function ProductoThumb({
 
   return (
     <span
-      className={cn(box, "grid place-items-center text-tinta-400")}
+      className={cn(
+        box,
+        "grid place-items-center bg-gradient-to-br from-[var(--cream-200)] to-[var(--cream-300)] text-[var(--green-900)]/45",
+      )}
       aria-hidden
     >
-      <Package size={size === "md" ? 22 : 18} strokeWidth={1.5} />
+      <Package size={size === "lg" ? 28 : size === "md" ? 22 : 18} strokeWidth={1.5} />
     </span>
   );
 }

@@ -93,10 +93,12 @@ describe.skipIf(!listo)("AssetsService", () => {
       const variantes = saved.variantes as {
         thumb?: { key: string };
         card?: { key: string };
+        full?: { key: string };
       } | null;
-      expect(variantes?.thumb?.key).toBe(`${sha256}-w160.webp`);
-      expect(variantes?.card?.key).toBe(`${sha256}-w640.webp`);
-      expect(await storage.head(`${sha256}-w160.webp`)).not.toBeNull();
+      expect(variantes?.thumb?.key).toBe(`${sha256}-w320.webp`);
+      expect(variantes?.card?.key).toBe(`${sha256}-w960.webp`);
+      expect(variantes?.full?.key).toBe(`${sha256}-w1440.webp`);
+      expect(await storage.head(`${sha256}-w320.webp`)).not.toBeNull();
 
       const again = await assets.presign({
         ownerType: "producto",

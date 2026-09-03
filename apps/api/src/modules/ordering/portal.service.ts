@@ -26,6 +26,7 @@ import {
   totalPedidoCentavos,
   MENSAJE_PEDIDO_PORTAL_NO_ENCONTRADO,
   type AbonoPublico,
+  type AssetVariante,
   type PortalCuenta,
   type PortalFacturaFiltro,
   type PortalFacturas,
@@ -379,7 +380,7 @@ export class PortalService {
   async assetContent(
     clienteRow: ClientePortal,
     assetId: string,
-    variante?: "thumb" | "card",
+    variante?: AssetVariante | string,
   ): Promise<{ bytes: Buffer; mime: string }> {
     const permitido = await this.assetPermitido(clienteRow, assetId);
     if (!permitido) {

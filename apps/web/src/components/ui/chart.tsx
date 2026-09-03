@@ -12,17 +12,18 @@ const THEMES = { light: "", dark: ".dark" } as const
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const
 
 /**
- * Paleta categórica del tablero. Solo verde maíz y amarillo rótulo del sistema;
- * sin ámbar ni naranja. La misma pareja en las cuatro gráficas.
+ * Paleta categórica del tablero.
  *
  *  - `digital`  = verde 700 (#136220): lo que ya pasa por el sistema
  *                 (ventas, transferencia, portal).
  *  - `manual`   = amarillo 600 (#C9A400): lo que va a mano (efectivo, pedido manual).
+ *  - `cheque`   = ámbar / naranja 600 (#C77A02): pagos con cheque.
  *  - `neutral`  = tinta 500 (#767A69): agregados sin identidad propia ("Otros").
  */
 export const SERIE_COLOR = {
   digital: "var(--green-700)",
   manual: "var(--yellow-600)",
+  cheque: "var(--amber-600)",
   neutral: "var(--ink-500)",
 } as const
 type TooltipNameType = number | string

@@ -4,6 +4,7 @@ import { asset, abono } from "@misupertostada/db";
 import {
   confirmAssetRequestSchema,
   presignRequestSchema,
+  type AssetVariante,
 } from "@misupertostada/shared";
 import { DRIZZLE } from "../tokens";
 import type { AppDatabase } from "../database.module";
@@ -198,7 +199,7 @@ export class AssetsService {
 
   async getContent(
     id: string,
-    variante?: "thumb" | "card",
+    variante?: AssetVariante | string,
   ): Promise<{ bytes: Buffer; mime: string }> {
     const row = await this.findById(id);
 
@@ -212,6 +213,9 @@ export class AssetsService {
       if (v?.key) {
         key = v.key;
         mime = v.mime ?? "image/webp";
+      } else if (variante === "full" && variantes?.card?.key) {
+        key = variantes.card.key;
+        mime = variantes.card.mime ?? "image/webp";
       }
     }
 

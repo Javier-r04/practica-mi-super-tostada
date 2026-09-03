@@ -33,7 +33,7 @@ export function ClienteAvatar({
   return (
     <Avatar
       className={cn(
-        "rounded-full font-semibold",
+        "shrink-0 rounded-full font-semibold",
         fotoAssetId ? "bg-[var(--ink-200)]" : "bg-[var(--green-200)]",
         SIZE[size],
         className,

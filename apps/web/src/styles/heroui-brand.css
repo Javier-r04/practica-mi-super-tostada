@@ -87,6 +87,7 @@
   --surface-shadow: var(--shadow-sm);
   --overlay-shadow: var(--shadow-lg);
   --disabled-opacity: 0.45;
+  --ease-out-quad: var(--ease-out);
 }
 
 @layer components {
@@ -136,16 +137,20 @@
   }
 
   /*
-   * Hoja de producción: HeroUI anima height + overflow:clip en
-   * .disclosure__content. A mitad del tween las cajas amarillas y chips
-   * se ven «cuadrados rotos». Solo fade de opacidad; el alto salta.
+   * Hoja de producción y disclosure: el contenedor anima tanto height como
+   * opacity en sincronía con la rotación del chevron (200ms, var(--dur-normal)),
+   * evitando que el contenido se corte abruptamente al cerrar o salte al abrir.
    */
+  .disclosure__content,
   .hoja-grupos .disclosure__content {
-    transition: opacity var(--dur-fast) var(--ease-out);
+    transition:
+      height var(--dur-normal) var(--ease-out),
+      opacity var(--dur-normal) var(--ease-out);
   }
 
+  .disclosure__content[data-expanded="true"],
   .hoja-grupos .disclosure__content[data-expanded="true"] {
-    will-change: opacity;
+    will-change: height, opacity;
   }
 
   .hoja-grupos .disclosure__body {

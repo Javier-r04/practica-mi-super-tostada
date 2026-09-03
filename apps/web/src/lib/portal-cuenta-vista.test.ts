@@ -58,16 +58,26 @@ describe("resumenAplicacion", () => {
     montoCentavos: 5000,
   };
 
-  test("el correlativo va primero: es lo que el cliente reconoce", () => {
-    expect(resumenAplicacion(base)).toBe(
-      "Pedido #1042 · Viernes 21 de agosto · DTE A-4821",
-    );
+  test("el pedido va en el título; fecha y DTE en el detalle", () => {
+    expect(resumenAplicacion(base)).toEqual({
+      titulo: "Pedido #1042",
+      detalle: "Viernes 21 de agosto · DTE A-4821",
+    });
   });
 
   test("factura aún sin DTE capturado", () => {
-    expect(resumenAplicacion({ ...base, numeroDte: null })).toBe(
-      "Pedido #1042 · Viernes 21 de agosto · sin DTE",
-    );
+    expect(resumenAplicacion({ ...base, numeroDte: null })).toEqual({
+      titulo: "Pedido #1042",
+      detalle: "Viernes 21 de agosto · sin DTE",
+    });
+  });
+
+  test("el título nunca depende de la fecha ni del DTE: es lo que no se puede recortar", () => {
+    const largo = resumenAplicacion({
+      ...base,
+      numeroDte: "SERIE-MUY-LARGA-0000000000001",
+    });
+    expect(largo.titulo).toBe("Pedido #1042");
   });
 });
 

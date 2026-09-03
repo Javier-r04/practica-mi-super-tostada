@@ -12,6 +12,7 @@ import {
   MENSAJE_DESCRIPCION_REQUERIDA,
   PAGO_METODO_ETIQUETA,
   quetzalesTextoACentavos,
+  type PortalAbonoAplicacion,
   type PortalCuenta,
   type PortalFactura,
   type PortalFacturaFiltro,
@@ -179,6 +180,39 @@ export function PortalFacturasLista({
   );
 }
 
+/** Renglón de «aplicado a»: dos líneas para que el DTE no se recorte. */
+function AplicacionFila({
+  aplicacion,
+  token,
+}: {
+  aplicacion: PortalAbonoAplicacion;
+  token: string;
+}) {
+  const { titulo, detalle } = resumenAplicacion(aplicacion);
+  return (
+    <Link
+      href={hrefPedidoPortal(token, aplicacion.pedidoId)}
+      className="flex min-h-tap min-w-0 items-center gap-2 rounded-campo px-1 py-1 text-inherit no-underline transition-colors duration-control ease-out hover:bg-tinta-100 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-tinta-800">
+          {titulo}
+        </span>
+        <span className="block truncate text-[11px] text-tinta-500">
+          {detalle}
+        </span>
+      </span>
+      <Money
+        centavos={aplicacion.montoCentavos}
+        tone="muted"
+        truncate
+        className="shrink-0"
+      />
+      <ChevronRight size={16} className="shrink-0 text-tinta-400" aria-hidden />
+    </Link>
+  );
+}
+
 export function PortalAbonosLista({ data }: { data: PortalCuenta }) {
   const { token } = usePortalSession();
   return (
@@ -214,20 +248,30 @@ export function PortalAbonosLista({ data }: { data: PortalCuenta }) {
                 key={a.id}
                 className="grid gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
               >
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-tinta-900">
+                {/* En el teléfono no caben método, fecha, estado y monto en un
+                    solo renglón: el bloque de la derecha era `shrink-0` y
+                    empujaba «Transferencia · 2026-08-21» a dos y tres líneas.
+                    El monto se queda arriba a la derecha —es lo que se busca—
+                    y el estado baja a su propia línea, donde puede envolver
+                    sin aplastar a nadie. */}
+                <div className="grid gap-1">
+                  <div className="flex min-w-0 items-baseline justify-between gap-2">
+                    <p className="min-w-0 truncate text-sm font-medium text-tinta-900">
                       {PAGO_METODO_ETIQUETA[a.metodo]} · {a.fecha}
                     </p>
+                    <Money
+                      centavos={a.montoCentavos}
+                      truncate
+                      className="shrink-0"
+                    />
+                  </div>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <EstadoBadge dominio="abono" estado={a.estado} size="sm" />
                     {a.descripcion ? (
-                      <p className="text-pretty text-xs text-tinta-500">
+                      <p className="min-w-0 flex-1 text-pretty text-xs text-tinta-500">
                         {a.descripcion}
                       </p>
                     ) : null}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <EstadoBadge dominio="abono" estado={a.estado} size="sm" />
-                    <Money centavos={a.montoCentavos} truncate />
                   </div>
                 </div>
                 {a.estado === "PENDIENTE" ? (
@@ -255,25 +299,7 @@ export function PortalAbonosLista({ data }: { data: PortalCuenta }) {
                     <ul className="grid">
                       {a.aplicaciones.map((ap) => (
                         <li key={`${a.id}-${ap.facturaId}`}>
-                          <Link
-                            href={hrefPedidoPortal(token, ap.pedidoId)}
-                            className="flex min-h-tap min-w-0 items-center gap-2 rounded-campo px-1 text-inherit no-underline transition-colors duration-control ease-out hover:bg-tinta-100 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
-                          >
-                            <span className="min-w-0 flex-1 truncate text-xs text-tinta-600">
-                              {resumenAplicacion(ap)}
-                            </span>
-                            <Money
-                              centavos={ap.montoCentavos}
-                              tone="muted"
-                              truncate
-                              className="shrink-0"
-                            />
-                            <ChevronRight
-                              size={16}
-                              className="shrink-0 text-tinta-400"
-                              aria-hidden
-                            />
-                          </Link>
+                          <AplicacionFila aplicacion={ap} token={token} />
                         </li>
                       ))}
                     </ul>

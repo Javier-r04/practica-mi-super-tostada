@@ -393,7 +393,11 @@ button.mst-control {
   align-self: stretch;
   display: grid;
   place-items: center;
-  min-width: 3.25rem;
+  width: 3.5rem;
+  max-width: 3.5rem;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
   --stepper-value-pad: 4px;
   padding-inline: var(--stepper-value-pad);
   border-inline: var(--border-width) solid var(--border-subtle);
@@ -403,7 +407,7 @@ button.mst-control {
 }
 
 .mst-quantity-stepper[data-editing="true"] .mst-quantity-stepper__value {
-  --stepper-value-pad: 9px; /* +5px por lado al editar */
+  --stepper-value-pad: 4px;
   background: var(--green-50);
 }
 
@@ -479,12 +483,16 @@ button.mst-control {
 }
 
 .mst-quantity-stepper--lg .mst-quantity-stepper__value {
-  min-width: 3.5rem;
+  width: 4rem;
+  max-width: 4rem;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
   --stepper-value-pad: 6px;
 }
 
 .mst-quantity-stepper--lg[data-editing="true"] .mst-quantity-stepper__value {
-  --stepper-value-pad: 11px; /* +5px por lado */
+  --stepper-value-pad: 6px;
 }
 
 .mst-quantity-stepper--lg .mst-quantity-stepper__unit {

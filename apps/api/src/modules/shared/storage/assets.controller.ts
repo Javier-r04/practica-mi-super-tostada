@@ -48,14 +48,16 @@ export class AssetsController {
   }
 
   @Get("assets/:id")
-  @Header("Cache-Control", "private, max-age=86400, immutable")
+  @Header("Cache-Control", "private, max-age=3600, stale-while-revalidate=86400")
   async get(
     @Param("id", ParseUUIDPipe) id: string,
     @Query("v") variante: string | undefined,
     @CurrentActor() _actor: Actor,
   ) {
     const v =
-      variante === "thumb" || variante === "card" ? variante : undefined;
+      variante === "thumb" || variante === "card" || variante === "full"
+        ? variante
+        : undefined;
     const { bytes, mime } = await this.assets.getContent(id, v);
     return new StreamableFile(bytes, {
       type: mime,

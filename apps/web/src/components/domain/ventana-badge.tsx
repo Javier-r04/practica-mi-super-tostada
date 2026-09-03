@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Clock, Lock, LockOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function formatearRestante(ms: number): string {
+export function formatearRestante(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -12,48 +12,33 @@ function formatearRestante(ms: number): string {
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-export function VentanaBadge({
-  abierta,
-  size = "md",
+export function etiquetaVentanaBadge({
   tipo = "pedido",
+  abierta,
   reabierta = false,
   diaCerrado = false,
   expiraAt,
   cierraAt,
   proximaAperturaAt,
-  className,
+  compacto = false,
+  now = Date.now(),
 }: {
-  abierta: boolean;
-  size?: "sm" | "md";
   tipo?: "pedido" | "whatsapp";
-  /**
-   * El día de captura está reabierto: el reloj dice cerrado pero el panel sí
-   * acepta pedidos (`exigirDiaNoCerrado` solo bloquea CERRADO). Decir «Ventana
-   * cerrada» ahí es mentir sobre lo que el sistema deja hacer.
-   */
+  abierta: boolean;
   reabierta?: boolean;
-  /**
-   * La operación de captura ya se cerró manualmente o por cron, pero el reloj
-   * de la ventana sigue vivo y el portal aún acepta pedidos tardíos.
-   */
   diaCerrado?: boolean;
   expiraAt?: string | null;
   cierraAt?: string | null;
   proximaAperturaAt?: string | null;
-  className?: string;
-}) {
-  const [now, setNow] = useState(() => Date.now());
-
-  const tieneTimer =
-    (tipo === "whatsapp" && Boolean(expiraAt)) ||
-    (tipo === "pedido" && (Boolean(cierraAt) || Boolean(proximaAperturaAt)));
-
-  useEffect(() => {
-    if (!tieneTimer) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [tieneTimer, tipo, expiraAt, cierraAt, proximaAperturaAt, diaCerrado, abierta]);
-
+  compacto?: boolean;
+  now?: number;
+}): {
+  etiqueta: string;
+  viva: boolean;
+  cierreAnticipado: boolean;
+  reabiertaPedido: boolean;
+  restante: number;
+} {
   const cierreAnticipado =
     tipo === "pedido" && diaCerrado && abierta && !reabierta;
 
@@ -75,15 +60,6 @@ export function VentanaBadge({
     tipo === "whatsapp" && expiraAt
       ? restante > 0
       : abierta && !cierreAnticipado;
-  const Icon = reabiertaPedido
-    ? LockOpen
-    : cierreAnticipado
-      ? Lock
-      : viva
-        ? Clock
-        : Lock;
-
-  const compacto = size === "sm";
 
   let etiqueta = viva ? "Ventana abierta" : "Ventana cerrada";
   if (reabiertaPedido) {
@@ -109,6 +85,85 @@ export function VentanaBadge({
       ? "Ventana cerrada"
       : `Ventana cerrada · Abre en ${formatearRestante(restante)}`;
   }
+
+  return {
+    etiqueta,
+    viva,
+    cierreAnticipado,
+    reabiertaPedido,
+    restante,
+  };
+}
+
+export function VentanaBadge({
+  abierta,
+  size = "md",
+  compacto = false,
+  tipo = "pedido",
+  reabierta = false,
+  diaCerrado = false,
+  expiraAt,
+  cierraAt,
+  proximaAperturaAt,
+  className,
+}: {
+  abierta: boolean;
+  size?: "sm" | "md";
+  /**
+   * Oculta el contador de tiempo restante y muestra solo el estado (abierta/cerrada).
+   * Por defecto false: muestra el tiempo restante igual que en la card de /hoy.
+   */
+  compacto?: boolean;
+  tipo?: "pedido" | "whatsapp";
+  /**
+   * El día de captura está reabierto: el reloj dice cerrado pero el panel sí
+   * acepta pedidos (`exigirDiaNoCerrado` solo bloquea CERRADO). Decir «Ventana
+   * cerrada» ahí es mentir sobre lo que el sistema deja hacer.
+   */
+  reabierta?: boolean;
+  /**
+   * La operación de captura ya se cerró manualmente o por cron, pero el reloj
+   * de la ventana sigue vivo y el portal aún acepta pedidos tardíos.
+   */
+  diaCerrado?: boolean;
+  expiraAt?: string | null;
+  cierraAt?: string | null;
+  proximaAperturaAt?: string | null;
+  className?: string;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  const tieneTimer =
+    !compacto &&
+    ((tipo === "whatsapp" && Boolean(expiraAt)) ||
+      (tipo === "pedido" && (Boolean(cierraAt) || Boolean(proximaAperturaAt))));
+
+  useEffect(() => {
+    if (!tieneTimer) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [tieneTimer, tipo, expiraAt, cierraAt, proximaAperturaAt, diaCerrado, abierta]);
+
+  const { etiqueta, viva, cierreAnticipado, reabiertaPedido } =
+    etiquetaVentanaBadge({
+      tipo,
+      abierta,
+      reabierta,
+      diaCerrado,
+      expiraAt,
+      cierraAt,
+      proximaAperturaAt,
+      compacto,
+      now,
+    });
+
+  const Icon = reabiertaPedido
+    ? LockOpen
+    : cierreAnticipado
+      ? Lock
+      : viva
+        ? Clock
+        : Lock;
 
   return (
     <span

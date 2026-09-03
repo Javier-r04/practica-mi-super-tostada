@@ -60,15 +60,23 @@ export function avancePagoFactura(factura: {
 }
 
 /**
- * Texto del enlace de una aplicación de abono. El DTE identifica la factura
- * ante el SAT, pero el cliente reconoce su entrega por el correlativo y la
- * fecha, así que esos van primero.
+ * Enlace de una aplicación de abono, en dos renglones.
+ *
+ * En una sola línea no cabe en un teléfono: el `truncate` se comía justo el
+ * final, que es donde iba el DTE. Arriba la identidad —el pedido, que es como
+ * el cliente reconoce la entrega—; abajo la fecha y el DTE, que sí pueden
+ * recortarse sin dejar el renglón sin sentido.
  */
-export function resumenAplicacion(aplicacion: PortalAbonoAplicacion): string {
-  const entrega = formatearFechaLarga(aplicacion.fechaEntrega);
-  return aplicacion.numeroDte
-    ? `Pedido #${aplicacion.correlativo} · ${entrega} · DTE ${aplicacion.numeroDte}`
-    : `Pedido #${aplicacion.correlativo} · ${entrega} · sin DTE`;
+export function resumenAplicacion(aplicacion: PortalAbonoAplicacion): {
+  titulo: string;
+  detalle: string;
+} {
+  return {
+    titulo: `Pedido #${aplicacion.correlativo}`,
+    detalle: aplicacion.numeroDte
+      ? `${formatearFechaLarga(aplicacion.fechaEntrega)} · DTE ${aplicacion.numeroDte}`
+      : `${formatearFechaLarga(aplicacion.fechaEntrega)} · sin DTE`,
+  };
 }
 
 export function hrefPedidoPortal(token: string, pedidoId: string): string {

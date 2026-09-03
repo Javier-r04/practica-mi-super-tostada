@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const sizes = {
@@ -13,24 +14,19 @@ export function QuantityStepper({
   onChange,
   min = 0,
   max = 9999,
-  paso = 1,
   unidad,
   disabled = false,
   size = "md",
   variant = "boxed",
   editableOnClick = true,
+  showAddWhenZero = false,
+  addLabel = "Agregar",
   className,
 }: {
   value: number;
   onChange: (value: number) => void;
   min?: number;
   max?: number;
-  /**
-   * Salto de «+/−». Las libras van de 5 en 5 (ver `UNIDAD_PASO`): pedir 50 lb
-   * de uno en uno eran cincuenta toques. Escribir la cantidad sigue siendo
-   * exacto — el paso solo afecta a los botones.
-   */
-  paso?: number;
   unidad?: string;
   disabled?: boolean;
   size?: "md" | "lg";
@@ -38,6 +34,9 @@ export function QuantityStepper({
   variant?: "boxed" | "plain";
   /** Al tocar el valor, abre un campo numérico para cantidades grandes. */
   editableOnClick?: boolean;
+  /** Si el valor es min/cero, muestra un botón limpio "+ Agregar". */
+  showAddWhenZero?: boolean;
+  addLabel?: string;
   className?: string;
 }) {
   const [editando, setEditando] = useState(false);
@@ -58,12 +57,10 @@ export function QuantityStepper({
     onChange(clamped);
   };
 
-  /* Sumar: si el valor no cae en la rejilla del paso, primero se alinea, así
-     «+» sobre 3 lb con paso 5 da 5 y no 8. Restar es simétrico. */
-  const sumar = () =>
-    set(value <= min ? min + paso : (Math.floor(value / paso) + 1) * paso);
-  const restar = () =>
-    set(value % paso === 0 ? value - paso : Math.floor(value / paso) * paso);
+  /* De uno en uno. Para cantidades grandes se escribe el número en el campo,
+     que por eso tiene aspecto de campo y no de etiqueta. */
+  const sumar = () => set(value + 1);
+  const restar = () => set(value - 1);
 
   const s = sizes[size];
   const puedeEditar = editableOnClick && !disabled;
@@ -112,11 +109,13 @@ export function QuantityStepper({
     <input
       ref={inputRef}
       type="text"
+      size={1}
+      maxLength={4}
       inputMode="numeric"
       pattern="[0-9]*"
       aria-label={unidad ? `Cantidad en ${unidad}` : "Cantidad"}
       value={borrador}
-      onChange={(e) => setBorrador(e.target.value.replace(/\D/g, ""))}
+      onChange={(e) => setBorrador(e.target.value.replace(/\D/g, "").slice(0, 4))}
       onBlur={confirmar}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
@@ -129,9 +128,10 @@ export function QuantityStepper({
       }}
       className={
         variant === "plain"
-          ? "h-full w-full min-w-0 bg-transparent text-center text-sm font-semibold tabular-nums text-tinta-900 outline-none"
+          ? "box-border h-full w-full min-w-0 max-w-full bg-transparent px-0 text-center text-base font-bold tabular-nums text-tinta-900 outline-none focus:outline-none focus:ring-0 sm:text-sm"
           : "mst-quantity-stepper__input"
       }
+      style={{ width: "100%", maxWidth: "100%" }}
     />
   ) : puedeEditar ? (
     <button
@@ -147,8 +147,8 @@ export function QuantityStepper({
       <span
         className={cn(
           variant === "plain"
-            ? "text-[15px] font-semibold tabular-nums leading-none"
-            : "mst-quantity-stepper__num",
+            ? "text-[16px] font-bold tabular-nums leading-none"
+            : "mst-quantity-stepper__num font-bold",
           activo && "text-marca",
         )}
       >
@@ -167,11 +167,11 @@ export function QuantityStepper({
       }
     >
       <span
-        className={
+        className={cn(
           variant === "plain"
-            ? "text-sm font-semibold tabular-nums leading-none text-tinta-900"
-            : "mst-quantity-stepper__num"
-        }
+            ? "text-[16px] font-bold tabular-nums leading-none text-tinta-900"
+            : "mst-quantity-stepper__num font-bold"
+        )}
       >
         {value}
       </span>
@@ -181,12 +181,32 @@ export function QuantityStepper({
     </div>
   );
 
+  if (showAddWhenZero && value <= min) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={unidad ? `Agregar ${unidad}` : "Agregar"}
+        onClick={() => set(min + 1)}
+        className={cn(
+          "inline-flex items-center justify-center gap-1.5 rounded-pill border border-[var(--green-700)] bg-blanco px-3.5 text-xs font-bold text-[var(--green-800)] shadow-xs transition-all duration-control ease-out hover:bg-[var(--green-50)] active:scale-95",
+          "focus-visible:outline-none focus-visible:shadow-foco disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-blanco",
+          s.wrap,
+          className,
+        )}
+      >
+        <Plus size={16} strokeWidth={2.5} aria-hidden />
+        <span>{addLabel}</span>
+      </button>
+    );
+  }
+
   if (variant === "plain") {
     return (
       <div
         data-editing={editando ? "true" : undefined}
         className={cn(
-          "inline-flex items-center gap-0.5",
+          "inline-flex items-center gap-2",
           s.wrap,
           disabled && "opacity-45",
           className,
@@ -202,18 +222,17 @@ export function QuantityStepper({
             "bg-tinta-100 text-tinta-800 hover:bg-tinta-200 active:bg-tinta-200",
           )}
         >
-          −
+          <Minus size={18} strokeWidth={2.6} aria-hidden />
         </button>
-        {/* Caja de campo, no número suelto: el teclado para escribir «50» ya
-            existía, pero nada decía que se podía tocar. */}
+        {/* Caja de campo, no número suelto */}
         <div
           className={cn(
-            "grid h-full min-w-14 place-items-center rounded-campo border bg-blanco px-1",
+            "grid h-full w-[50px] max-w-[50px] min-w-0 shrink-0 place-items-center overflow-hidden rounded-campo border bg-blanco px-0.5 shadow-xs",
             "transition-colors duration-control ease-out",
             editando
-              ? "border-[var(--border-focus)]"
+              ? "border-[var(--border-focus)] shadow-xs"
               : activo
-                ? "border-[var(--green-300)]"
+                ? "border-[var(--green-400)]"
                 : "border-[var(--border-default)]",
           )}
         >
@@ -227,11 +246,11 @@ export function QuantityStepper({
           className={cn(
             btnPlain,
             activo
-              ? "bg-[var(--green-800)] text-blanco hover:bg-[var(--green-700)] active:bg-[var(--green-700)]"
+              ? "bg-[var(--green-800)] text-blanco hover:bg-[var(--green-700)] active:bg-[var(--green-700)] shadow-xs"
               : "bg-tinta-100 text-tinta-800 hover:bg-tinta-200 active:bg-tinta-200",
           )}
         >
-          +
+          <Plus size={18} strokeWidth={2.6} aria-hidden />
         </button>
       </div>
     );
@@ -256,7 +275,7 @@ export function QuantityStepper({
         disabled={disabled || value <= min}
         onClick={restar}
         className={cn(
-          "grid shrink-0 place-items-center text-lg font-semibold text-marca disabled:cursor-not-allowed disabled:text-tinta-500",
+          "grid shrink-0 place-items-center text-marca disabled:cursor-not-allowed disabled:text-tinta-500",
           "transition-colors duration-control ease-out",
           "hover:bg-[var(--green-50)] active:bg-[var(--green-100)]",
           "disabled:hover:bg-transparent disabled:active:bg-transparent",
@@ -264,7 +283,7 @@ export function QuantityStepper({
           s.btn,
         )}
       >
-        −
+        <Minus size={18} strokeWidth={2.6} aria-hidden />
       </button>
 
       <div className="mst-quantity-stepper__value">{valor}</div>
@@ -275,7 +294,7 @@ export function QuantityStepper({
         disabled={disabled || value >= max}
         onClick={sumar}
         className={cn(
-          "grid shrink-0 place-items-center text-lg font-semibold text-marca disabled:cursor-not-allowed disabled:text-tinta-500",
+          "grid shrink-0 place-items-center text-marca disabled:cursor-not-allowed disabled:text-tinta-500",
           "transition-colors duration-control ease-out",
           "hover:bg-[var(--green-50)] active:bg-[var(--green-100)]",
           "disabled:hover:bg-transparent disabled:active:bg-transparent",
@@ -283,7 +302,7 @@ export function QuantityStepper({
           s.btn,
         )}
       >
-        +
+        <Plus size={18} strokeWidth={2.6} aria-hidden />
       </button>
     </div>
   );

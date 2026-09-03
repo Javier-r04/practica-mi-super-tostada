@@ -7,9 +7,10 @@ import { DRIZZLE } from "../tokens";
 import type { AppDatabase } from "../database.module";
 import { STORAGE_PORT, type StoragePort } from "./storage.port";
 
-const VARIANTES = [
-  { nombre: "thumb" as const, width: 160 },
-  { nombre: "card" as const, width: 640 },
+export const VARIANTES = [
+  { nombre: "thumb" as const, width: 320, quality: 85 },
+  { nombre: "card" as const, width: 960, quality: 85 },
+  { nombre: "full" as const, width: 1440, quality: 88 },
 ];
 
 @Injectable()
@@ -51,7 +52,7 @@ export class AssetVariantsJob {
     for (const def of VARIANTES) {
       const bytes = await sharp(original.bytes)
         .resize(def.width, def.width, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 80 })
+        .webp({ quality: def.quality })
         .toBuffer();
       const key = `${row.key}-w${def.width}.webp`;
       await this.storage.put(key, bytes, "image/webp");

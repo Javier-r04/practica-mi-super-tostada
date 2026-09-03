@@ -34,17 +34,6 @@ export const UNIDAD_CORTA = {
 } as const;
 
 /**
- * Salto del botón «+/−» según la unidad. Un restaurante pide tortillas por
- * decenas de libras: de uno en uno son cincuenta toques para un solo renglón.
- * Las bolsas y las unidades sí se piden de a poco.
- */
-export const UNIDAD_PASO = {
-  LIBRA: 5,
-  BOLSA: 1,
-  UNIDAD: 1,
-} as const;
-
-/**
  * Total del pedido: suma de cantidad × precio_unitario, ambos enteros en
  * centavos. No hay redondeo: el producto de dos enteros ya es entero.
  * El redondeo bancario de `money.ts` aplica si algún día entra un factor no entero.
