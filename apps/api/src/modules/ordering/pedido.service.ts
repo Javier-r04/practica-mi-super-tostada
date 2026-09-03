@@ -845,6 +845,13 @@ export class PedidoService {
       numeroDte: fac.factura.numeroDte ?? null,
       saldoCentavos: saldo,
       estado,
+      pagos: pagos.map((p) => ({
+        id: p.id,
+        montoCentavos: p.montoCentavos,
+        metodo: p.metodo,
+        fecha: p.fecha,
+        comprobanteAssetId: p.comprobanteAssetId ?? null,
+      })),
     };
   }
 

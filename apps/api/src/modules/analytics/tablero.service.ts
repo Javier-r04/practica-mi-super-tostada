@@ -129,9 +129,11 @@ export class TableroService {
         porCobrarCentavos: cartera.saldoCentavos,
         cobradoCentavos:
           cartera.cobradoEnRango.efectivoCentavos +
-          cartera.cobradoEnRango.transferenciaCentavos,
+          cartera.cobradoEnRango.transferenciaCentavos +
+          cartera.cobradoEnRango.chequeCentavos,
         cobradoEfectivoCentavos: cartera.cobradoEnRango.efectivoCentavos,
         cobradoTransferenciaCentavos: cartera.cobradoEnRango.transferenciaCentavos,
+        cobradoChequeCentavos: cartera.cobradoEnRango.chequeCentavos,
         clientesAlertaCount,
         clientesAlertaTipo: alertaTipo,
         adopcionPuntosBase: operacion.adopcionPuntosBase,
@@ -349,6 +351,7 @@ export class TableroService {
       .select({
         efectivo: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'EFECTIVO'), 0)::int`,
         transferencia: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'TRANSFERENCIA'), 0)::int`,
+        cheque: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'CHEQUE'), 0)::int`,
       })
       .from(pago)
       .innerJoin(factura, eq(factura.id, pago.facturaId))
@@ -415,6 +418,7 @@ export class TableroService {
       cobradoEnRango: {
         efectivoCentavos: Number(cobrado?.efectivo ?? 0),
         transferenciaCentavos: Number(cobrado?.transferencia ?? 0),
+        chequeCentavos: Number(cobrado?.cheque ?? 0),
       },
       sobreLimite: sobre
         .filter((c) => c.limite != null)
@@ -540,6 +544,7 @@ export class TableroService {
         fecha: pago.fecha,
         efectivo: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'EFECTIVO'), 0)::int`,
         transferencia: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'TRANSFERENCIA'), 0)::int`,
+        cheque: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'CHEQUE'), 0)::int`,
       })
       .from(pago)
       .innerJoin(factura, eq(factura.id, pago.facturaId))
@@ -561,6 +566,7 @@ export class TableroService {
         fecha,
         efectivoCentavos: Number(row?.efectivo ?? 0),
         transferenciaCentavos: Number(row?.transferencia ?? 0),
+        chequeCentavos: Number(row?.cheque ?? 0),
       };
     });
   }

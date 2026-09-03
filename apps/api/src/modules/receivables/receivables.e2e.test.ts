@@ -620,11 +620,11 @@ describe.skipIf(!listo)("E5 cobranza", () => {
     }
   });
 
-  test("F-504 transferencia sin comprobante 400; efectivo sin foto 200", async () => {
+  test("F-504 transferencia/cheque sin comprobante 400; efectivo sin foto 200", async () => {
     const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
     try {
       const { pedido: p, cli } = await catalogo(f, { precioCentavos: 10000, cantidad: 1 });
-      const e = await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
+      await f.entregas.entregar({ idempotencyKey: crypto.randomUUID(), pedidoId: p.id }, f.actorReparto);
       await expect(
         f.pagos.registrar(
           {
@@ -633,6 +633,18 @@ describe.skipIf(!listo)("E5 cobranza", () => {
             clienteId: cli.id,
             montoCentavos: 1000,
             metodo: "TRANSFERENCIA",
+          },
+          f.actorReparto,
+        ),
+      ).rejects.toMatchObject({ code: "VALIDACION", httpStatus: 400 });
+      await expect(
+        f.pagos.registrar(
+          {
+            id: crypto.randomUUID(),
+            idempotencyKey: `ch-${crypto.randomUUID()}`,
+            clienteId: cli.id,
+            montoCentavos: 1000,
+            metodo: "CHEQUE",
           },
           f.actorReparto,
         ),
@@ -648,6 +660,32 @@ describe.skipIf(!listo)("E5 cobranza", () => {
         f.actorReparto,
       );
       expect(ok.pagos).toHaveLength(1);
+
+      const chequeId = crypto.randomUUID();
+      const [comp] = await f.db
+        .insert(asset)
+        .values({
+          key: `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`.slice(0, 64),
+          bucket: "test",
+          mime: "image/jpeg",
+          size: 12,
+          ownerType: "abono",
+          ownerId: chequeId,
+        })
+        .returning({ id: asset.id });
+      const cheque = await f.pagos.registrar(
+        {
+          id: chequeId,
+          idempotencyKey: `ch-ok-${crypto.randomUUID()}`,
+          clienteId: cli.id,
+          montoCentavos: 1500,
+          metodo: "CHEQUE",
+          comprobanteAssetId: comp!.id,
+        },
+        f.actorReparto,
+      );
+      expect(cheque.pagos[0]?.comprobanteAssetId).toBe(comp!.id);
+      expect(cheque.pagos[0]?.metodo).toBe("CHEQUE");
     } finally {
       await f.client.end({ timeout: 1 });
     }
@@ -832,6 +870,8 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       const cuadre = await f.cartera.cuadre(f.actor, { fecha: "2026-08-20" });
       expect(cuadre.totalEfectivoCentavos).toBe(3500);
       expect(cuadre.totalTransferenciaCentavos).toBe(3000);
+      expect(cuadre.totalChequeCentavos).toBe(0);
+      expect(cuadre.totalCentavos).toBe(6500);
       expect(cuadre.pagos.every((x) => x.fecha === "2026-08-20")).toBe(true);
       const tony = cuadre.porActor.find((a) => a.usuarioId === f.actorReparto.usuarioId);
       expect(tony?.efectivoCentavos).toBe(3500);
@@ -1084,6 +1124,9 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       expect(confirmado.pagos).toHaveLength(2);
       expect(confirmado.pagos[0]?.montoCentavos).toBe(30000);
       expect(confirmado.pagos[1]?.montoCentavos).toBe(10000);
+      expect(confirmado.pagos?.every((p) => p.comprobanteAssetId === comp!.id)).toBe(
+        true,
+      );
       expect(confirmado.facturas.find((x) => x.saldoCentavos === 10000)?.estado).toBe(
         "ABONO_PARCIAL",
       );

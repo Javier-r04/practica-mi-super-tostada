@@ -2,7 +2,11 @@
 
 import { Card, Chip } from "@heroui/react";
 import { Wallet } from "lucide-react";
-import type { CuadreDia, PagoMetodo } from "@misupertostada/shared";
+import {
+  PAGO_METODO_ETIQUETA,
+  type CuadreDia,
+  type PagoMetodo,
+} from "@misupertostada/shared";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -20,15 +24,14 @@ export function VistaCuadre({ cuadre }: { cuadre: CuadreDia }) {
       </Card.Header>
 
       <Card.Content className="grid gap-4">
-        {/* Las tres cifras que Carla canta al cerrar: efectivo, transferencia y
-            la suma. El total va aparte, en verde, porque es la que se compara
-            contra el sobre. */}
-        <dl className="grid min-w-0 gap-3 sm:grid-cols-3">
+        {/* Cifras que Carla canta al cerrar. El total va aparte, en verde. */}
+        <dl className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Cifra etiqueta="Efectivo" centavos={cuadre.totalEfectivoCentavos} />
           <Cifra
             etiqueta="Transferencia"
             centavos={cuadre.totalTransferenciaCentavos}
           />
+          <Cifra etiqueta="Cheque" centavos={cuadre.totalChequeCentavos} />
           <Cifra
             destacado
             etiqueta="Total"
@@ -55,6 +58,13 @@ export function VistaCuadre({ cuadre }: { cuadre: CuadreDia }) {
                       {" "}
                       · transf.{" "}
                       <Money centavos={a.transferenciaCentavos} truncate />
+                    </>
+                  ) : null}
+                  {a.chequeCentavos > 0 ? (
+                    <>
+                      {" "}
+                      · cheque{" "}
+                      <Money centavos={a.chequeCentavos} truncate />
                     </>
                   ) : null}
                 </span>
@@ -130,13 +140,23 @@ function Cifra({
 }
 
 function MetodoChip({ metodo }: { metodo: PagoMetodo }) {
-  return metodo === "EFECTIVO" ? (
-    <Chip color="success" size="sm" variant="soft">
-      Efectivo
-    </Chip>
-  ) : (
+  if (metodo === "EFECTIVO") {
+    return (
+      <Chip color="success" size="sm" variant="soft">
+        {PAGO_METODO_ETIQUETA.EFECTIVO}
+      </Chip>
+    );
+  }
+  if (metodo === "CHEQUE") {
+    return (
+      <Chip color="warning" size="sm" variant="soft">
+        {PAGO_METODO_ETIQUETA.CHEQUE}
+      </Chip>
+    );
+  }
+  return (
     <Chip size="sm" variant="soft">
-      Transferencia
+      {PAGO_METODO_ETIQUETA.TRANSFERENCIA}
     </Chip>
   );
 }

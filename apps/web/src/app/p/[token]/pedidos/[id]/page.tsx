@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Card } from "@heroui/react";
-import { ChevronLeft } from "lucide-react";
 import {
   formatearFechaLarga,
   type PortalPedidoDetalleCliente,
@@ -13,7 +11,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { origenPedidoLabel } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
-import { PortalShell } from "@/components/portal/portal-shell";
+import { PortalBackButton } from "@/components/portal/portal-back-button";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
@@ -26,7 +24,7 @@ export default function PortalPedidoDetallePage({
   params: Promise<{ token: string; id: string }>;
 }) {
   const { id } = use(params);
-  const { token, sesion, assetPath } = usePortalSession();
+  const { token, assetPath } = usePortalSession();
   const base = `/p/${encodeURIComponent(token)}`;
 
   const detalle = useQuery({
@@ -38,15 +36,8 @@ export default function PortalPedidoDetallePage({
   });
 
   return (
-    <PortalShell clienteNombre={sesion.cliente.nombre}>
       <div className="grid gap-4 py-4">
-        <Link
-          href={`${base}/pedidos`}
-          className="inline-flex min-h-11 w-fit items-center gap-1 text-sm font-semibold text-marca no-underline hover:underline focus-visible:outline-none focus-visible:shadow-foco"
-        >
-          <ChevronLeft size={18} aria-hidden />
-          Sus pedidos
-        </Link>
+        <PortalBackButton href={`${base}/pedidos`} label="Sus pedidos" />
 
         {detalle.isPending ? (
           <div className="grid gap-3">
@@ -71,7 +62,6 @@ export default function PortalPedidoDetallePage({
           />
         ) : null}
       </div>
-    </PortalShell>
   );
 }
 

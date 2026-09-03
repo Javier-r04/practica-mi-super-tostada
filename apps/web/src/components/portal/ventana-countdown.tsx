@@ -75,9 +75,9 @@ const TONO_BARRA: Record<Apremio, string> = {
 /**
  * Cuenta atrás visual. El servidor decide si el POST entra; esto solo anima.
  *
- * - `panel`: bloque ancho para el encabezado verde. Es lo primero que se ve.
- * - `barra`: tira compacta para el pie pegajoso del catálogo, donde el cliente
- *   pasa el rato eligiendo y ya no ve el encabezado.
+ * - `panel`: bloque ancho (inicio, si hace falta repetir el reloj).
+ * - `barra`: tira compacta sobre fondo claro.
+ * - `navbar`: pastilla sobre el verde de marca; el horario vive aquí.
  */
 export function VentanaCountdown({
   cierraAt,
@@ -92,7 +92,7 @@ export function VentanaCountdown({
    * hacia la próxima apertura (como el navbar), no hacia las 03:00.
    */
   abreAt?: string | null;
-  variant?: "panel" | "barra";
+  variant?: "panel" | "barra" | "navbar";
   className?: string;
 }) {
   const [ahoraMs, setAhoraMs] = useState<number | null>(null);
@@ -106,9 +106,33 @@ export function VentanaCountdown({
 
   const targetAt = abreAt ?? cierraAt;
   const sentido: "cierra" | "abre" = abreAt ? "abre" : "cierra";
-  const copy = sentido === "abre" ? COPY_ABRE : COPY_CIERRA;
+  const copy =
+    variant === "navbar"
+      ? sentido === "abre"
+        ? { holgado: "Abre", corriendo: "Abre", ultimo: "Abre" }
+        : { holgado: "Cierra", corriendo: "Cierra", ultimo: "Cierra" }
+      : sentido === "abre"
+        ? COPY_ABRE
+        : COPY_CIERRA;
 
-  if (ahoraMs == null || !targetAt) return null;
+  if (!targetAt) return null;
+  if (ahoraMs == null) {
+    if (variant !== "navbar") return null;
+    return (
+      <p
+        className={cn(
+          "flex h-[22px] max-w-full min-w-0 items-center justify-center gap-1.5 rounded-pill px-2 text-[12px] font-semibold tabular-nums",
+          TONO_BARRA.holgado,
+          className,
+        )}
+      >
+        <Clock size={12} className="shrink-0" aria-hidden />
+        <span className="min-w-0 truncate">
+          {sentido === "abre" ? "Abre" : "Cierra"}
+        </span>
+      </p>
+    );
+  }
   const ms = Math.max(0, Date.parse(targetAt) - ahoraMs);
   const apremio = apremioDe(ms);
   const vencido = ms === 0;
@@ -118,18 +142,22 @@ export function VentanaCountdown({
   const textoVencido = sentido === "abre" ? "La ventana abrió" : "La ventana cerró";
   const tituloVencido = sentido === "abre" ? "Ventana abierta" : "Ventana cerrada";
 
-  if (variant === "barra") {
+  if (variant === "barra" || variant === "navbar") {
+    const compacto = variant === "navbar";
     return (
       <p
         role="timer"
         aria-label={vencido ? etiquetaVencido : etiquetaAccesible(ms, sentido)}
         className={cn(
-          "flex min-h-9 min-w-0 items-center justify-center gap-2 rounded-pill px-3 text-[13px] font-semibold",
+          "flex min-w-0 items-center justify-center gap-1.5 rounded-pill font-semibold tabular-nums",
+          compacto
+            ? "h-[22px] max-w-full px-2 text-[12px]"
+            : "min-h-9 gap-2 px-3 text-[13px]",
           TONO_BARRA[apremio],
           className,
         )}
       >
-        <Icon size={15} className="shrink-0" aria-hidden />
+        <Icon size={compacto ? 12 : 15} className="shrink-0" aria-hidden />
         <span className="min-w-0 truncate" aria-hidden>
           {vencido ? textoVencido : `${copy[apremio]} ${formatearRestante(ms)}`}
         </span>

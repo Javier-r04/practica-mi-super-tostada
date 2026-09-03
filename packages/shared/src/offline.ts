@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PAGO_METODOS } from "./estados";
+import { PAGO_METODOS, pagoRequiereComprobante } from "./estados";
 import {
   entregarItemSchema,
   idempotencyKeySchema,
@@ -47,7 +47,7 @@ const accionPagoBaseSchema = z
     blobId: z.string().uuid().optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.metodo === "TRANSFERENCIA" && !value.blobId) {
+    if (pagoRequiereComprobante(value.metodo) && !value.blobId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: MENSAJE_COMPROBANTE_REQUERIDO,

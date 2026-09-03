@@ -160,7 +160,7 @@ Victorias                pago semanal · caso real de 15 días de atraso
 Buen Camarón             paga con TRANSFERENCIA
 Pura Frescura            caso real de 2 pedidos acumulados
 Metroplaza               horario_entrega_fijo: 09:00 (centro comercial abre a esa hora)
-Escuelita La Ciénaga     horario_entrega_fijo: 09:00 · paga con cheque
+Escuelita La Ciénaga     horario_entrega_fijo: 09:00 · paga con CHEQUE
 Tienda 6                 pedidos extraordinarios por llamada
 ```
 

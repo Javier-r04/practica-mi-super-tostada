@@ -226,8 +226,8 @@ Factura                 pedido_id, numero_dte (capturado por Carla), monto_centa
                         emitida_at
 Pago                    factura_id, monto_centavos, metodo, fecha,
                         comprobante_asset_id, registrado_por
-                        metodo: EFECTIVO | TRANSFERENCIA
-                        ↑ tabla propia: soporta ABONOS PARCIALES
+                        metodo: EFECTIVO | TRANSFERENCIA | CHEQUE
+                        ↑ transferencia y cheque exigen foto; tabla propia (abonos parciales)
 
 Conversacion            cliente_id, ventana_expira_at, ultimo_inbound_at, no_leidos
 Mensaje                 wa_message_id (UNIQUE), direction, tipo, template_name,

@@ -333,6 +333,7 @@ export const tableroKpisSchema = z.object({
   cobradoCentavos: centavosSchema,
   cobradoEfectivoCentavos: centavosSchema,
   cobradoTransferenciaCentavos: centavosSchema,
+  cobradoChequeCentavos: centavosSchema,
   clientesAlertaCount: z.number().int().nonnegative(),
   clientesAlertaTipo: z.enum(CLIENTES_ALERTA_TIPOS),
   adopcionPuntosBase: z.number().int().nonnegative(),
@@ -382,6 +383,7 @@ export const tableroCarteraSchema = z.object({
   cobradoEnRango: z.object({
     efectivoCentavos: centavosSchema,
     transferenciaCentavos: centavosSchema,
+    chequeCentavos: centavosSchema,
   }),
   sobreLimite: z.array(clienteSobreLimiteTableroSchema),
   tramos: z.array(tramoCarteraSchema),
@@ -420,6 +422,7 @@ export const cobradoPorDiaSchema = z.object({
   fecha: fechaCalendarioSchema,
   efectivoCentavos: centavosSchema,
   transferenciaCentavos: centavosSchema,
+  chequeCentavos: centavosSchema,
 });
 
 export const productoVolumenSchema = z.object({

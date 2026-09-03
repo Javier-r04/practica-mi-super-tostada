@@ -417,11 +417,11 @@ export default function RepartoPage() {
           })}
           online={cola.online}
           permitirOffline
-          metodos={["EFECTIVO"]}
           error={error}
           onClose={() => setCobrando(false)}
           onConfirm={(input) => {
             setError(undefined);
+            const blobId = input.archivo ? crypto.randomUUID() : undefined;
             void cola
               .encolarPago(
                 {
@@ -432,8 +432,9 @@ export default function RepartoPage() {
                   pedidoId: parada.pedidoId,
                   montoCentavos: input.montoCentavos,
                   metodo: input.metodo,
+                  blobId,
                 },
-                undefined,
+                input.archivo,
               )
               .then(() => {
                 setCobrando(false);

@@ -10,6 +10,7 @@ import {
   abonosQuerySchema,
   aplicarFifo,
   fechaDeInstante,
+  pagoRequiereComprobante,
   rechazarAbonoRequestSchema,
   reportarAbonoPortalRequestSchema,
   registrarPagoRequestSchema,
@@ -168,7 +169,16 @@ export class AbonoService implements AbonoPortal {
         throw new DomainException("NO_ENCONTRADO", "Cliente no encontrado", 404);
       }
 
-      if (input.comprobanteAssetId) {
+      if (pagoRequiereComprobante(input.metodo)) {
+        if (!input.comprobanteAssetId) {
+          throw new DomainException(
+            "COMPROBANTE_REQUERIDO",
+            MENSAJE_COMPROBANTE_REQUERIDO,
+            400,
+          );
+        }
+        await this.exigirComprobanteAbono(tx, input.comprobanteAssetId, input.id);
+      } else if (input.comprobanteAssetId) {
         await this.exigirComprobanteAbono(tx, input.comprobanteAssetId, input.id);
       }
 
@@ -489,7 +499,7 @@ export class AbonoService implements AbonoPortal {
           montoCentavos: asg.montoCentavos,
           metodo: abonoRow.metodo,
           fecha,
-          comprobanteAssetId: null,
+          comprobanteAssetId: abonoRow.comprobanteAssetId ?? null,
           registradoPor: actor.usuarioId,
           idempotencyKey: i === 0 ? abonoRow.idempotencyKey : null,
         })

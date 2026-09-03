@@ -290,6 +290,7 @@ export class CarteraService {
       .select({
         efectivo: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'EFECTIVO'), 0)::int`,
         transferencia: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'TRANSFERENCIA'), 0)::int`,
+        cheque: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'CHEQUE'), 0)::int`,
       })
       .from(pago)
       .innerJoin(factura, eq(factura.id, pago.facturaId))
@@ -304,6 +305,7 @@ export class CarteraService {
         username: usuario.username,
         efectivo: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'EFECTIVO'), 0)::int`,
         transferencia: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'TRANSFERENCIA'), 0)::int`,
+        cheque: sql<number>`coalesce(sum(${pago.montoCentavos}) filter (where ${pago.metodo} = 'CHEQUE'), 0)::int`,
         count: sql<number>`count(*)::int`,
       })
       .from(pago)
@@ -334,16 +336,19 @@ export class CarteraService {
 
     const efectivo = Number(totales?.efectivo ?? 0);
     const transferencia = Number(totales?.transferencia ?? 0);
+    const cheque = Number(totales?.cheque ?? 0);
     return cuadreDiaSchema.parse({
       fecha,
       totalEfectivoCentavos: efectivo,
       totalTransferenciaCentavos: transferencia,
-      totalCentavos: efectivo + transferencia,
+      totalChequeCentavos: cheque,
+      totalCentavos: efectivo + transferencia + cheque,
       porActor: porActorRows.map((r) => ({
         usuarioId: r.usuarioId,
         username: r.username ?? "sistema",
         efectivoCentavos: Number(r.efectivo),
         transferenciaCentavos: Number(r.transferencia),
+        chequeCentavos: Number(r.cheque),
         count: Number(r.count),
       })),
       pagos: lista.map((r) => ({

@@ -150,6 +150,21 @@ describe("propsVentanaPedido", () => {
       abreAt: null,
     });
   });
+
+  test("ventana cerrada: el navbar cuenta hacia la próxima apertura", () => {
+    expect(
+      propsVentanaCountdown({
+        ...cerrada,
+        abierta: false,
+        diaEstado: "SIN_CIERRE",
+        cierraAt: "2026-08-21T03:00:00.000-06:00",
+        proximaAperturaAt: "2026-08-21T15:00:00.000-06:00",
+      }),
+    ).toEqual({
+      cierraAt: null,
+      abreAt: "2026-08-21T15:00:00.000-06:00",
+    });
+  });
 });
 
 describe("avisoLimiteCredito", () => {

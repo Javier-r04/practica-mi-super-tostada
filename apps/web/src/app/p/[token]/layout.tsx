@@ -4,6 +4,7 @@ import { use } from "react";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/providers";
 import { PortalSessionProvider } from "@/components/portal/portal-session";
+import { PortalShell } from "@/components/portal/portal-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PortalTokenLayout({
@@ -23,7 +24,9 @@ export default function PortalTokenLayout({
   }
   return (
     <Providers>
-      <PortalSessionProvider token={token}>{children}</PortalSessionProvider>
+      <PortalSessionProvider token={token}>
+        <PortalShell>{children}</PortalShell>
+      </PortalSessionProvider>
     </Providers>
   );
 }

@@ -152,10 +152,25 @@ describe("encolar PAGO (D6 no fusionar cobros)", () => {
     ).toThrow(MENSAJE_COMPROBANTE_REQUERIDO);
   });
 
+  test("cheque sin foto no se encola", () => {
+    expect(() => encolar([], pago({ metodo: "CHEQUE" }), iso(1))).toThrow(
+      MENSAJE_COMPROBANTE_REQUERIDO,
+    );
+  });
+
   test("transferencia con blobId sí entra", () => {
     const cola = encolar(
       [],
       pago({ metodo: "TRANSFERENCIA", blobId: BLOB }),
+      iso(1),
+    );
+    expect(cola).toHaveLength(1);
+  });
+
+  test("cheque con blobId sí entra", () => {
+    const cola = encolar(
+      [],
+      pago({ metodo: "CHEQUE", blobId: BLOB }),
       iso(1),
     );
     expect(cola).toHaveLength(1);

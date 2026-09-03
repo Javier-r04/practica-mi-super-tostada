@@ -488,7 +488,7 @@ export async function renderQuincenaPdf(
           <Kpi
             label="Cobrado en el periodo"
             valor={q(kpis.cobradoCentavos)}
-            hint={`Efectivo ${q(kpis.cobradoEfectivoCentavos)} · Transferencia ${q(kpis.cobradoTransferenciaCentavos)}`}
+            hint={`Efectivo ${q(kpis.cobradoEfectivoCentavos)} · Transferencia ${q(kpis.cobradoTransferenciaCentavos)} · Cheque ${q(kpis.cobradoChequeCentavos)}`}
           />
           <Kpi
             label="Por cobrar"

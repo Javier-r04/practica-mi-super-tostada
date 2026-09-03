@@ -4,14 +4,12 @@ import {
   Alert,
   Button,
   Card,
-  Checkbox,
   Chip,
   Description,
   Input,
   Label,
   Modal,
   Separator,
-  Table,
   TextArea,
   TextField,
   ToggleButton,
@@ -20,14 +18,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ClipboardList, Receipt } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
-  FAMILIA_ETIQUETA,
   crearClienteRequestSchema,
-  formatearCentavos,
-  precioEfectivoCentavos,
-  quetzalesTextoACentavos,
+  PAGO_METODO_ETIQUETA,
   tienePermiso,
   type ActorPublico,
   type ClienteProductoFila,
@@ -46,8 +41,9 @@ import { Skeleton, RowSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
+import { ClientePrecios } from "@/components/catalog/cliente-precios";
 import { FotoPicker } from "@/components/catalog/foto-picker";
-import { cn } from "@/lib/utils";
+import { ComprobanteAssetPreview } from "@/components/receivables/comprobante-asset-preview";
 
 type Seccion = "operacion" | "precios" | "datos";
 
@@ -117,8 +113,9 @@ export default function ClienteFichaPage() {
 
   if (cliente.isLoading || !cliente.data) {
     return (
-      <PanelShell title="Cliente" volver={{ href: "/clientes", label: "Clientes" }}>
+      <PanelShell title="Clientes">
         <div className="grid gap-4">
+          <VolverAClientes />
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-32 w-full rounded-tarjeta" />
           <Skeleton className="h-48 w-full rounded-tarjeta" />
@@ -168,13 +165,13 @@ export default function ClienteFichaPage() {
 
   return (
     <PanelShell
-      title={c.nombre}
-      volver={{ href: "/clientes", label: "Clientes" }}
+      title="Clientes"
       barraFija={
         <ToggleButtonGroup
           aria-label="Secciones del cliente"
-          className="mst-segmento-activo w-full [&_.toggle-button]:min-w-0 [&_.toggle-button]:flex-1 [&_.toggle-button]:px-2 [&_.toggle-button]:text-xs sm:[&_.toggle-button]:text-sm"
+          className="mst-segmento-activo [&_.toggle-button]:min-w-0 [&_.toggle-button]:flex-1 [&_.toggle-button]:px-2 [&_.toggle-button]:text-xs sm:[&_.toggle-button]:text-sm"
           disallowEmptySelection
+          fullWidth
           selectedKeys={new Set([seccion])}
           selectionMode="single"
           size="sm"
@@ -193,13 +190,7 @@ export default function ClienteFichaPage() {
       }
     >
       <div className="grid min-w-0 gap-4 sm:gap-5">
-        <Link
-          href="/clientes"
-          className="hidden min-h-11 w-fit items-center gap-1 text-sm font-semibold text-marca no-underline hover:text-marca-hover hover:no-underline lg:inline-flex"
-        >
-          <ChevronLeft size={16} aria-hidden />
-          Clientes
-        </Link>
+        <VolverAClientes />
 
         {/* Cabecera: identidad, estado de la ficha y la acción de portal.
             Lo destructivo vive en Datos, no aquí. */}
@@ -207,16 +198,16 @@ export default function ClienteFichaPage() {
           className="gap-3 border-l-[3px] border-l-[var(--border-accent)] p-4 sm:gap-4 sm:p-5"
           render={(props) => <header {...props} />}
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-5">
             <ClienteAvatar
               nombre={c.nombre}
               fotoAssetId={fotoMostrada}
               size="md"
-              className="sm:size-20 sm:text-base"
+              className="shrink-0 sm:size-20 sm:text-base"
             />
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 basis-[12rem]">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-pretty text-lg font-semibold text-tinta-900 sm:text-2xl">
+                <h1 className="text-pretty text-lg font-semibold break-words text-tinta-900 sm:text-2xl">
                   {c.nombre}
                 </h1>
                 {!c.activo && (
@@ -235,7 +226,7 @@ export default function ClienteFichaPage() {
                   </Chip>
                 )}
               </div>
-              <p className="mst-label mt-1 truncate">
+              <p className="mst-label mt-1 text-pretty">
                 {c.horarioEntregaFijo
                   ? `Entrega ${c.horarioEntregaFijo}`
                   : "Sin horario fijo"}
@@ -245,7 +236,7 @@ export default function ClienteFichaPage() {
             </div>
             {canWrite && (
               <Button
-                className="w-full shrink-0 sm:w-auto sm:self-center"
+                className="w-full shrink-0 sm:w-auto"
                 isDisabled={rotar.isPending}
                 size="sm"
                 variant="secondary"
@@ -339,8 +330,8 @@ export default function ClienteFichaPage() {
               </>
             ) : null}
 
-            <Card className="gap-0 p-0">
-              <Card.Header className="flex-row flex-wrap items-center justify-between gap-2 p-5 pb-3">
+            <Card className="gap-0 overflow-hidden p-0">
+              <Card.Header className="flex-row flex-wrap items-center justify-between gap-2 px-4 py-4 pb-3 sm:px-5">
                 <div className="min-w-0">
                   <Card.Title className="text-base text-tinta-900">
                     Facturas abiertas
@@ -367,7 +358,7 @@ export default function ClienteFichaPage() {
                     {cuenta.data!.facturas.map((f, idx) => (
                       <li
                         key={f.id}
-                        className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 border-t border-[var(--border-subtle)] px-5 py-3"
+                        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-t border-[var(--border-subtle)] px-4 py-3 sm:px-5"
                       >
                         <div className="min-w-0">
                           <p className="truncate font-mono text-xs text-tinta-500">
@@ -412,8 +403,78 @@ export default function ClienteFichaPage() {
               </Card.Content>
             </Card>
 
-            <Card className="gap-0 p-0">
-              <Card.Header className="flex-row flex-wrap items-center justify-between gap-2 p-5 pb-3">
+            <Card className="gap-0 overflow-hidden p-0">
+              <Card.Header className="flex-row flex-wrap items-center justify-between gap-2 px-4 py-4 pb-3 sm:px-5">
+                <div className="min-w-0">
+                  <Card.Title className="text-base text-tinta-900">
+                    Abonos
+                  </Card.Title>
+                  <Card.Description>
+                    Efectivo, transferencias y cheques · con comprobante si
+                    aplica
+                  </Card.Description>
+                </div>
+                <Link href={`/cartera?clienteId=${id}`} className="text-sm">
+                  Ver en cartera
+                </Link>
+              </Card.Header>
+              <Card.Content className="p-0">
+                {cuenta.isLoading ? (
+                  <RowSkeleton rows={3} />
+                ) : (cuenta.data?.abonos.length ?? 0) === 0 ? (
+                  <EmptyState
+                    icon={<Receipt size={20} aria-hidden />}
+                    title="Sin abonos registrados"
+                    description="Cuando cobren o confirmen una transferencia, aparecen aquí."
+                  />
+                ) : (
+                  <ul>
+                    {cuenta.data!.abonos.map((a) => (
+                      <li
+                        key={a.id}
+                        className="grid gap-2 border-t border-[var(--border-subtle)] px-4 py-3 sm:px-5"
+                      >
+                        <div className="flex min-w-0 items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-pretty text-tinta-900">
+                              {PAGO_METODO_ETIQUETA[a.metodo]} · {a.fecha}
+                            </p>
+                            {a.descripcion ? (
+                              <p className="text-pretty text-xs text-tinta-500">
+                                {a.descripcion}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <Money centavos={a.montoCentavos} truncate />
+                            <EstadoBadge
+                              dominio="abono"
+                              estado={a.estado}
+                              size="sm"
+                            />
+                          </div>
+                        </div>
+                        {a.estado === "RECHAZADO" && a.motivoRechazo ? (
+                          <p className="text-xs text-[var(--estado-vencido-fg)]">
+                            {a.motivoRechazo}
+                          </p>
+                        ) : null}
+                        {a.comprobanteAssetId ? (
+                          <ComprobanteAssetPreview
+                            assetId={a.comprobanteAssetId}
+                            alt={`Comprobante ${PAGO_METODO_ETIQUETA[a.metodo].toLowerCase()} del ${a.fecha}`}
+                            className="w-full max-w-xs"
+                          />
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card.Content>
+            </Card>
+
+            <Card className="gap-0 overflow-hidden p-0">
+              <Card.Header className="flex-row flex-wrap items-center justify-between gap-2 px-4 py-4 pb-3 sm:px-5">
                 <div className="min-w-0">
                   <Card.Title className="text-base text-tinta-900">
                     Historial de pedidos
@@ -451,7 +512,7 @@ export default function ClienteFichaPage() {
                             historial: true,
                             pedidoId: p.id,
                           })}
-                          className="flex min-h-fila min-w-0 items-center gap-2 px-5 py-2.5 text-inherit no-underline hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco sm:gap-3"
+                          className="flex min-h-fila min-w-0 items-start gap-3 px-4 py-3 text-inherit no-underline hover:bg-tinta-50 hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco sm:items-center sm:px-5"
                         >
                           <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-tinta-500 sm:w-14">
                             #{p.correlativo}
@@ -465,12 +526,14 @@ export default function ClienteFichaPage() {
                               operación {p.fechaOperacion}
                             </span>
                           </span>
-                          <EstadoBadge estado={p.estado} size="sm" />
-                          <Money
-                            centavos={p.totalCentavos}
-                            truncate
-                            className="shrink-0 text-sm sm:text-base"
-                          />
+                          <span className="flex shrink-0 flex-col items-end gap-1">
+                            <Money
+                              centavos={p.totalCentavos}
+                              truncate
+                              className="text-sm sm:text-base"
+                            />
+                            <EstadoBadge estado={p.estado} size="sm" />
+                          </span>
                         </Link>
                       </li>
                     ))}
@@ -486,164 +549,23 @@ export default function ClienteFichaPage() {
             <p className="text-sm text-pretty text-tinta-500">
               El alias es como el restaurante nombra el producto; la nota de
               producción viaja a la hoja del día. Cada cambio se guarda al salir
-              del campo.
+              del campo. Si el precio queda vacío, hereda el del catálogo.
             </p>
-            {filas.isLoading ? (
-              <RowSkeleton rows={5} />
-            ) : (
-              <div className="min-w-0 overflow-x-auto">
-                <Table>
-                  <Table.ScrollContainer>
-                    <Table.Content
-                      aria-label={`Productos de ${c.nombre}`}
-                      className="min-w-[720px]"
-                    >
-                    <Table.Header>
-                      <Table.Column isRowHeader id="producto">
-                        Producto
-                      </Table.Column>
-                      <Table.Column id="familia">Familia</Table.Column>
-                      <Table.Column id="alias">Alias</Table.Column>
-                      <Table.Column id="precio_base">Base</Table.Column>
-                      <Table.Column id="precio">Precio cliente</Table.Column>
-                      <Table.Column id="nota">Nota producción</Table.Column>
-                      <Table.Column id="favorito">Favorito</Table.Column>
-                    </Table.Header>
-                    <Table.Body
-                      items={filas.data ?? []}
-                      renderEmptyState={() => (
-                        <EmptyState
-                          title="Sin productos"
-                          description="Este cliente aún no tiene productos asignados en el catálogo."
-                        />
-                      )}
-                    >
-                      {(fila: ClienteProductoFila) => (
-                        <Table.Row id={fila.productoId}>
-                          <Table.Cell>
-                            <div className="font-semibold text-tinta-900">
-                              {fila.nombreCanonico}
-                            </div>
-                            <div className="font-mono text-xs text-tinta-500">
-                              {fila.sku}
-                            </div>
-                          </Table.Cell>
-                          <Table.Cell className="text-tinta-500">
-                            {FAMILIA_ETIQUETA[fila.familia]}
-                          </Table.Cell>
-                          <Table.Cell>
-                            <InlineText
-                              key={fila.alias ?? ""}
-                              etiqueta={`Alias de ${fila.nombreCanonico}`}
-                              value={fila.alias ?? ""}
-                              disabled={!canWrite}
-                              onSave={(alias) =>
-                                api(`/clientes/${id}/productos/${fila.productoId}`, {
-                                  method: "PUT",
-                                  body: JSON.stringify({ alias: alias || null }),
-                                }).then(() =>
-                                  qc.invalidateQueries({
-                                    queryKey: ["clientes", id, "productos"],
-                                  }),
-                                )
-                              }
-                            />
-                          </Table.Cell>
-                          <Table.Cell className="text-right text-tinta-500">
-                            <Money centavos={fila.precioBaseCentavos} />
-                          </Table.Cell>
-                          <Table.Cell className="text-right">
-                            {canPrecio ? (
-                              <InlinePrecio
-                                key={String(fila.precioCentavos)}
-                                etiqueta={`Precio de ${fila.nombreCanonico}`}
-                                centavos={fila.precioCentavos}
-                                onSave={(precioCentavos) =>
-                                  api(
-                                    `/clientes/${id}/productos/${fila.productoId}`,
-                                    {
-                                      method: "PUT",
-                                      body: JSON.stringify({ precioCentavos }),
-                                    },
-                                  ).then(() =>
-                                    qc.invalidateQueries({
-                                      queryKey: ["clientes", id, "productos"],
-                                    }),
-                                  )
-                                }
-                              />
-                            ) : (
-                              <Money
-                                centavos={precioEfectivoCentavos({
-                                  precioClienteCentavos: fila.precioCentavos,
-                                  precioBaseCentavos: fila.precioBaseCentavos,
-                                })}
-                              />
-                            )}
-                          </Table.Cell>
-                          <Table.Cell>
-                            <InlineText
-                              key={fila.notaProduccion ?? ""}
-                              etiqueta={`Nota de producción de ${fila.nombreCanonico}`}
-                              value={fila.notaProduccion ?? ""}
-                              disabled={!canWrite}
-                              onSave={(notaProduccion) =>
-                                api(`/clientes/${id}/productos/${fila.productoId}`, {
-                                  method: "PUT",
-                                  body: JSON.stringify({
-                                    notaProduccion: notaProduccion || null,
-                                  }),
-                                }).then(() =>
-                                  qc.invalidateQueries({
-                                    queryKey: ["clientes", id, "productos"],
-                                  }),
-                                )
-                              }
-                            />
-                          </Table.Cell>
-                          <Table.Cell>
-                            <div className="flex justify-center">
-                              <Checkbox
-                                aria-label={`Favorito: ${fila.nombreCanonico}`}
-                                isDisabled={!canWrite}
-                                isSelected={fila.favorito}
-                                onChange={(favorito) => {
-                                  void api(
-                                    `/clientes/${id}/productos/${fila.productoId}`,
-                                    {
-                                      method: "PUT",
-                                      body: JSON.stringify({ favorito }),
-                                    },
-                                  ).then(() =>
-                                    qc.invalidateQueries({
-                                      queryKey: ["clientes", id, "productos"],
-                                    }),
-                                  );
-                                }}
-                              >
-                                <Checkbox.Content>
-                                  <Checkbox.Control>
-                                    <Checkbox.Indicator />
-                                  </Checkbox.Control>
-                                </Checkbox.Content>
-                              </Checkbox>
-                            </div>
-                          </Table.Cell>
-                        </Table.Row>
-                      )}
-                    </Table.Body>
-                  </Table.Content>
-                </Table.ScrollContainer>
-              </Table>
-              </div>
-            )}
+            <ClientePrecios
+              clienteId={id}
+              clienteNombre={c.nombre}
+              filas={filas.data}
+              cargando={filas.isLoading}
+              canWrite={canWrite}
+              canPrecio={canPrecio}
+            />
           </div>
         )}
 
         {seccion === "datos" && (
           <div className="grid min-w-0 gap-4">
             {canWrite && (
-              <Card className="p-5">
+              <Card className="p-4 sm:p-5">
                 <Card.Header>
                   <Card.Title className="text-base text-tinta-900">Foto</Card.Title>
                   <Card.Description>
@@ -680,7 +602,7 @@ export default function ClienteFichaPage() {
               </Card>
             )}
 
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <Card.Header>
                 <Card.Title className="text-base text-tinta-900">Ficha</Card.Title>
                 <Card.Description>
@@ -693,7 +615,7 @@ export default function ClienteFichaPage() {
             </Card>
 
             {canWrite && (
-              <Card className="gap-3 border-[var(--red-100)] p-5">
+              <Card className="gap-3 border-[var(--red-100)] p-4 sm:p-5">
                 <Card.Header>
                   <Card.Title className="text-base text-tinta-900">
                     {c.activo ? "Desactivar cliente" : "Reactivar cliente"}
@@ -707,6 +629,7 @@ export default function ClienteFichaPage() {
                 <Card.Footer>
                   {c.activo ? (
                     <Button
+                      className="w-full sm:w-auto"
                       isDisabled={desactivar.isPending}
                       size="sm"
                       variant="danger"
@@ -716,6 +639,7 @@ export default function ClienteFichaPage() {
                     </Button>
                   ) : (
                     <Button
+                      className="w-full sm:w-auto"
                       isDisabled={activar.isPending}
                       size="sm"
                       variant="secondary"
@@ -769,6 +693,21 @@ export default function ClienteFichaPage() {
         </Modal.Container>
       </Modal.Backdrop>
     </PanelShell>
+  );
+}
+
+function VolverAClientes() {
+  const router = useRouter();
+  return (
+    <Button
+      className="self-start"
+      size="sm"
+      variant="tertiary"
+      onPress={() => router.push("/clientes")}
+    >
+      <ChevronLeft size={16} aria-hidden />
+      Clientes
+    </Button>
   );
 }
 
@@ -880,7 +819,12 @@ function FichaForm({
 
       {canWrite && (
         <div className="md:col-span-2">
-          <Button isDisabled={guardar.isPending} type="submit" variant="primary">
+          <Button
+            className="w-full sm:w-auto"
+            isDisabled={guardar.isPending}
+            type="submit"
+            variant="primary"
+          >
             {guardar.isPending ? "Un momento…" : "Guardar ficha"}
           </Button>
         </div>
@@ -891,84 +835,5 @@ function FichaForm({
         </p>
       )}
     </form>
-  );
-}
-
-function InlineText({
-  value,
-  etiqueta,
-  disabled,
-  onSave,
-}: {
-  value: string;
-  etiqueta: string;
-  disabled: boolean;
-  onSave: (value: string) => Promise<unknown>;
-}) {
-  const [text, setText] = useState(value);
-  return (
-    <TextField
-      aria-label={etiqueta}
-      isDisabled={disabled}
-      value={text}
-      onChange={setText}
-      onBlur={() => {
-        if (text !== value) void onSave(text);
-      }}
-    >
-      <Input className="min-w-[8rem]" />
-    </TextField>
-  );
-}
-
-function InlinePrecio({
-  centavos,
-  etiqueta,
-  onSave,
-}: {
-  centavos: number | null;
-  etiqueta: string;
-  onSave: (value: number | null) => Promise<unknown>;
-}) {
-  const [text, setText] = useState(
-    centavos == null
-      ? ""
-      : formatearCentavos(centavos, { simbolo: false, miles: false }),
-  );
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <TextField
-      aria-label={etiqueta}
-      className="ml-auto w-28"
-      isInvalid={error != null}
-      value={text}
-      onChange={setText}
-      onBlur={() => {
-        if (text.trim() === "") {
-          setError(null);
-          if (centavos != null) void onSave(null);
-          return;
-        }
-        try {
-          const next = quetzalesTextoACentavos(text);
-          setError(null);
-          if (next !== centavos) void onSave(next);
-          setText(formatearCentavos(next, { simbolo: false, miles: false }));
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Precio inválido");
-        }
-      }}
-    >
-      <Input
-        className="text-right tabular-nums"
-        inputMode="decimal"
-      placeholder="Q"
-    />
-    <Description className="text-tinta-500">
-      Vacío hereda el precio base del catálogo.
-    </Description>
-      {error && <Description className="text-peligro">{error}</Description>}
-    </TextField>
   );
 }

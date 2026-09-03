@@ -11,14 +11,13 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { origenPedidoLabel } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
-import { PortalShell } from "@/components/portal/portal-shell";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PortalPedidosPage() {
-  const { token, sesion } = usePortalSession();
+  const { token } = usePortalSession();
   const base = `/p/${encodeURIComponent(token)}`;
 
   const historial = useInfiniteQuery({
@@ -34,7 +33,6 @@ export default function PortalPedidosPage() {
   const items = historial.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
-    <PortalShell clienteNombre={sesion.cliente.nombre}>
       <div className="grid gap-4 py-4">
         <div>
           <h1 className="sr-only text-xl font-semibold text-tinta-900 lg:not-sr-only">
@@ -117,7 +115,6 @@ export default function PortalPedidosPage() {
           </Button>
         ) : null}
       </div>
-    </PortalShell>
   );
 }
 

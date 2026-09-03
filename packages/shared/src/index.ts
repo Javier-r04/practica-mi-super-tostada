@@ -54,6 +54,7 @@ export {
   FAMILIAS,
   PAGO_ESTADOS,
   PAGO_METODOS,
+  PAGO_METODO_ETIQUETA,
   PEDIDO_ESTADOS,
   PEDIDO_ORIGENES,
   PUNTOS_CARGA,
@@ -65,6 +66,7 @@ export {
   type Familia,
   type PagoEstado,
   type PagoMetodo,
+  pagoRequiereComprobante,
   type PedidoEstado,
   type PedidoOrigen,
   type PuntoCarga,
@@ -297,8 +299,11 @@ export {
   type ReaperturaResultado,
 } from "./fulfillment";
 export {
+  clientesDeProducto,
+  desgloseProductoConNotas,
   gruposNotaProduccion,
   textoClienteNota,
+  type ClienteDeProducto,
   type NotaProduccionCliente,
   type NotaProduccionGrupo,
 } from "./nota-produccion";

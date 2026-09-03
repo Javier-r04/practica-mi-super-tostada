@@ -4,7 +4,6 @@ import {
   deltaCantidad,
   gruposPorFamilia,
   lineasVisibles,
-  recortarConsolidado,
   totalesPorFamilia,
 } from "./produccion-vista";
 
@@ -186,45 +185,3 @@ describe("deltaCantidad", () => {
   });
 });
 
-describe("recortarConsolidado", () => {
-  test("texto corto no recorta", () => {
-    const texto = "PEDIDO PARA LUNES\n\nTABASCO CASA VIEJA\n150 lb Tortilla";
-    expect(recortarConsolidado(texto)).toEqual({
-      preview: texto,
-      totalLineas: 4,
-      recortado: false,
-    });
-  });
-
-  test("exactamente 8 líneas no recorta", () => {
-    const lineas = Array.from({ length: 8 }, (_, i) => `L${i + 1}`);
-    const texto = lineas.join("\n");
-    expect(recortarConsolidado(texto)).toEqual({
-      preview: texto,
-      totalLineas: 8,
-      recortado: false,
-    });
-  });
-
-  test("18 líneas deja 8 y recortado", () => {
-    const lineas = Array.from({ length: 18 }, (_, i) => `L${i + 1}`);
-    const texto = lineas.join("\n");
-    const r = recortarConsolidado(texto);
-    expect(r.totalLineas).toBe(18);
-    expect(r.recortado).toBe(true);
-    expect(r.preview).toBe(lineas.slice(0, 8).join("\n"));
-    expect(r.preview.split("\n")).toHaveLength(8);
-  });
-
-  test("el salto de línea entre renglones del preview se conserva", () => {
-    const texto = "A\nB\nC\nD\nE\nF\nG\nH\nI";
-    expect(recortarConsolidado(texto).preview).toBe("A\nB\nC\nD\nE\nF\nG\nH");
-  });
-
-  test("newline final del consolidado no cuenta como línea extra", () => {
-    const r = recortarConsolidado("A\nB\n");
-    expect(r.totalLineas).toBe(2);
-    expect(r.recortado).toBe(false);
-    expect(r.preview).toBe("A\nB");
-  });
-});

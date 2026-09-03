@@ -39,12 +39,19 @@ export type PedidoOrigen = (typeof PEDIDO_ORIGENES)[number];
 export const FAMILIAS = ["TORTILLA", "TOSTADA", "FRITURA"] as const;
 export type Familia = (typeof FAMILIAS)[number];
 
-/**
- * Cheque no es método de pago: queda en `notas_permanentes` del cliente
- * (Escuelita La Ciénaga). El enum no lo incluye.
- */
-export const PAGO_METODOS = ["EFECTIVO", "TRANSFERENCIA"] as const;
+export const PAGO_METODOS = ["EFECTIVO", "TRANSFERENCIA", "CHEQUE"] as const;
 export type PagoMetodo = (typeof PAGO_METODOS)[number];
+
+export const PAGO_METODO_ETIQUETA: Record<PagoMetodo, string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+  CHEQUE: "Cheque",
+};
+
+/** Transferencia y cheque exigen foto; efectivo no. */
+export function pagoRequiereComprobante(metodo: PagoMetodo): boolean {
+  return metodo === "TRANSFERENCIA" || metodo === "CHEQUE";
+}
 
 export const ABONO_ESTADOS = ["PENDIENTE", "CONFIRMADO", "RECHAZADO"] as const;
 export type AbonoEstado = (typeof ABONO_ESTADOS)[number];

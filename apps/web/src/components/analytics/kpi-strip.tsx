@@ -67,7 +67,7 @@ export function KpiStrip({ data }: { data: Tablero }) {
         ancla="chart-cobrado"
         etiqueta="Cobrado"
         valor={<Money centavos={k.cobradoCentavos} />}
-        nota={`Efectivo ${formatearCentavos(k.cobradoEfectivoCentavos)} · Transferencia ${formatearCentavos(k.cobradoTransferenciaCentavos)}`}
+        nota={`Efectivo ${formatearCentavos(k.cobradoEfectivoCentavos)} · Transferencia ${formatearCentavos(k.cobradoTransferenciaCentavos)} · Cheque ${formatearCentavos(k.cobradoChequeCentavos)}`}
       />
       <KpiCardAncla
         ancla={unDia ? "chart-sin-pedido" : "chart-clientes"}

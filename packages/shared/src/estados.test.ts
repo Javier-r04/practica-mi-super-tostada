@@ -89,7 +89,6 @@ describe("estados de dominio", () => {
     ]);
     expect(PEDIDO_ORIGENES).toEqual(["PORTAL", "MANUAL"]);
     expect(FAMILIAS).toEqual(["TORTILLA", "TOSTADA", "FRITURA"]);
-    expect(PAGO_METODOS).toEqual(["EFECTIVO", "TRANSFERENCIA"]);
-    expect(PAGO_METODOS).not.toContain("CHEQUE");
+    expect(PAGO_METODOS).toEqual(["EFECTIVO", "TRANSFERENCIA", "CHEQUE"]);
   });
 });

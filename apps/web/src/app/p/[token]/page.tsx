@@ -17,15 +17,10 @@ import {
   ctaInicioSecundaria,
   entregaCopy,
   copyProximaApertura,
-  propsVentanaCountdown,
-  propsVentanaPedido,
   saludoCopy,
 } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
-import { PortalShell } from "@/components/portal/portal-shell";
 import { PortalPedidoChip } from "@/components/portal/portal-pedido-chip";
-import { VentanaCountdown } from "@/components/portal/ventana-countdown";
-import { VentanaBadge } from "@/components/domain/ventana-badge";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { cn } from "@/lib/utils";
@@ -46,8 +41,7 @@ export default function PortalInicioPage() {
     cta.kind === "pedidos" ? `${base}/pedidos` : `${base}/pedir`;
 
   return (
-    <PortalShell clienteNombre={sesion.cliente.nombre}>
-      <div className="grid gap-4 py-4">
+    <div className="grid gap-4 py-4">
         {/* Encabezado de marca: saludo, estado de la ventana y —lo que decide
             el día— cuánto falta para que cierre el pedido. */}
         <Card
@@ -56,10 +50,6 @@ export default function PortalInicioPage() {
           <h1 className="min-w-0 text-balance font-display text-2xl leading-tight text-acento">
             {saludoCopy(sesion.saludo, sesion.cliente.nombre)}
           </h1>
-          <VentanaBadge {...propsVentanaPedido(sesion.ventana)} />
-          {abierta ? (
-            <VentanaCountdown {...propsVentanaCountdown(sesion.ventana)} />
-          ) : null}
           <p className="text-sm leading-relaxed text-[var(--green-100)]">
             {cierreAnticipado ? (
               <>
@@ -84,7 +74,7 @@ export default function PortalInicioPage() {
             fullWidth
             size="lg"
             variant="primary"
-            className={cta.kind === "pedidos" ? "button--accent" : undefined}
+            className="button--accent"
             onPress={() => router.push(hrefCta)}
           >
             <span className="inline-flex flex-wrap items-center justify-center gap-2">
@@ -131,7 +121,6 @@ export default function PortalInicioPage() {
           <LosetaUltimoPedido pedido={sesion.ultimoPedido} hrefBase={base} />
         </div>
       </div>
-    </PortalShell>
   );
 }
 

@@ -63,6 +63,7 @@ export const pedidoOrigenEnum = pgEnum("pedido_origen", ["PORTAL", "MANUAL"]);
 export const pagoMetodoEnum = pgEnum("pago_metodo", [
   "EFECTIVO",
   "TRANSFERENCIA",
+  "CHEQUE",
 ]);
 
 export const abonoEstadoEnum = pgEnum("abono_estado", [

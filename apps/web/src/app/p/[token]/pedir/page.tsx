@@ -19,29 +19,23 @@ import {
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import {
-  avisoLimiteCredito,
   cierreAnticipadoVentana,
   copyEdicionHasta,
   copyProximaApertura,
   entregaCopy,
   gruposCatalogo,
-  propsVentanaCountdown,
-  propsVentanaPedido,
 } from "@/lib/portal-vista";
 import {
   itemsElegidosDe,
   usePortalSession,
 } from "@/components/portal/portal-session";
-import { PortalShell } from "@/components/portal/portal-shell";
+import { PortalFooter } from "@/components/portal/portal-shell";
 import { PortalPedidoChip } from "@/components/portal/portal-pedido-chip";
-import { VentanaCountdown } from "@/components/portal/ventana-countdown";
 import {
   PortalProductoFila,
   PortalSeccion,
 } from "@/components/portal/portal-producto-fila";
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
-import { ContadorFacturas } from "@/components/domain/contador-facturas";
-import { VentanaBadge } from "@/components/domain/ventana-badge";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -66,9 +60,8 @@ export default function PortalPedirPage() {
 
   const abierta = sesion.ventana.abierta;
   const cierreAnticipado = cierreAnticipadoVentana(sesion.ventana);
-  const countdown = propsVentanaCountdown(sesion.ventana);
   const pedido = sesion.pedidoAbierto;
-  const aviso = avisoLimiteCredito(sesion.cuenta);
+  const base = `/p/${encodeURIComponent(token)}`;
 
   const itemsElegidos = useMemo(
     () => itemsElegidosDe(sesion.catalogo, cantidades),
@@ -165,7 +158,7 @@ export default function PortalPedirPage() {
 
   if (confirmado && pedido) {
     return (
-      <PortalShell clienteNombre={sesion.cliente.nombre}>
+      <>
         <div className="grid min-w-0 gap-4 py-4" role="status">
           <Card className="gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-5 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
             <CheckCircle2 size={32} className="text-acento" aria-hidden />
@@ -186,10 +179,6 @@ export default function PortalPedirPage() {
               <PortalPedidoChip pedido={pedido} tono="oscuro" />
             </div>
           </Card>
-
-          {abierta ? (
-            <VentanaCountdown {...countdown} variant="barra" />
-          ) : null}
 
           <section className="grid gap-2">
             <h2 className="px-1 mst-label">Lo que pidió</h2>
@@ -313,15 +302,12 @@ export default function PortalPedirPage() {
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>
-      </PortalShell>
+      </>
     );
   }
 
   const resumenElegido = (
-    <div className="grid gap-3">
-      {abierta ? (
-        <VentanaCountdown {...countdown} variant="barra" />
-      ) : null}
+    <div className="grid gap-2">
       <div className="flex min-w-0 items-baseline justify-between gap-2">
         <span className="shrink-0 text-sm text-tinta-600 tabular-nums">
           {itemsElegidos.length}{" "}
@@ -329,17 +315,11 @@ export default function PortalPedirPage() {
         </span>
         <Money centavos={totalCentavos} className="text-[17px]" truncate />
       </div>
-      {sesion.cuenta.facturasPendientes > 0 ? (
-        <ContadorFacturas
-          pendientes={sesion.cuenta.facturasPendientes}
-          montoCentavos={sesion.cuenta.saldoCentavos}
-          destacado={aviso != null}
-        />
-      ) : null}
       <Button
         fullWidth
         size="lg"
         variant="primary"
+        className="button--accent"
         isDisabled={!abierta || itemsElegidos.length === 0}
         onPress={() => {
           setErrorAccion(null);
@@ -359,25 +339,19 @@ export default function PortalPedirPage() {
   ];
 
   return (
-    <PortalShell
-      clienteNombre={sesion.cliente.nombre}
-      footer={<div className="min-w-0 lg:hidden">{resumenElegido}</div>}
-    >
+    <>
+      {itemsElegidos.length > 0 ? (
+        <PortalFooter>
+          <div className="min-w-0 lg:hidden">{resumenElegido}</div>
+        </PortalFooter>
+      ) : null}
       <div className="grid min-w-0 flex-1 gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <div className="grid min-w-0 gap-4">
-          {/* Lo primero de la pantalla: cuánto falta. Si el cliente no lo ve,
-              pierde el pedido del día. */}
-          <Card className="min-w-0 gap-3 border-[var(--green-900)] bg-[var(--surface-brand)] p-4 text-[var(--text-on-brand)] shadow-[var(--shadow-md)]">
-            <div className="flex flex-wrap items-center gap-2">
-              <VentanaBadge {...propsVentanaPedido(sesion.ventana)} />
-              {pedido ? (
-                <PortalPedidoChip pedido={pedido} tono="oscuro" />
-              ) : null}
-            </div>
-            {abierta ? (
-              <VentanaCountdown {...countdown} />
-            ) : null}
-            <p className="min-w-0 text-sm leading-relaxed text-[var(--green-100)]">
+          <div>
+            <h1 className="sr-only text-xl font-semibold text-tinta-900 lg:not-sr-only">
+              Pedir
+            </h1>
+            <p className="mt-1 text-pretty text-sm text-tinta-500">
               {cierreAnticipado ? (
                 <>
                   {entregaCopy(sesion)} El día ya cerró.{" "}
@@ -385,8 +359,16 @@ export default function PortalPedirPage() {
                 </>
               ) : abierta ? (
                 <>
-                  {entregaCopy(sesion)}{" "}
-                  {copyEdicionHasta(sesion.ventana.cierraAt)}
+                  {entregaCopy(sesion)}
+                  {pedido ? (
+                    <>
+                      {" "}
+                      Pedido #{pedido.correlativo}.{" "}
+                      {copyEdicionHasta(sesion.ventana.cierraAt)}
+                    </>
+                  ) : (
+                    <> {copyEdicionHasta(sesion.ventana.cierraAt)}</>
+                  )}
                 </>
               ) : (
                 <>
@@ -395,17 +377,7 @@ export default function PortalPedirPage() {
                 </>
               )}
             </p>
-          </Card>
-
-          {aviso ? (
-            <Alert status="warning">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>Facturas pendientes</Alert.Title>
-                <Alert.Description>{aviso}</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          ) : null}
+          </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <SearchField
@@ -433,7 +405,7 @@ export default function PortalPedirPage() {
               titulo={s.titulo}
               cuenta={s.productos.length}
             >
-              <div className="lg:hidden">
+              <div className="divide-y divide-[var(--border-subtle)] lg:hidden">
                 {s.productos.map((p) => (
                   <PortalProductoFila
                     key={p.productoId}
@@ -442,10 +414,11 @@ export default function PortalPedirPage() {
                     onChange={(n) => setCantidad(p.productoId, n)}
                     bloqueado={!abierta}
                     assetPath={assetPath}
+                    href={`${base}/pedir/${p.productoId}`}
                   />
                 ))}
               </div>
-              <div className="hidden grid-cols-2 gap-3 p-3 lg:grid xl:grid-cols-3">
+              <div className="hidden grid-cols-2 gap-3 lg:grid xl:grid-cols-3">
                 {s.productos.map((p) => (
                   <PortalProductoFila
                     key={p.productoId}
@@ -455,6 +428,7 @@ export default function PortalPedirPage() {
                     bloqueado={!abierta}
                     assetPath={assetPath}
                     layout="card"
+                    href={`${base}/pedir/${p.productoId}`}
                   />
                 ))}
               </div>
@@ -487,7 +461,15 @@ export default function PortalPedirPage() {
             <Card.Header className="gap-1">
               <Card.Title>Su pedido</Card.Title>
             </Card.Header>
-            <Card.Content>{resumenElegido}</Card.Content>
+            <Card.Content>
+              {itemsElegidos.length === 0 ? (
+                <p className="text-sm text-tinta-500">
+                  Toque un producto para armar el pedido.
+                </p>
+              ) : (
+                resumenElegido
+              )}
+            </Card.Content>
           </Card>
         </aside>
       </div>
@@ -539,39 +521,6 @@ export default function PortalPedirPage() {
                 ))}
               </Card>
 
-              {sesion.cuenta.facturasPendientes > 0 ? (
-                <div className="grid gap-2">
-                  <ContadorFacturas
-                    pendientes={sesion.cuenta.facturasPendientes}
-                    montoCentavos={sesion.cuenta.saldoCentavos}
-                    destacado={aviso != null}
-                  />
-                  <ul className="grid gap-1.5">
-                    {sesion.cuenta.facturas.map((fac) => (
-                      <li
-                        key={fac.id}
-                        className="flex min-w-0 items-baseline justify-between gap-2 text-sm"
-                      >
-                        <span className="min-w-0 truncate text-tinta-500">
-                          {fac.numeroDte ?? "Sin DTE"} · {fac.antiguedadDias}{" "}
-                          {fac.antiguedadDias === 1 ? "día" : "días"}
-                        </span>
-                        <Money centavos={fac.saldoCentavos} truncate className="shrink-0" />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {aviso ? (
-                <Alert status="warning">
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Description>{aviso}</Alert.Description>
-                  </Alert.Content>
-                </Alert>
-              ) : null}
-
               {errorAccion ? (
                 <Alert status="danger">
                   <Alert.Indicator />
@@ -582,9 +531,11 @@ export default function PortalPedirPage() {
                 </Alert>
               ) : null}
 
-              <p className="text-xs text-tinta-500">
-                Para anular, llame a la fábrica.
-              </p>
+              {abierta ? (
+                <p className="text-xs text-tinta-500">
+                  {copyEdicionHasta(sesion.ventana.cierraAt)}
+                </p>
+              ) : null}
             </Modal.Body>
 
             <Modal.Footer className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -600,7 +551,7 @@ export default function PortalPedirPage() {
                 isPending={confirmar.isPending}
                 size="lg"
                 variant="primary"
-                className="w-full sm:w-auto"
+                className="button--accent w-full sm:w-auto"
                 onPress={() => confirmar.mutate()}
               >
                 {({ isPending }) => (
@@ -614,6 +565,6 @@ export default function PortalPedirPage() {
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
-    </PortalShell>
+    </>
   );
 }

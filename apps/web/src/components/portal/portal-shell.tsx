@@ -1,71 +1,124 @@
 "use client";
 
-import type { ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import { Wordmark } from "@/components/brand/wordmark";
 import { PortalNav } from "@/components/portal/portal-nav";
 import { VentanaBadge } from "@/components/domain/ventana-badge";
+import { VentanaCountdown } from "@/components/portal/ventana-countdown";
 import { usePortalSession } from "@/components/portal/portal-session";
-import { propsVentanaPedido } from "@/lib/portal-vista";
+import { propsVentanaCountdown, propsVentanaPedido } from "@/lib/portal-vista";
 import { cn } from "@/lib/utils";
+
+type FooterCtx = {
+  slot: HTMLElement | null;
+  setActivo: (activo: boolean) => void;
+};
+
+const PortalFooterContext = createContext<FooterCtx | null>(null);
+
+/**
+ * Pie sticky del catálogo. Porta el contenido al chrome del layout para que
+ * el header (y el logo) no se remonte al cambiar de pestaña.
+ */
+export function PortalFooter({ children }: { children: ReactNode }) {
+  const ctx = useContext(PortalFooterContext);
+  if (!ctx) {
+    throw new Error("PortalFooter requiere PortalShell");
+  }
+
+  useLayoutEffect(() => {
+    ctx.setActivo(true);
+    return () => ctx.setActivo(false);
+  }, [ctx]);
+
+  if (!ctx.slot) return null;
+  return createPortal(children, ctx.slot);
+}
 
 /* El portal lo abre el dueño del restaurante desde su teléfono, sin
    entrenamiento: una sola columna, medida de lectura corta y todo lo accionable
-   por encima del pulgar (pie pegajoso + barra inferior). */
+   por encima del pulgar (pie pegajoso + barra inferior).
+
+   Montado una sola vez en el layout del token: el logo no se vuelve a pedir
+   al cambiar Inicio ↔ Pedir ↔ Pedidos ↔ Cuenta. */
 export function PortalShell({
-  clienteNombre,
   children,
-  footer,
   mainClassName,
 }: {
-  clienteNombre: string;
   children: ReactNode;
-  /** Pie sticky encima de la bottom nav (catálogo móvil). */
-  footer?: ReactNode;
   mainClassName?: string;
 }) {
   const { sesion } = usePortalSession();
-  const { abierta, reabierta, diaCerrado } = propsVentanaPedido(sesion.ventana);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const [footerActivo, setFooterActivo] = useState(false);
+  const setActivo = useCallback((activo: boolean) => {
+    setFooterActivo(activo);
+  }, []);
+  const footerCtx = useMemo(
+    () => ({ slot, setActivo }),
+    [slot, setActivo],
+  );
+
+  const ventanaPedido = propsVentanaPedido(sesion.ventana);
+  const countdown = propsVentanaCountdown(sesion.ventana);
+  const hayHorario = Boolean(countdown.cierraAt || countdown.abreAt);
+
   return (
-    <div className="flex min-h-[100dvh] w-full flex-col bg-[var(--surface-page)]">
-      <header className="sticky top-0 z-[var(--z-sticky)] flex h-14 shrink-0 items-center justify-between gap-2 bg-[var(--surface-brand)] px-4 sm:gap-3 lg:px-6">
-        <Wordmark compact onBrand />
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
-          {/* En móvil el nombre va en el hero de inicio o en el contexto de la
-              pantalla; aquí solo compite con el badge de ventana. */}
-          <p className="hidden min-w-0 truncate text-sm font-semibold text-blanco lg:block">
-            {clienteNombre}
-          </p>
-          {/* Estado operativo, misma fuente que el navbar del panel. El
-              countdown largo vive en el hero: `size="sm"` solo muestra la
-              etiqueta corta para que no reviente el header en móvil. */}
-          <VentanaBadge
-            size="sm"
-            abierta={abierta}
-            reabierta={reabierta}
-            diaCerrado={diaCerrado}
+    <PortalFooterContext.Provider value={footerCtx}>
+      <div className="flex min-h-[100dvh] w-full flex-col bg-[var(--surface-page)]">
+        <header className="sticky top-0 z-[var(--z-sticky)] flex h-14 shrink-0 items-center justify-between gap-2 bg-[var(--surface-brand)] px-4 sm:gap-3 lg:px-6">
+          <Wordmark compact onBrand />
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
+            <p className="hidden min-w-0 truncate text-sm font-semibold text-blanco lg:block">
+              {sesion.cliente.nombre}
+            </p>
+            {ventanaPedido.reabierta ? (
+              <VentanaBadge size="sm" {...ventanaPedido} />
+            ) : hayHorario ? (
+              <VentanaCountdown
+                {...countdown}
+                variant="navbar"
+                className="min-w-0 shrink"
+              />
+            ) : (
+              <VentanaBadge size="sm" {...ventanaPedido} />
+            )}
+          </div>
+        </header>
+        <PortalNav variant="top" />
+        <main
+          className={cn(
+            "mx-auto flex min-h-0 w-full max-w-[var(--page-max)] flex-1 flex-col px-4 lg:px-6 lg:pb-10",
+            footerActivo
+              ? "pb-[calc(var(--bottombar-height)+var(--portal-footer-height)+env(safe-area-inset-bottom,0px))]"
+              : "pb-[calc(var(--bottombar-height)+1rem+env(safe-area-inset-bottom,0px))]",
+            mainClassName,
+          )}
+        >
+          {children}
+        </main>
+        <div
+          className={cn(
+            "sticky bottom-[calc(var(--bottombar-height)+env(safe-area-inset-bottom,0px))] z-[calc(var(--z-nav)-1)] border-t border-[var(--border-subtle)] bg-blanco shadow-[0_-2px_8px_rgba(23,25,15,.06)] lg:hidden",
+            !footerActivo && "hidden",
+          )}
+        >
+          <div
+            ref={setSlot}
+            className="mx-auto max-w-[var(--page-max)] px-4 py-3"
           />
         </div>
-      </header>
-      <PortalNav variant="top" />
-      <main
-        className={cn(
-          "mx-auto flex min-h-0 w-full max-w-[var(--page-max)] flex-1 flex-col px-4 lg:px-6 lg:pb-10",
-          footer
-            ? "pb-[calc(var(--bottombar-height)+var(--portal-footer-height)+env(safe-area-inset-bottom,0px))]"
-            : "pb-[calc(var(--bottombar-height)+1rem+env(safe-area-inset-bottom,0px))]",
-          mainClassName,
-        )}
-      >
-        {children}
-      </main>
-      {footer ? (
-        <div className="sticky bottom-[calc(var(--bottombar-height)+env(safe-area-inset-bottom,0px))] z-[calc(var(--z-nav)-1)] border-t border-[var(--border-subtle)] bg-blanco shadow-[0_-2px_8px_rgba(23,25,15,.06)] lg:static lg:shadow-none">
-          <div className="mx-auto max-w-[var(--page-max)] px-4 py-3 lg:px-6">
-            {footer}
-          </div>
-        </div>
-      ) : null}
-      <PortalNav variant="bottom" />
-    </div>
+        <PortalNav variant="bottom" />
+      </div>
+    </PortalFooterContext.Provider>
   );
 }

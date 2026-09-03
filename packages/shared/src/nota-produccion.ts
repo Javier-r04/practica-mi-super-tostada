@@ -13,6 +13,14 @@ export type NotaProduccionGrupo = {
   clientes: NotaProduccionCliente[];
 };
 
+/** Cliente que pidió un producto en la hoja, con o sin nota especial. */
+export type ClienteDeProducto = {
+  nombre: string;
+  cantidad: number;
+  unidadMedida: UnidadMedida;
+  notaProduccion: string | null;
+};
+
 const SEP_NOTA_CLIENTE = " · ";
 const SEP_SEGMENTOS = "; ";
 
@@ -40,6 +48,58 @@ export function textoClienteNota(cliente: NotaProduccionCliente): string {
     return cliente.nombre;
   }
   return `${cliente.nombre} · ${cliente.cantidad} ${UNIDAD_CORTA[cliente.unidadMedida]}`;
+}
+
+/**
+ * Desglose completo de un producto: todos los clientes que lo pidieron,
+ * no solo los de nota especial. Orden alfabético por nombre.
+ */
+export function clientesDeProducto(
+  productoId: string,
+  clientes?: readonly BloqueCliente[],
+): ClienteDeProducto[] {
+  if (!clientes?.length) return [];
+  const lista: ClienteDeProducto[] = [];
+  for (const bloque of clientes) {
+    for (const item of bloque.items) {
+      if (item.productoId !== productoId) continue;
+      const nota = item.notaProduccion?.trim() || null;
+      lista.push({
+        nombre: bloque.nombre,
+        cantidad: item.cantidad,
+        unidadMedida: item.unidadMedida,
+        notaProduccion: nota,
+      });
+    }
+  }
+  return lista.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/**
+ * Desglose listo para la hoja: cantidades del snapshot + notas del ítem.
+ * Si el snapshot no trae notas pero la línea sí (string consolidado de
+ * hojas viejas), reinyecta la nota por nombre de cliente.
+ */
+export function desgloseProductoConNotas(
+  linea: Pick<LineaProducto, "productoId" | "notaProduccion">,
+  clientes?: readonly BloqueCliente[],
+): ClienteDeProducto[] {
+  const base = clientesDeProducto(linea.productoId, clientes);
+  if (base.length === 0) return base;
+  if (base.some((c) => c.notaProduccion)) return base;
+
+  const notaPorNombre = new Map<string, string>();
+  for (const grupo of gruposNotaProduccion(linea, clientes)) {
+    for (const c of grupo.clientes) {
+      if (c.nombre) notaPorNombre.set(c.nombre, grupo.nota);
+    }
+  }
+  if (notaPorNombre.size === 0) return base;
+
+  return base.map((c) => ({
+    ...c,
+    notaProduccion: notaPorNombre.get(c.nombre) ?? c.notaProduccion,
+  }));
 }
 
 function agruparDesdeClientes(

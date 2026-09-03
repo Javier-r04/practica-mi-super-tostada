@@ -333,6 +333,7 @@ describe.skipIf(!listo)("E6 tablero", () => {
       expect(tab.cartera.saldoCentavos).toBe(5000);
       expect(tab.cartera.cobradoEnRango.efectivoCentavos).toBe(2000);
       expect(tab.cartera.cobradoEnRango.transferenciaCentavos).toBe(0);
+      expect(tab.cartera.cobradoEnRango.chequeCentavos).toBe(0);
     } finally {
       await f.client.end({ timeout: 1 });
     }

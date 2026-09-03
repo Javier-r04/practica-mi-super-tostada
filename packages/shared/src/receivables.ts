@@ -6,6 +6,7 @@ import {
   PAGO_METODOS,
   PEDIDO_ESTADOS,
   UNIDADES_MEDIDA,
+  pagoRequiereComprobante,
   type PagoEstado,
 } from "./estados";
 import { centavosSchema } from "./money";
@@ -39,7 +40,7 @@ export const MENSAJE_DTE_DUPLICADO =
 export const MENSAJE_PAGO_EXCEDE_SALDO =
   "El monto supera el saldo pendiente. No se registra saldo a favor.";
 export const MENSAJE_COMPROBANTE_REQUERIDO =
-  "La transferencia requiere foto del comprobante.";
+  "Este método de pago requiere foto del comprobante.";
 export const MENSAJE_PAGO_OBJETIVO =
   "Indique exactamente una factura o un cliente.";
 export const MENSAJE_ABONO_PENDIENTE =
@@ -178,7 +179,7 @@ export const registrarPagoRequestSchema = z
     origen: z.enum(ABONO_ORIGENES).optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.metodo === "TRANSFERENCIA" && !value.comprobanteAssetId) {
+    if (pagoRequiereComprobante(value.metodo) && !value.comprobanteAssetId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: MENSAJE_COMPROBANTE_REQUERIDO,
@@ -520,6 +521,7 @@ export const cuadreActorSchema = z.object({
   username: z.string(),
   efectivoCentavos: centavosSchema,
   transferenciaCentavos: centavosSchema,
+  chequeCentavos: centavosSchema,
   count: z.number().int().nonnegative(),
 });
 export type CuadreActor = z.infer<typeof cuadreActorSchema>;
@@ -528,6 +530,7 @@ export const cuadreDiaSchema = z.object({
   fecha: fechaCalendarioSchema,
   totalEfectivoCentavos: centavosSchema,
   totalTransferenciaCentavos: centavosSchema,
+  totalChequeCentavos: centavosSchema,
   totalCentavos: centavosSchema,
   porActor: z.array(cuadreActorSchema),
   pagos: z.array(pagoPublicoSchema),

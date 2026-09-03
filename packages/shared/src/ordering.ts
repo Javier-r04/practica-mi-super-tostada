@@ -216,6 +216,21 @@ export type PortalPedidoDetalleFactura = z.infer<
   typeof portalPedidoDetalleFacturaSchema
 >;
 
+/** Cobro aplicado a la factura de un pedido (panel). */
+export const pedidoPagoSchema = z.object({
+  id: z.string().uuid(),
+  montoCentavos: centavosSchema,
+  metodo: z.enum(PAGO_METODOS),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  comprobanteAssetId: z.string().uuid().nullable(),
+});
+export type PedidoPago = z.infer<typeof pedidoPagoSchema>;
+
+export const pedidoDetalleFacturaSchema = portalPedidoDetalleFacturaSchema.extend({
+  pagos: z.array(pedidoPagoSchema),
+});
+export type PedidoDetalleFactura = z.infer<typeof pedidoDetalleFacturaSchema>;
+
 export const portalPedidoDetalleClienteSchema = portalPedidoResumenSchema.extend({
   items: z.array(portalPedidoDetalleItemSchema),
   factura: portalPedidoDetalleFacturaSchema.nullable(),
@@ -360,7 +375,7 @@ export const pedidoDetalleSchema = z.object({
   items: z.array(pedidoDetalleItemSchema),
   totalCentavos: centavosSchema,
   /** Presente cuando el pedido ya generó factura (típicamente ENTREGADO). */
-  factura: portalPedidoDetalleFacturaSchema.nullable(),
+  factura: pedidoDetalleFacturaSchema.nullable(),
   historial: z.array(pedidoAuditEntrySchema),
 });
 

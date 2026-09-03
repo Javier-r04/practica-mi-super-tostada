@@ -23,7 +23,8 @@ export function Wordmark({
       alt="Mi Súper Tostada"
       width={altoPx}
       height={altoPx}
-      decoding="async"
+      decoding="sync"
+      fetchPriority="high"
       className={cn(
         "h-10 w-auto max-h-full shrink-0 object-contain object-center",
         compact && "h-8",

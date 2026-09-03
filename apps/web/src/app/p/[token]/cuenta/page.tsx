@@ -1,123 +1,71 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Button,
-  Card,
-  Label,
-  TextArea,
-} from "@heroui/react";
-import { Receipt } from "lucide-react";
-import { ComprobantePicker } from "@/components/receivables/comprobante-picker";
-import {
-  MENSAJE_ABONO_PENDIENTE,
-  MENSAJE_DESCRIPCION_REQUERIDA,
-  quetzalesTextoACentavos,
-  type PortalCuenta,
-} from "@misupertostada/shared";
-import { api, ApiError } from "@/lib/api";
-import { toastError, toastPromise } from "@/lib/toast";
+import Link from "next/link";
+import { Alert, Card } from "@heroui/react";
+import { Banknote, ChevronRight, Receipt, Upload } from "lucide-react";
+import { formatearCentavos } from "@misupertostada/shared";
+import { ApiError } from "@/lib/api";
 import { avisoLimiteCredito } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
-import { PortalShell } from "@/components/portal/portal-shell";
-import { ContadorFacturas } from "@/components/domain/contador-facturas";
-import { EstadoBadge } from "@/components/domain/estado-badge";
-import { Money } from "@/components/domain/money";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { NumeroDtePortal } from "@/components/portal/numero-dte";
-import { subirComprobanteAbonoPortal } from "@/lib/upload-asset";
-import { useState } from "react";
+import { usePortalCuenta } from "@/hooks/use-portal-cuenta";
 
 export default function PortalCuentaPage() {
   const { token, sesion } = usePortalSession();
-  const qc = useQueryClient();
-  const [monto, setMonto] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [archivo, setArchivo] = useState<File | null>(null);
-  const [abonoId, setAbonoId] = useState<string | null>(null);
-
-  const cuenta = useQuery({
-    queryKey: ["portal", token, "cuenta"],
-    queryFn: () =>
-      api<PortalCuenta>(`/p/${encodeURIComponent(token)}/cuenta`),
-    initialData: sesion.cuenta,
-  });
-
-  const reportar = useMutation({
-    mutationFn: async () => {
-      if (!archivo || !abonoId) {
-        throw new Error("Adjunte la foto de la transferencia");
-      }
-      const montoCentavos = quetzalesTextoACentavos(monto);
-      const comprobanteAssetId = await subirComprobanteAbonoPortal(
-        token,
-        archivo,
-        abonoId,
-      );
-      return api(`/p/${encodeURIComponent(token)}/abonos`, {
-        method: "POST",
-        body: JSON.stringify({
-          id: abonoId,
-          idempotencyKey: `portal-abono-${abonoId}`,
-          montoCentavos,
-          descripcion: descripcion.trim(),
-          comprobanteAssetId,
-        }),
-      });
-    },
-    onSuccess: () => {
-      setMonto("");
-      setDescripcion("");
-      setArchivo(null);
-      setAbonoId(null);
-      void qc.invalidateQueries({ queryKey: ["portal", token, "cuenta"] });
-    },
-  });
-
-  function enviarComprobante() {
-    if (!archivo || !abonoId) {
-      toastError("Adjunte la foto de la transferencia");
-      return;
-    }
-    if (!descripcion.trim()) {
-      toastError(MENSAJE_DESCRIPCION_REQUERIDA);
-      return;
-    }
-    try {
-      quetzalesTextoACentavos(monto);
-    } catch (err) {
-      toastError(err instanceof Error ? err.message : "Monto inválido");
-      return;
-    }
-
-    void toastPromise(reportar.mutateAsync(), {
-      loading: "Enviando comprobante",
-      loadingDescription: "Subiendo la imagen y registrando su transferencia…",
-      success: "Comprobante recibido",
-      successDescription: MENSAJE_ABONO_PENDIENTE,
-      error: "No se pudo enviar el comprobante",
-    });
-  }
-
+  const cuenta = usePortalCuenta();
   const data = cuenta.data ?? sesion.cuenta;
   const aviso = avisoLimiteCredito(data);
+  const base = `/p/${encodeURIComponent(token)}`;
+
+  const entradas = [
+    {
+      href: `${base}/cuenta/facturas`,
+      icon: Receipt,
+      titulo: "Facturas",
+      detalle:
+        data.facturasPendientes === 0
+          ? "Sin facturas pendientes"
+          : `${data.facturasPendientes} ${
+              data.facturasPendientes === 1 ? "pendiente" : "pendientes"
+            } · ${formatearCentavos(data.saldoCentavos)}`,
+    },
+    {
+      href: `${base}/cuenta/abonos`,
+      icon: Banknote,
+      titulo: "Abonos",
+      detalle:
+        data.abonos.length === 0
+          ? "Aún no hay pagos registrados"
+          : `${data.abonos.length} ${data.abonos.length === 1 ? "abono" : "abonos"}`,
+    },
+    {
+      href: `${base}/cuenta/transferencia`,
+      icon: Upload,
+      titulo: "Reportar transferencia",
+      detalle:
+        data.transferenciasEnRevisionCentavos > 0
+          ? `${formatearCentavos(data.transferenciasEnRevisionCentavos)} en revisión`
+          : "Suba el comprobante del depósito",
+    },
+  ] as const;
 
   return (
-    <PortalShell clienteNombre={sesion.cliente.nombre}>
       <div className="grid gap-4 py-4">
         <div>
           <h1 className="sr-only text-xl font-semibold text-tinta-900 lg:not-sr-only">
             Su cuenta
           </h1>
-          <p className="mt-1 text-sm text-tinta-500 lg:mt-1">
-            Saldo pendiente, abonos y reporte de transferencias.
+          <p className="mt-1 text-sm text-tinta-500">
+            Facturas, abonos y reporte de transferencias.
           </p>
         </div>
 
         {cuenta.isPending && !cuenta.data ? (
-          <Skeleton className="h-20 w-full rounded-tarjeta" />
+          <div className="grid gap-3 lg:grid-cols-3">
+            <Skeleton className="h-24 w-full rounded-tarjeta" />
+            <Skeleton className="h-24 w-full rounded-tarjeta" />
+            <Skeleton className="h-24 w-full rounded-tarjeta" />
+          </div>
         ) : cuenta.error instanceof ApiError ? (
           <Alert status="danger">
             <Alert.Indicator />
@@ -128,194 +76,52 @@ export default function PortalCuentaPage() {
           </Alert>
         ) : (
           <>
-            <ContadorFacturas
-              pendientes={data.facturasPendientes}
-              montoCentavos={data.saldoCentavos}
-              destacado={aviso != null}
-            />
-
-            {data.transferenciasEnRevisionCentavos > 0 ? (
+            {aviso ? (
               <Alert status="warning">
                 <Alert.Indicator />
                 <Alert.Content>
-                  <Alert.Title>Transferencias en revisión</Alert.Title>
-                  <Alert.Description>
-                    Tiene{" "}
-                    <Money
-                      centavos={data.transferenciasEnRevisionCentavos}
-                      tone="pendiente"
-                      truncate
-                    />{" "}
-                    en comprobantes que aún no confirma la fábrica. Su saldo no
-                    baja hasta entonces.
-                  </Alert.Description>
+                  <Alert.Title>Facturas pendientes</Alert.Title>
+                  <Alert.Description>{aviso}</Alert.Description>
                 </Alert.Content>
               </Alert>
             ) : null}
 
-            <section className="grid gap-2">
-              <h2 className="px-1 mst-label">Facturas abiertas</h2>
-              <Card className="gap-0 overflow-hidden p-0">
-                {data.facturas.length === 0 ? (
-                  <EmptyState
-                    icon={<Receipt size={22} aria-hidden />}
-                    title="No tiene facturas pendientes."
-                    description="Cuando haya saldo, lo verá aquí."
-                  />
-                ) : (
-                  <ul>
-                    {data.facturas.map((f) => (
-                      <li
-                        key={f.id}
-                        className="flex min-w-0 items-center gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <NumeroDtePortal numeroDte={f.numeroDte} />
-                          <p className="text-xs tabular-nums text-tinta-500">
-                            {f.antiguedadDias}{" "}
-                            {f.antiguedadDias === 1 ? "día" : "días"}
-                          </p>
-                        </div>
-                        <div className="shrink-0">
-                          <EstadoBadge estado={f.estado} size="sm" />
-                        </div>
-                        <Money
-                          centavos={f.saldoCentavos}
-                          tone={
-                            f.estado === "VENCIDO"
-                              ? "vencido"
-                              : f.estado === "ABONO_PARCIAL"
-                                ? "pendiente"
-                                : "default"
-                          }
-                          truncate
-                          className="shrink-0 text-right"
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            </section>
-
-            <section className="grid gap-2">
-              <h2 className="px-1 mst-label">Sus abonos</h2>
-              <Card className="gap-0 overflow-hidden p-0">
-                {data.abonos.length === 0 ? (
-                  <EmptyState
-                    title="Aún no hay abonos registrados"
-                    description="Los pagos en efectivo con el repartidor y las transferencias confirmadas aparecen aquí."
-                  />
-                ) : (
-                  <ul>
-                    {data.abonos.map((a) => (
-                      <li
-                        key={a.id}
-                        className="grid gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0"
-                      >
-                        <div className="flex min-w-0 items-start justify-between gap-2">
+            <ul className="grid gap-3 lg:grid-cols-3">
+              {entradas.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className="group block h-full text-inherit no-underline hover:text-inherit hover:no-underline focus-visible:outline-none focus-visible:shadow-foco"
+                    >
+                      <Card className="h-full min-h-24 gap-0 p-4 transition-shadow duration-control ease-out group-hover:shadow-[var(--shadow-md)]">
+                        <Card.Header className="flex flex-row items-center gap-3 lg:flex-col lg:items-start">
+                          <span className="grid size-12 shrink-0 place-items-center rounded-campo bg-marca-soft text-marca">
+                            <Icon size={22} aria-hidden />
+                          </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-tinta-900">
-                              {a.metodo === "TRANSFERENCIA"
-                                ? "Transferencia"
-                                : "Efectivo"}{" "}
-                              · {a.fecha}
-                            </p>
-                            {a.descripcion ? (
-                              <p className="text-pretty text-xs text-tinta-500">
-                                {a.descripcion}
-                              </p>
-                            ) : null}
+                            <Card.Title className="text-base leading-snug text-tinta-900">
+                              {item.titulo}
+                            </Card.Title>
+                            <Card.Description className="mt-0.5 text-sm leading-snug text-pretty">
+                              {item.detalle}
+                            </Card.Description>
                           </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <EstadoBadge dominio="abono" estado={a.estado} size="sm" />
-                            <Money centavos={a.montoCentavos} truncate />
-                          </div>
-                        </div>
-                        {a.estado === "PENDIENTE" ? (
-                          <p className="text-xs text-tinta-500">
-                            {MENSAJE_ABONO_PENDIENTE}
-                          </p>
-                        ) : null}
-                        {a.estado === "RECHAZADO" && a.motivoRechazo ? (
-                          <p className="text-xs text-[var(--estado-vencido-fg)]">
-                            {a.motivoRechazo}
-                          </p>
-                        ) : null}
-                        {a.aplicaciones.length > 0 ? (
-                          <ul className="grid gap-1 rounded-campo bg-tinta-50 px-3 py-2 text-xs text-tinta-600">
-                            {a.aplicaciones.map((ap) => (
-                              <li
-                                key={`${a.id}-${ap.facturaId}`}
-                                className="flex min-w-0 justify-between gap-2"
-                              >
-                                <span className="min-w-0 truncate font-mono">
-                                  {ap.numeroDte ?? "Sin DTE"}
-                                </span>
-                                <Money centavos={ap.montoCentavos} tone="muted" truncate />
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            </section>
-
-            <section className="grid gap-3 rounded-tarjeta border border-[var(--border-subtle)] bg-blanco p-4">
-              <div>
-                <h2 className="text-base font-semibold text-tinta-900">
-                  Reportar transferencia
-                </h2>
-                <p className="mt-1 text-sm text-tinta-500">
-                  Suba el comprobante y una nota. Queda en revisión hasta que la
-                  fábrica confirme el depósito.
-                </p>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="monto-transferencia">Monto transferido</Label>
-                <input
-                  className="w-full rounded-campo border border-[var(--border-default)] px-3 py-2.5 text-sm tabular-nums"
-                  id="monto-transferencia"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={monto}
-                  onChange={(e) => setMonto(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="desc-transferencia">Descripción</Label>
-                <TextArea
-                  id="desc-transferencia"
-                  placeholder="Banco, referencia, fecha del depósito…"
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                />
-              </div>
-              <ComprobantePicker
-                label="Comprobante de transferencia"
-                hint="JPEG, PNG o WebP. Obligatorio."
-                selectorOrigen
-                value={archivo}
-                onChange={(file) => {
-                  setArchivo(file);
-                  setAbonoId(file ? crypto.randomUUID() : null);
-                }}
-              />
-              <Button
-                className="min-h-11"
-                isPending={reportar.isPending}
-                variant="primary"
-                onPress={enviarComprobante}
-              >
-                Enviar comprobante
-              </Button>
-            </section>
+                          <ChevronRight
+                            size={18}
+                            className="shrink-0 text-tinta-400 lg:hidden"
+                            aria-hidden
+                          />
+                        </Card.Header>
+                      </Card>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </>
         )}
       </div>
-    </PortalShell>
   );
 }

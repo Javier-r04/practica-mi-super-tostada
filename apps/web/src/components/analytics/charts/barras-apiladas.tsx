@@ -24,10 +24,10 @@ type Dia = {
   fecha: string;
   efectivoCentavos: number;
   transferenciaCentavos: number;
+  chequeCentavos: number;
 };
 
-/* Mismo criterio de color que «Origen del pedido»: amarillo = lo que pasa a mano
-   (efectivo), verde = lo que ya entra por el sistema (transferencia). */
+/* Amarillo = efectivo (mano), verde = transferencia (sistema), tinta = cheque. */
 const chartConfig = {
   efectivoCentavos: {
     label: "Efectivo",
@@ -37,11 +37,16 @@ const chartConfig = {
     label: "Transferencia",
     color: SERIE_COLOR.digital,
   },
+  chequeCentavos: {
+    label: "Cheque",
+    color: SERIE_COLOR.neutral,
+  },
 } satisfies ChartConfig;
 
 const ETIQUETA_SERIE: Record<string, string> = {
   efectivoCentavos: "Efectivo",
   transferenciaCentavos: "Transferencia",
+  chequeCentavos: "Cheque",
 };
 
 export function ChartBarrasApiladas({
@@ -53,11 +58,11 @@ export function ChartBarrasApiladas({
 }) {
   const animar = useAnimarGraficas();
   const totales = serie.map(
-    (d) => d.efectivoCentavos + d.transferenciaCentavos,
+    (d) =>
+      d.efectivoCentavos + d.transferenciaCentavos + d.chequeCentavos,
   );
 
   if (cargando) {
-    // Misma altura que la gráfica real: al llegar los datos nada salta.
     return <Skeleton className="h-[260px] w-full rounded-tarjeta" />;
   }
 
@@ -81,7 +86,15 @@ export function ChartBarrasApiladas({
     fecha: d.fecha,
     efectivoCentavos: d.efectivoCentavos,
     transferenciaCentavos: d.transferenciaCentavos,
+    chequeCentavos: d.chequeCentavos,
   }));
+
+  function strokeEntre(
+    inferior: number,
+    superior: number,
+  ): string {
+    return inferior > 0 && superior > 0 ? "var(--surface-card)" : "none";
+  }
 
   return (
     <ChartContainer
@@ -136,10 +149,6 @@ export function ChartBarrasApiladas({
           }
         />
         <ChartLegend content={<ChartLegendContent />} />
-        {/* El `stroke` del color de la tarjeta abre el respiro de 2 px entre
-            los dos tramos de la pila: separa sin dibujar un borde de dato. Se
-            apaga en los días con tramo en cero para no pintar una raya que
-            se leería como un cobro que no existió. */}
         <Bar
           dataKey="efectivoCentavos"
           stackId="cobrado"
@@ -154,11 +163,10 @@ export function ChartBarrasApiladas({
             <Cell
               key={d.fecha}
               fill="var(--color-efectivoCentavos)"
-              stroke={
-                d.efectivoCentavos > 0 && d.transferenciaCentavos > 0
-                  ? "var(--surface-card)"
-                  : "none"
-              }
+              stroke={strokeEntre(
+                d.efectivoCentavos,
+                d.transferenciaCentavos + d.chequeCentavos,
+              )}
             />
           ))}
         </Bar>
@@ -166,6 +174,24 @@ export function ChartBarrasApiladas({
           dataKey="transferenciaCentavos"
           stackId="cobrado"
           fill="var(--color-transferenciaCentavos)"
+          strokeWidth={2}
+          maxBarSize={24}
+          isAnimationActive={animar}
+          animationDuration={560}
+          animationEasing="ease-out"
+        >
+          {data.map((d) => (
+            <Cell
+              key={d.fecha}
+              fill="var(--color-transferenciaCentavos)"
+              stroke={strokeEntre(d.transferenciaCentavos, d.chequeCentavos)}
+            />
+          ))}
+        </Bar>
+        <Bar
+          dataKey="chequeCentavos"
+          stackId="cobrado"
+          fill="var(--color-chequeCentavos)"
           strokeWidth={2}
           maxBarSize={24}
           radius={[4, 4, 0, 0]}
@@ -176,12 +202,8 @@ export function ChartBarrasApiladas({
           {data.map((d) => (
             <Cell
               key={d.fecha}
-              fill="var(--color-transferenciaCentavos)"
-              stroke={
-                d.efectivoCentavos > 0 && d.transferenciaCentavos > 0
-                  ? "var(--surface-card)"
-                  : "none"
-              }
+              fill="var(--color-chequeCentavos)"
+              stroke="none"
             />
           ))}
         </Bar>

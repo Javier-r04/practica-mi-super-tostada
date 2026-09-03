@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { BloqueCliente, LineaProducto } from "./fulfillment";
 import {
+  clientesDeProducto,
+  desgloseProductoConNotas,
   gruposNotaProduccion,
   textoClienteNota,
 } from "./nota-produccion";
@@ -185,5 +187,216 @@ describe("textoClienteNota", () => {
         unidadMedida: null,
       }),
     ).toBe("Tabascos");
+  });
+});
+
+describe("clientesDeProducto", () => {
+  test("sin bloques → vacío", () => {
+    expect(clientesDeProducto(T16)).toEqual([]);
+    expect(clientesDeProducto(T16, [])).toEqual([]);
+  });
+
+  test("lista todos los clientes del producto, con y sin nota", () => {
+    const desglose = clientesDeProducto(T16, [
+      bloque("Rincón Chapín", [
+        {
+          productoId: T16,
+          nombreCanonico: "Tortilla",
+          unidadMedida: "LIBRA",
+          cantidad: 52,
+          puntoCargaEfectivo: "DEMOCRACIA",
+          notaProduccion: "GRUESA",
+        },
+      ]),
+      bloque("Metroplaza", [
+        {
+          productoId: T16,
+          nombreCanonico: "Tortilla",
+          unidadMedida: "LIBRA",
+          cantidad: 12,
+          puntoCargaEfectivo: "PLANTA",
+          notaProduccion: null,
+        },
+      ]),
+      bloque("Buffet El Dorado", [
+        {
+          productoId: T14,
+          nombreCanonico: "Otra",
+          unidadMedida: "LIBRA",
+          cantidad: 10,
+          puntoCargaEfectivo: "PLANTA",
+          notaProduccion: "FINA",
+        },
+      ]),
+    ]);
+    expect(desglose).toEqual([
+      {
+        nombre: "Metroplaza",
+        cantidad: 12,
+        unidadMedida: "LIBRA",
+        notaProduccion: null,
+      },
+      {
+        nombre: "Rincón Chapín",
+        cantidad: 52,
+        unidadMedida: "LIBRA",
+        notaProduccion: "GRUESA",
+      },
+    ]);
+  });
+
+  test("producto sin pedidos en ningún bloque → vacío", () => {
+    expect(
+      clientesDeProducto(T16, [
+        bloque("Tabascos", [
+          {
+            productoId: T14,
+            nombreCanonico: "Otra",
+            unidadMedida: "LIBRA",
+            cantidad: 8,
+            puntoCargaEfectivo: "PLANTA",
+            notaProduccion: null,
+          },
+        ]),
+      ]),
+    ).toEqual([]);
+  });
+
+  test("ordena por nombre en español", () => {
+    const desglose = clientesDeProducto(T16, [
+      bloque("Ñandú", [
+        {
+          productoId: T16,
+          nombreCanonico: "Tortilla",
+          unidadMedida: "LIBRA",
+          cantidad: 1,
+          puntoCargaEfectivo: "PLANTA",
+          notaProduccion: null,
+        },
+      ]),
+      bloque("Águila", [
+        {
+          productoId: T16,
+          nombreCanonico: "Tortilla",
+          unidadMedida: "LIBRA",
+          cantidad: 2,
+          puntoCargaEfectivo: "PLANTA",
+          notaProduccion: null,
+        },
+      ]),
+      bloque("Buffet", [
+        {
+          productoId: T16,
+          nombreCanonico: "Tortilla",
+          unidadMedida: "LIBRA",
+          cantidad: 3,
+          puntoCargaEfectivo: "PLANTA",
+          notaProduccion: null,
+        },
+      ]),
+    ]);
+    expect(desglose.map((c) => c.nombre)).toEqual(["Águila", "Buffet", "Ñandú"]);
+  });
+});
+
+describe("desgloseProductoConNotas", () => {
+  test("snapshot con notas en el ítem no toca el string de la línea", () => {
+    const desglose = desgloseProductoConNotas(
+      linea({ notaProduccion: "GRUESA · String viejo" }),
+      [
+        bloque("Metroplaza", [
+          {
+            productoId: T16,
+            nombreCanonico: "Tortilla",
+            unidadMedida: "LIBRA",
+            cantidad: 12,
+            puntoCargaEfectivo: "PLANTA",
+            notaProduccion: null,
+          },
+        ]),
+        bloque("Tabascos", [
+          {
+            productoId: T16,
+            nombreCanonico: "Tortilla",
+            unidadMedida: "LIBRA",
+            cantidad: 40,
+            puntoCargaEfectivo: "PLANTA",
+            notaProduccion: "GRUESA",
+          },
+        ]),
+      ],
+    );
+    expect(desglose).toEqual([
+      {
+        nombre: "Metroplaza",
+        cantidad: 12,
+        unidadMedida: "LIBRA",
+        notaProduccion: null,
+      },
+      {
+        nombre: "Tabascos",
+        cantidad: 40,
+        unidadMedida: "LIBRA",
+        notaProduccion: "GRUESA",
+      },
+    ]);
+  });
+
+  test("hoja vieja: reinyecta nota del string consolidado por nombre", () => {
+    const desglose = desgloseProductoConNotas(
+      linea({ notaProduccion: "GRUESA · Tabascos; FINA · El Portal" }),
+      [
+        bloque("El Portal", [
+          {
+            productoId: T16,
+            nombreCanonico: "Tortilla",
+            unidadMedida: "LIBRA",
+            cantidad: 8,
+            puntoCargaEfectivo: "PLANTA",
+            notaProduccion: null,
+          },
+        ]),
+        bloque("Tabascos", [
+          {
+            productoId: T16,
+            nombreCanonico: "Tortilla",
+            unidadMedida: "LIBRA",
+            cantidad: 40,
+            puntoCargaEfectivo: "PLANTA",
+            notaProduccion: null,
+          },
+        ]),
+        bloque("Sin nota", [
+          {
+            productoId: T16,
+            nombreCanonico: "Tortilla",
+            unidadMedida: "LIBRA",
+            cantidad: 5,
+            puntoCargaEfectivo: "PLANTA",
+            notaProduccion: null,
+          },
+        ]),
+      ],
+    );
+    expect(desglose).toEqual([
+      {
+        nombre: "El Portal",
+        cantidad: 8,
+        unidadMedida: "LIBRA",
+        notaProduccion: "FINA",
+      },
+      {
+        nombre: "Sin nota",
+        cantidad: 5,
+        unidadMedida: "LIBRA",
+        notaProduccion: null,
+      },
+      {
+        nombre: "Tabascos",
+        cantidad: 40,
+        unidadMedida: "LIBRA",
+        notaProduccion: "GRUESA",
+      },
+    ]);
   });
 });

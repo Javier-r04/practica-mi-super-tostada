@@ -581,7 +581,7 @@ async function insertarPagoMega(
     facturaId: string;
     pedidoId: string;
     montoCentavos: number;
-    metodo: "EFECTIVO" | "TRANSFERENCIA";
+    metodo: "EFECTIVO" | "TRANSFERENCIA" | "CHEQUE";
     fecha: string;
     registradoPor: string | null;
     suffix: "full" | "parcial";
@@ -1055,9 +1055,11 @@ function modoPagoHistorico(perfil: PerfilCliente): PagoMode {
   return pick(["completo", "completo", "completo", "parcial", "ninguno"]);
 }
 
-function metodoPago(perfil: PerfilCliente): "EFECTIVO" | "TRANSFERENCIA" {
+function metodoPago(perfil: PerfilCliente): "EFECTIVO" | "TRANSFERENCIA" | "CHEQUE" {
   if (perfil === "transferencia") return "TRANSFERENCIA";
-  return chance(0.55) ? "EFECTIVO" : "TRANSFERENCIA";
+  const r = Math.random();
+  if (r < 0.08) return "CHEQUE";
+  return r < 0.55 ? "EFECTIVO" : "TRANSFERENCIA";
 }
 
 function perfilDe(cliente: ClienteRow): PerfilCliente {

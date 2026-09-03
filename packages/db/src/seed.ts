@@ -132,7 +132,7 @@ const CLIENTES = [
   },
   {
     nombre: "ESCUELA LA CIENAGA (ENFRENTE DEL RASTRO)",
-    notasPermanentes: "Paga con cheque.",
+    notasPermanentes: "Prefiere CHEQUE; siempre con foto del cheque.",
     limiteFacturasPendientes: null,
     horarioEntregaFijo: "09:00",
     telefonoWa: null,

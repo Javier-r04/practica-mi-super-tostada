@@ -28,7 +28,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CintaEje } from "@/components/domain/cinta-eje";
 import { copyEjeProduccion, fechaHojaProduccion } from "@/lib/ejes-vista";
 import { HojaGrupos } from "@/components/fulfillment/hoja-grupos";
-import { ConsolidadoPreview } from "@/components/fulfillment/consolidado-preview";
 import { lineasVisibles, totalesPorFamilia } from "@/lib/produccion-vista";
 import { avisoReabierto } from "@/lib/reabierto-vista";
 import { toastFromError, toastSuccess } from "@/lib/toast";
@@ -153,7 +152,7 @@ export default function ProduccionPage() {
         />
         <PageToolbar
           className="print:hidden"
-          description="Hoja del día: cantidades por familia, listas para producir."
+          description="Hoja del día: cantidades por familia. Despliega cada producto para ver quién pidió."
           meta={
             hoja.data
               ? corregida
@@ -190,6 +189,57 @@ export default function ProduccionPage() {
                         <Printer size={15} aria-hidden />
                       )}
                       Imprimir
+                    </>
+                  )}
+                </Button>
+                <Button
+                  isPending={copiando}
+                  size="sm"
+                  variant="primary"
+                  onPress={() => void copiar()}
+                >
+                  {({ isPending }) => (
+                    <>
+                      {isPending ? (
+                        <Spinner color="current" size="sm" />
+                      ) : (
+                        <Copy size={15} aria-hidden />
+                      )}
+                      Copiar
+                    </>
+                  )}
+                </Button>
+                <Button
+                  isPending={descargando === "pdf"}
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => void descargar("pdf")}
+                >
+                  {({ isPending }) => (
+                    <>
+                      {isPending ? (
+                        <Spinner color="current" size="sm" />
+                      ) : (
+                        <Download size={15} aria-hidden />
+                      )}
+                      PDF
+                    </>
+                  )}
+                </Button>
+                <Button
+                  isPending={descargando === "txt"}
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => void descargar("txt")}
+                >
+                  {({ isPending }) => (
+                    <>
+                      {isPending ? (
+                        <Spinner color="current" size="sm" />
+                      ) : (
+                        <Download size={15} aria-hidden />
+                      )}
+                      TXT
                     </>
                   )}
                 </Button>
@@ -260,134 +310,60 @@ export default function ProduccionPage() {
           </div>
         )}
 
-        <div
-          className={
-            hoja.data
-              ? "grid gap-4 lg:grid-cols-[1.5fr_1fr] lg:items-start print:grid-cols-1"
-              : "grid gap-4"
-          }
-        >
-          <Card className="gap-0 overflow-hidden p-0">
-            <Card.Header className="flex flex-col items-start gap-1 p-4 sm:p-5">
-              <Card.Title>Hoja de producción</Card.Title>
-              <Card.Description>
-                {hoja.data?.motivoReapertura
-                  ? `Día reabierto · “${hoja.data.motivoReapertura}”`
-                  : "Cantidades a producir, agrupadas por familia."}
-              </Card.Description>
-            </Card.Header>
-            <Card.Content
-              aria-busy={hoja.isLoading || undefined}
-              className="border-t border-[var(--border-subtle)] p-0"
-            >
-              {hoja.isLoading && <ProduccionSkeleton />}
-              {sinHoja && (
-                <EmptyState
-                  icon={<Factory size={22} aria-hidden />}
-                  title={MENSAJE_HOJA_NO_MATERIALIZADA}
-                  description={
-                    // Un día reabierto no se vuelve a cerrar solo. Sin decirlo
-                    // aquí, «cierre la ventana desde Hoy» manda a cerrar la
-                    // ventana equivocada: la de esta noche, no la reabierta.
-                    aviso?.bloqueaOperacion
-                      ? aviso.detalle
-                      : "Cierre la ventana desde Hoy. Hasta entonces no hay hoja ni consolidado."
-                  }
+        <Card className="gap-0 overflow-hidden p-0">
+          <Card.Header className="flex flex-col items-start gap-1 p-4 sm:p-5">
+            <Card.Title>Hoja de producción</Card.Title>
+            <Card.Description>
+              {hoja.data?.motivoReapertura
+                ? `Día reabierto · “${hoja.data.motivoReapertura}”`
+                : "Cantidades a producir, agrupadas por familia. Despliega un producto para ver cada cliente."}
+            </Card.Description>
+          </Card.Header>
+          <Card.Content
+            aria-busy={hoja.isLoading || undefined}
+            className="border-t border-[var(--border-subtle)] p-0"
+          >
+            {hoja.isLoading && <ProduccionSkeleton />}
+            {sinHoja && (
+              <EmptyState
+                icon={<Factory size={22} aria-hidden />}
+                title={MENSAJE_HOJA_NO_MATERIALIZADA}
+                description={
+                  // Un día reabierto no se vuelve a cerrar solo. Sin decirlo
+                  // aquí, «cierre la ventana desde Hoy» manda a cerrar la
+                  // ventana equivocada: la de esta noche, no la reabierta.
+                  aviso?.bloqueaOperacion
+                    ? aviso.detalle
+                    : "Cierre la ventana desde Hoy. Hasta entonces no hay hoja."
+                }
+              />
+            )}
+            {errorHoja && (
+              <EmptyState
+                icon={<Factory size={22} aria-hidden />}
+                title="No se pudo cargar la hoja"
+                description={errorHoja.message}
+              />
+            )}
+            {hoja.data && (
+              <>
+                {hoja.data.esSabado && (
+                  <p className="flex flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] bg-[var(--amber-100)] px-4 py-2 text-sm font-semibold text-aviso-700 sm:px-5">
+                    <Chip color="warning" size="sm" variant="soft">
+                      Sábado
+                    </Chip>
+                    Toda la carga sale de planta.
+                  </p>
+                )}
+                <HojaGrupos
+                  lineas={lineas}
+                  clientes={hoja.data.snapshot.clientes}
+                  soloCambios={soloCambios}
                 />
-              )}
-              {errorHoja && (
-                <EmptyState
-                  icon={<Factory size={22} aria-hidden />}
-                  title="No se pudo cargar la hoja"
-                  description={errorHoja.message}
-                />
-              )}
-              {hoja.data && (
-                <>
-                  {hoja.data.esSabado && (
-                    <p className="flex flex-wrap items-center gap-2 border-b border-[var(--border-subtle)] bg-[var(--amber-100)] px-4 py-2 text-sm font-semibold text-aviso-700 sm:px-5">
-                      <Chip color="warning" size="sm" variant="soft">
-                        Sábado
-                      </Chip>
-                      Toda la carga sale de planta.
-                    </p>
-                  )}
-                  <HojaGrupos
-                    lineas={lineas}
-                    clientes={hoja.data.snapshot.clientes}
-                    soloCambios={soloCambios}
-                  />
-                </>
-              )}
-            </Card.Content>
-          </Card>
-
-          {hoja.data && (
-            <Card className="print:hidden lg:sticky lg:top-[calc(var(--topbar-height)+0.75rem)] lg:flex lg:max-h-[calc(100dvh-var(--topbar-height)-1.5rem)] lg:flex-col lg:overflow-hidden">
-              <Card.Header className="flex shrink-0 flex-col items-start gap-1">
-                <Card.Title>Consolidado del cierre</Card.Title>
-              </Card.Header>
-              <Card.Content className="min-h-0 lg:overflow-y-auto">
-                <ConsolidadoPreview
-                  cuerpo={hoja.data.texto}
-                  version={hoja.data.version}
-                  fecha={fecha}
-                  copiando={copiando}
-                  onCopiar={() => void copiar()}
-                />
-              </Card.Content>
-              <Card.Footer className="flex shrink-0 flex-wrap gap-2">
-                <Button
-                  isPending={copiando}
-                  size="sm"
-                  variant="primary"
-                  onPress={() => void copiar()}
-                >
-                  {({ isPending }) => (
-                    <>
-                      {isPending ? (
-                        <Spinner color="current" size="sm" />
-                      ) : (
-                        <Copy size={15} aria-hidden />
-                      )}
-                      Copiar
-                    </>
-                  )}
-                </Button>
-                <Button
-                  isPending={descargando === "pdf"}
-                  size="sm"
-                  variant="secondary"
-                  onPress={() => void descargar("pdf")}
-                >
-                  {({ isPending }) => (
-                    <>
-                      {isPending ? (
-                        <Spinner color="current" size="sm" />
-                      ) : (
-                        <Download size={15} aria-hidden />
-                      )}
-                      PDF
-                    </>
-                  )}
-                </Button>
-                <Button
-                  isPending={descargando === "txt"}
-                  size="sm"
-                  variant="secondary"
-                  onPress={() => void descargar("txt")}
-                >
-                  {({ isPending }) => (
-                    <>
-                      {isPending && <Spinner color="current" size="sm" />}
-                      TXT
-                    </>
-                  )}
-                </Button>
-              </Card.Footer>
-            </Card>
-          )}
-        </div>
+              </>
+            )}
+          </Card.Content>
+        </Card>
       </div>
     </PanelShell>
   );

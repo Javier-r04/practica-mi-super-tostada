@@ -32,6 +32,7 @@ import { Banknote, Filter, MessageCircle, X } from "lucide-react";
 import {
   CARTERA_PAGE_SIZE_DEFAULT,
   PAGO_METODOS,
+  PAGO_METODO_ETIQUETA,
   tienePermiso,
   type ActorPublico,
   type CarteraLista,
@@ -254,7 +255,7 @@ function CarteraInner() {
     if (metodoPago) {
       out.push({
         key: "metodo",
-        label: metodoPago === "EFECTIVO" ? "Efectivo" : "Transferencia",
+        label: PAGO_METODO_ETIQUETA[metodoPago as keyof typeof PAGO_METODO_ETIQUETA] ?? metodoPago,
         clear: () => setMetodoPago(""),
       });
     }
@@ -650,11 +651,9 @@ function CarteraInner() {
                           <ListBox.Item
                             key={m}
                             id={m}
-                            textValue={
-                              m === "EFECTIVO" ? "Efectivo" : "Transferencia"
-                            }
+                            textValue={PAGO_METODO_ETIQUETA[m]}
                           >
-                            {m === "EFECTIVO" ? "Efectivo" : "Transferencia"}
+                            {PAGO_METODO_ETIQUETA[m]}
                             <ListBox.ItemIndicator />
                           </ListBox.Item>
                         ))}

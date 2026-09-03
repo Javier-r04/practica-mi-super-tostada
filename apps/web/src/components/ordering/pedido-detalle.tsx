@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   horaEnZona,
+  PAGO_METODO_ETIQUETA,
   precioEfectivoCentavos,
   totalPedidoCentavos,
   type ClienteProductoFila,
@@ -40,6 +41,7 @@ import { PedidoItemRow } from "@/components/domain/pedido-item-row";
 import { etiquetaDiaSemanaCorto } from "@/lib/fecha-ui";
 import { DialogoCapturaDte } from "@/components/receivables/dialogo-captura-dte";
 import { BotonDte } from "@/components/receivables/boton-dte";
+import { ComprobanteAssetPreview } from "@/components/receivables/comprobante-asset-preview";
 
 const ACCION_TEXTO: Record<string, string> = {
   "portal.confirmar": "capturó el pedido desde el portal",
@@ -485,6 +487,32 @@ export function PedidoDetalle({
                 >
                   Ver en cartera
                 </Link>
+                {pedido.factura.pagos.length > 0 ? (
+                  <ul className="grid w-full basis-full gap-3 border-t border-[var(--border-subtle)] pt-3">
+                    {pedido.factura.pagos.map((p) => (
+                      <li key={p.id} className="grid gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+                          <span className="font-medium text-tinta-900">
+                            {PAGO_METODO_ETIQUETA[p.metodo]}
+                          </span>
+                          <span className="text-tinta-500">{p.fecha}</span>
+                          <Money
+                            centavos={p.montoCentavos}
+                            truncate
+                            className="sm:ml-auto"
+                          />
+                        </div>
+                        {p.comprobanteAssetId ? (
+                          <ComprobanteAssetPreview
+                            assetId={p.comprobanteAssetId}
+                            alt={`Comprobante ${PAGO_METODO_ETIQUETA[p.metodo].toLowerCase()} del ${p.fecha}`}
+                            className="max-w-xs"
+                          />
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </>
             ) : (
               <p className="text-sm text-tinta-500">

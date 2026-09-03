@@ -18,6 +18,8 @@ import {
   quetzalesTextoACentavos,
   MENSAJE_COMPROBANTE_REQUERIDO,
   MENSAJE_GUARDAR_TELEFONO,
+  PAGO_METODO_ETIQUETA,
+  pagoRequiereComprobante,
   type PagoMetodo,
 } from "@misupertostada/shared";
 import { ComprobantePicker } from "@/components/receivables/comprobante-picker";
@@ -35,7 +37,7 @@ type PropsPago = {
   error?: string;
   /** Solo /reparto. Cartera no lo pasa: sigue exigiendo señal. */
   permitirOffline?: boolean;
-  /** Por defecto efectivo y transferencia. Reparto solo efectivo. */
+  /** Por defecto efectivo, transferencia y cheque. */
   metodos?: readonly PagoMetodo[];
   onClose: () => void;
   onConfirm: (input: {
@@ -49,11 +51,16 @@ type PropsPago = {
 };
 
 const METODOS_OPCIONES = [
-  { id: "EFECTIVO", label: "Efectivo" },
-  { id: "TRANSFERENCIA", label: "Transferencia" },
-] as const;
+  { id: "EFECTIVO" as const, label: PAGO_METODO_ETIQUETA.EFECTIVO },
+  { id: "TRANSFERENCIA" as const, label: PAGO_METODO_ETIQUETA.TRANSFERENCIA },
+  { id: "CHEQUE" as const, label: PAGO_METODO_ETIQUETA.CHEQUE },
+];
 
-const METODOS_DEFAULT: readonly PagoMetodo[] = ["EFECTIVO", "TRANSFERENCIA"];
+const METODOS_DEFAULT: readonly PagoMetodo[] = [
+  "EFECTIVO",
+  "TRANSFERENCIA",
+  "CHEQUE",
+];
 
 /**
  * El formulario vive en un componente aparte que solo se monta con el diálogo
@@ -107,7 +114,7 @@ function FormularioPago({
       setLocalError(err instanceof Error ? err.message : "Monto inválido");
       return;
     }
-    if (metodo === "TRANSFERENCIA" && !archivo) {
+    if (pagoRequiereComprobante(metodo) && !archivo) {
       setLocalError(MENSAJE_COMPROBANTE_REQUERIDO);
       return;
     }
@@ -226,8 +233,8 @@ function FormularioPago({
                 label="Comprobante"
                 placeholder="Toque para tomar foto del recibo"
                 hint={
-                  metodo === "TRANSFERENCIA"
-                    ? "Obligatorio en transferencia."
+                  pagoRequiereComprobante(metodo)
+                    ? "Obligatorio en transferencia y cheque."
                     : "Opcional en efectivo."
                 }
                 value={archivo}

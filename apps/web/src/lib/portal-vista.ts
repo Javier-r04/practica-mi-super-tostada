@@ -76,12 +76,12 @@ export function propsVentanaPedido(ventana: PortalVentana): {
   };
 }
 
-/** Countdown del portal: hacia el cierre, o hacia la apertura si el día ya cerró. */
+/** Countdown del portal: hacia el cierre, o hacia la apertura si no hay ventana viva. */
 export function propsVentanaCountdown(ventana: PortalVentana): {
   cierraAt: string | null;
   abreAt: string | null;
 } {
-  if (cierreAnticipadoVentana(ventana)) {
+  if (cierreAnticipadoVentana(ventana) || !ventana.abierta) {
     return { cierraAt: null, abreAt: ventana.proximaAperturaAt };
   }
   return { cierraAt: ventana.cierraAt, abreAt: null };

@@ -8,7 +8,6 @@ import {
   Factory,
   LayoutDashboard,
   ChevronDown,
-  ChevronLeft,
   MessageCircle,
   Package,
   Sun,
@@ -108,14 +107,11 @@ function itemActivo(pathname: string, item: NavItem): boolean {
 export function PanelShell({
   title,
   barraFija,
-  volver,
   children,
 }: {
   title: string;
   /** Barra sticky pegada al header del panel (sin hueco del padding de main). */
   barraFija?: ReactNode;
-  /** En móvil muestra ← en el header sticky (p. ej. ficha de cliente). */
-  volver?: { href: string; label: string };
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -304,26 +300,15 @@ export function PanelShell({
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-[var(--z-sticky)] flex min-h-topbar items-center gap-2 border-b border-tinta-200/50 bg-blanco/80 backdrop-blur-md px-3 py-2 sm:gap-3 sm:px-4 lg:px-6 shadow-sm">
-          <div className="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1 lg:flex-none">
-            {volver ? (
-              <Link
-                href={volver.href}
-                aria-label={`Volver a ${volver.label}`}
-                className="inline-flex min-h-tap min-w-tap shrink-0 items-center justify-center rounded-campo text-marca no-underline transition-colors hover:bg-tinta-50 hover:text-marca-hover hover:no-underline focus-visible:outline-none focus-visible:shadow-foco lg:hidden"
-              >
-                <ChevronLeft size={22} strokeWidth={2.25} aria-hidden />
-              </Link>
+          <div className="min-w-0 flex-1 lg:flex-none">
+            <h1 className="truncate text-sm font-semibold text-tinta-900 lg:text-lg">
+              {title}
+            </h1>
+            {etiquetaSeccion && etiquetaSeccion !== title ? (
+              <p className="mst-label truncate text-tinta-500 lg:hidden">
+                {etiquetaSeccion}
+              </p>
             ) : null}
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-sm font-semibold text-tinta-900 lg:text-lg">
-                {title}
-              </h1>
-              {etiquetaSeccion && etiquetaSeccion !== title ? (
-                <p className="mst-label truncate text-tinta-500 lg:hidden">
-                  {etiquetaSeccion}
-                </p>
-              ) : null}
-            </div>
           </div>
           {/*
             Sin este aviso, quien no puede escribir ve una pantalla sin botones
@@ -578,7 +563,7 @@ export function PanelShell({
           )}
         >
           {barraFija ? (
-            <div className="sticky top-[var(--topbar-height)] isolate z-[calc(var(--z-sticky)+1)] border-b border-[var(--border-subtle)] bg-[var(--surface-page)] px-4 py-3 lg:top-0 lg:px-6">
+            <div className="sticky top-0 isolate z-[calc(var(--z-sticky)+1)] border-b border-[var(--border-subtle)] bg-[var(--surface-page)] px-4 py-3 lg:px-6">
               <div className="mx-auto w-full max-w-[var(--page-max)]">
                 {barraFija}
               </div>
