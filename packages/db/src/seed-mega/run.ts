@@ -20,6 +20,7 @@ import {
   type PerfilCliente,
 } from "./catalog";
 import { MEGA_SEED_MARKER, conMarcador } from "./marker";
+import { resolverOperacionesMegaSeed } from "./operaciones";
 
 type Db = PostgresJsDatabase<typeof schema>;
 
@@ -47,6 +48,8 @@ export type MegaSeedStats = {
   mensajes: number;
   hojas: number;
   fechaOperacionHoy: string;
+  fechaOperacionEnCurso: string;
+  ventanaAbierta: boolean;
 };
 
 export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
@@ -89,7 +92,11 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
   const repartoPor = tony?.id ?? admin.id;
 
   const fechasHabiles = listarDiasHabilesPasados(cal, DIAS_HABILES, now);
-  const fechaHoy = fechasHabiles[0]!;
+  const ops = resolverOperacionesMegaSeed(cal, now);
+  const fechasExcluidas = new Set([
+    ...ops.diasCaptura,
+    ...ops.diasProduccionCerrados,
+  ]);
 
   const todosClientes = await cargarClientesActivos(db);
   if (todosClientes.length < 3) {
@@ -114,126 +121,43 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
     conversaciones: 0,
     mensajes: 0,
     hojas: 0,
-    fechaOperacionHoy: fechaHoy,
+    fechaOperacionHoy: ops.fechaCaptura,
+    fechaOperacionEnCurso: ops.fechaEnCurso,
+    ventanaAbierta: ops.ventanaAbierta,
   };
 
-  // —— Pedidos del día operativo actual (ruta / producción / bandeja) ——
   const clientesActivos = todosClientes.filter((c) => c.activo);
-  const shuffleHoy = shuffle(clientesActivos);
-  const enRuta = shuffleHoy.slice(0, 12);
-  const confirmados = shuffleHoy.slice(12, 18);
-  const borradores = shuffleHoy.slice(18, 22);
-  const entregadosHoy = shuffleHoy.slice(22, 26);
 
-  for (const c of enRuta) {
-    correlativo += 1;
-    const r = await crearPedidoCompleto(db, {
-      correlativo,
-      cliente: c,
+  for (const fecha of ops.diasCaptura) {
+    correlativo = await sembrarPedidosCaptura(db, {
+      fechaOperacion: fecha,
+      clientes: clientesActivos,
       productos,
-      fechaOperacion: fechaHoy,
       cal,
-      estado: "EN_PRODUCCION",
-      origen: chance(0.35) ? "PORTAL" : "MANUAL",
       capturadoPor,
-      createdAt: instanteCaptura(fechaHoy, cal, 0),
-      perfil: perfilDe(c),
+      correlativo,
+      now,
+      stats,
     });
-    stats.pedidos += 1;
-    if (r.factura) stats.facturas += 1;
   }
 
-  for (const c of confirmados) {
-    correlativo += 1;
-    await crearPedidoCompleto(db, {
-      correlativo,
-      cliente: c,
+  for (const fecha of ops.diasProduccionCerrados) {
+    correlativo = await sembrarDiaProduccionCerrado(db, {
+      fechaOperacion: fecha,
+      clientes: clientesActivos,
       productos,
-      fechaOperacion: fechaHoy,
       cal,
-      estado: "CONFIRMADO",
-      origen: chance(0.5) ? "PORTAL" : "MANUAL",
       capturadoPor,
-      createdAt: instanteCaptura(fechaHoy, cal, 0),
-      perfil: perfilDe(c),
-    });
-    stats.pedidos += 1;
-  }
-
-  for (const c of borradores) {
-    correlativo += 1;
-    await crearPedidoCompleto(db, {
+      repartoPor,
+      adminId: admin.id,
       correlativo,
-      cliente: c,
-      productos,
-      fechaOperacion: fechaHoy,
-      cal,
-      estado: "BORRADOR",
-      origen: "MANUAL",
-      capturadoPor,
-      createdAt: new Date(now.getTime() - randInt(10, 120) * 60_000),
-      perfil: perfilDe(c),
+      stats,
     });
-    stats.pedidos += 1;
   }
-
-  for (const c of entregadosHoy) {
-    correlativo += 1;
-    const r = await crearPedidoCompleto(db, {
-      correlativo,
-      cliente: c,
-      productos,
-      fechaOperacion: fechaHoy,
-      cal,
-      estado: "ENTREGADO",
-      origen: chance(0.4) ? "PORTAL" : "MANUAL",
-      capturadoPor,
-      createdAt: instanteCaptura(fechaHoy, cal, 0),
-      perfil: perfilDe(c),
-      pagoMode: chance(0.5) ? "completo" : "ninguno",
-      registradoPor: repartoPor,
-    });
-    stats.pedidos += 1;
-    if (r.factura) stats.facturas += 1;
-    stats.pagos += r.pagos;
-  }
-
-  // Un anulado hoy
-  if (shuffleHoy[26]) {
-    correlativo += 1;
-    await crearPedidoCompleto(db, {
-      correlativo,
-      cliente: shuffleHoy[26],
-      productos,
-      fechaOperacion: fechaHoy,
-      cal,
-      estado: "ANULADO",
-      origen: "MANUAL",
-      capturadoPor,
-      createdAt: instanteCaptura(fechaHoy, cal, 0),
-      perfil: perfilDe(shuffleHoy[26]),
-      anulado: true,
-      anuladoPor: admin.id,
-    });
-    stats.pedidos += 1;
-  }
-
-  await upsertDiaOperacion(db, {
-    fechaOperacion: fechaHoy,
-    estado: "CERRADO",
-    cerradoPor: admin.id,
-    cerradoAt: instanteCaptura(fechaHoy, cal, 0),
-  });
-  await insertarHoja(db, {
-    fechaOperacion: fechaHoy,
-    version: 1,
-    generadoPor: admin.id,
-    cal,
-  });
-  stats.hojas += 1;
 
   // —— Histórico: días hábiles anteriores ——
   for (const fecha of fechasHabiles.slice(1)) {
+    if (fechasExcluidas.has(fecha)) continue;
     const cuantos = randInt(8, 18);
     const delDia = shuffle(clientesActivos).slice(0, cuantos);
     const pedidosDia: ClienteRow[] = [];
@@ -269,7 +193,9 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
         fechaOperacion: fecha,
         estado: "CERRADO",
         cerradoPor: admin.id,
-        cerradoAt: instanteCaptura(fecha, cal, 0),
+        cerradoAt:
+          cal.getFinVentanaDeOperacion(fecha) ??
+          instanteCaptura(fecha, cal, 1),
       });
       if (chance(0.55)) {
         await insertarHoja(db, {
@@ -286,7 +212,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
   // —— WhatsApp / conversaciones ——
   const sampleWa = shuffle(clientesActivos).slice(0, 20);
   for (const c of sampleWa) {
-    const conv = await seedConversacion(db, c, admin, fechaHoy, now);
+    const conv = await seedConversacion(db, c, admin, ops.fechaCaptura, now);
     stats.conversaciones += 1;
     stats.mensajes += conv.mensajes;
   }
@@ -296,7 +222,7 @@ export async function runMegaSeed(db: Db): Promise<MegaSeedStats> {
     tipo: "MegaSeedAplicado",
     payload: {
       marker: MEGA_SEED_MARKER,
-      fechaOperacionHoy: fechaHoy,
+      fechaOperacionHoy: ops.fechaCaptura,
       pedidos: stats.pedidos,
       clientesUsados: stats.clientesUsados,
     },
@@ -358,6 +284,154 @@ async function ligasCliente(db: Db, clienteId: string): Promise<LigaCliente[]> {
     alias: f.alias,
     precioCentavos: f.precioCentavos,
   }));
+}
+
+type SembrarContexto = {
+  fechaOperacion: string;
+  clientes: ClienteRow[];
+  productos: ProductoRow[];
+  cal: BusinessCalendar;
+  capturadoPor: string;
+  correlativo: number;
+  stats: MegaSeedStats;
+};
+
+/** Ventana viva: pedidos entrando, sin cierre ni hoja. */
+async function sembrarPedidosCaptura(
+  db: Db,
+  opts: SembrarContexto & { now: Date },
+): Promise<number> {
+  let { correlativo } = opts;
+  const shuffleHoy = shuffle(opts.clientes);
+  const confirmados = shuffleHoy.slice(0, 14);
+  const borradores = shuffleHoy.slice(14, 20);
+
+  for (const c of confirmados) {
+    correlativo += 1;
+    await crearPedidoCompleto(db, {
+      correlativo,
+      cliente: c,
+      productos: opts.productos,
+      fechaOperacion: opts.fechaOperacion,
+      cal: opts.cal,
+      estado: "CONFIRMADO",
+      origen: chance(0.5) ? "PORTAL" : "MANUAL",
+      capturadoPor: opts.capturadoPor,
+      createdAt: instanteCaptura(opts.fechaOperacion, opts.cal, 0, opts.now),
+      perfil: perfilDe(c),
+    });
+    opts.stats.pedidos += 1;
+  }
+
+  for (const c of borradores) {
+    correlativo += 1;
+    await crearPedidoCompleto(db, {
+      correlativo,
+      cliente: c,
+      productos: opts.productos,
+      fechaOperacion: opts.fechaOperacion,
+      cal: opts.cal,
+      estado: "BORRADOR",
+      origen: "MANUAL",
+      capturadoPor: opts.capturadoPor,
+      createdAt: new Date(opts.now.getTime() - randInt(10, 120) * 60_000),
+      perfil: perfilDe(c),
+    });
+    opts.stats.pedidos += 1;
+  }
+
+  if (shuffleHoy[20]) {
+    correlativo += 1;
+    await crearPedidoCompleto(db, {
+      correlativo,
+      cliente: shuffleHoy[20],
+      productos: opts.productos,
+      fechaOperacion: opts.fechaOperacion,
+      cal: opts.cal,
+      estado: "ANULADO",
+      origen: "MANUAL",
+      capturadoPor: opts.capturadoPor,
+      createdAt: instanteCaptura(opts.fechaOperacion, opts.cal, 0, opts.now),
+      perfil: perfilDe(shuffleHoy[20]),
+      anulado: true,
+      anuladoPor: opts.capturadoPor,
+    });
+    opts.stats.pedidos += 1;
+  }
+
+  return correlativo;
+}
+
+/** Operación en curso: ruta, producción y cierre del día. */
+async function sembrarDiaProduccionCerrado(
+  db: Db,
+  opts: SembrarContexto & {
+    repartoPor: string;
+    adminId: string;
+  },
+): Promise<number> {
+  let { correlativo } = opts;
+  const shuffleHoy = shuffle(opts.clientes);
+  const enRuta = shuffleHoy.slice(0, 12);
+  const entregadosHoy = shuffleHoy.slice(12, 18);
+
+  for (const c of enRuta) {
+    correlativo += 1;
+    await crearPedidoCompleto(db, {
+      correlativo,
+      cliente: c,
+      productos: opts.productos,
+      fechaOperacion: opts.fechaOperacion,
+      cal: opts.cal,
+      estado: "EN_PRODUCCION",
+      origen: chance(0.35) ? "PORTAL" : "MANUAL",
+      capturadoPor: opts.capturadoPor,
+      createdAt: instanteCaptura(opts.fechaOperacion, opts.cal, 0),
+      perfil: perfilDe(c),
+    });
+    opts.stats.pedidos += 1;
+  }
+
+  for (const c of entregadosHoy) {
+    correlativo += 1;
+    const r = await crearPedidoCompleto(db, {
+      correlativo,
+      cliente: c,
+      productos: opts.productos,
+      fechaOperacion: opts.fechaOperacion,
+      cal: opts.cal,
+      estado: "ENTREGADO",
+      origen: chance(0.4) ? "PORTAL" : "MANUAL",
+      capturadoPor: opts.capturadoPor,
+      createdAt: instanteCaptura(opts.fechaOperacion, opts.cal, 0),
+      perfil: perfilDe(c),
+      pagoMode: chance(0.5) ? "completo" : "ninguno",
+      registradoPor: opts.repartoPor,
+    });
+    opts.stats.pedidos += 1;
+    if (r.factura) opts.stats.facturas += 1;
+    opts.stats.pagos += r.pagos;
+  }
+
+  const cerradoAt =
+    opts.cal.getFinVentanaDeOperacion(opts.fechaOperacion) ??
+    instanteCaptura(opts.fechaOperacion, opts.cal, 1);
+
+  await upsertDiaOperacion(db, {
+    fechaOperacion: opts.fechaOperacion,
+    estado: "CERRADO",
+    cerradoPor: opts.adminId,
+    cerradoAt,
+  });
+  await insertarHoja(db, {
+    fechaOperacion: opts.fechaOperacion,
+    version: 1,
+    generadoPor: opts.adminId,
+    cal: opts.cal,
+  });
+  opts.stats.hojas += 1;
+
+  return correlativo;
 }
 
 type PagoMode = "completo" | "parcial" | "ninguno";
@@ -931,15 +1005,27 @@ function listarDiasHabilesPasados(
 
 function instanteCaptura(
   fechaOperacion: string,
-  _cal: BusinessCalendar,
+  cal: BusinessCalendar,
   offsetDiasDesdeOp: number,
+  tope?: Date,
 ): Date {
-  // Captura la misma noche de la fecha_operacion (ventana 15:00–00:00).
-  const entrega = DateTime.fromISO(fechaOperacion, { zone: ZONA_NEGOCIO });
-  const captura = entrega
+  const captura = DateTime.fromISO(fechaOperacion, { zone: ZONA_NEGOCIO })
     .plus({ days: offsetDiasDesdeOp })
     .set({ hour: randInt(15, 22), minute: randInt(0, 59), second: 0 });
-  return captura.toJSDate();
+
+  if (!tope) return captura.toJSDate();
+
+  const topeDt = DateTime.fromJSDate(tope, { zone: ZONA_NEGOCIO });
+  if (captura <= topeDt) return captura.toJSDate();
+
+  const apertura = captura.startOf("day").set({ hour: 15, minute: 0 });
+  const finVentana = cal.getFinVentanaDeOperacion(fechaOperacion);
+  const maxMs = Math.min(
+    topeDt.toMillis(),
+    finVentana?.getTime() ?? topeDt.toMillis(),
+  );
+  const minMs = Math.max(apertura.toMillis(), maxMs - 4 * 3600_000);
+  return new Date(minMs + Math.random() * Math.max(1, maxMs - minMs));
 }
 
 function debePedirEnFecha(

@@ -53,7 +53,9 @@ async function main() {
     console.log("[mega-seed] Generando datos de prueba…");
     const stats = await runMegaSeed(db);
     console.log("[mega-seed] Listo:");
-    console.log(`  fecha_operacion (hoy): ${stats.fechaOperacionHoy}`);
+    console.log(`  fecha_operacion (captura): ${stats.fechaOperacionHoy}`);
+    console.log(`  fecha_operacion (en curso): ${stats.fechaOperacionEnCurso}`);
+    console.log(`  ventana abierta:          ${stats.ventanaAbierta}`);
     console.log(`  clientes usados:      ${stats.clientesUsados}`);
     console.log(`  pedidos:              ${stats.pedidos}`);
     console.log(`  facturas:             ${stats.facturas}`);
