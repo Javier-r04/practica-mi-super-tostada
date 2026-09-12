@@ -314,6 +314,7 @@ describe("rutaRepartoSchema", () => {
     facturasPendientes: 0,
     items: [
       {
+        id: "11111111-1111-4111-8111-111111111111",
         productoId: "cccccccc-cccc-4ccc-cccc-cccccccccccc",
         nombreMostrado: "Tortillas #16",
         unidadMedida: "LIBRA" as const,

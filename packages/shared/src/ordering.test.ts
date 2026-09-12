@@ -48,7 +48,21 @@ describe("confirmarPedidoRequestSchema", () => {
     const parsed = confirmarPedidoRequestSchema.parse({
       items: [{ productoId, cantidad: 50, precioCentavos: 1 }],
     });
-    expect(parsed.items).toEqual([{ productoId, cantidad: 50 }]);
+    expect(parsed.items).toEqual([
+      { productoId, cantidad: 50, esDevolucion: false },
+    ]);
+  });
+
+  test("acepta esDevolucion con bonoId opcional", () => {
+    const bonoId = "00000000-0000-4000-a000-000000000099";
+    const parsed = confirmarPedidoRequestSchema.parse({
+      items: [
+        { productoId, cantidad: 2, esDevolucion: true, bonoId },
+        { productoId, cantidad: 10, esDevolucion: false },
+      ],
+    });
+    expect(parsed.items[0]?.esDevolucion).toBe(true);
+    expect(parsed.items[0]?.bonoId).toBe(bonoId);
   });
 
   test("rechaza cantidad 0, float y lista vacía", () => {

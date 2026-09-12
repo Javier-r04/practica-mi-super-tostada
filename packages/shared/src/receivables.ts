@@ -150,8 +150,12 @@ export function aplicarFifo(
 }
 
 export const entregarItemSchema = z.object({
-  productoId: z.string().uuid(),
+  itemId: z.string().uuid().optional(),
+  /** Snapshot offline antiguo; solo si no hay líneas de devolución. */
+  productoId: z.string().uuid().optional(),
   cantidadEntregada: z.number().int().min(0).max(9999),
+}).refine((v) => Boolean(v.itemId ?? v.productoId), {
+  message: "Indique itemId o productoId",
 });
 
 export const entregarPedidoRequestSchema = z.object({
@@ -282,7 +286,15 @@ const fotoAssetIdSnapshotSchema = z
   .optional()
   .transform((v) => v ?? null);
 
+/** Snapshot offline antiguo puede omitir id; la API siempre lo manda. */
+const itemIdSnapshotSchema = z
+  .string()
+  .uuid()
+  .optional()
+  .transform((v) => v ?? null);
+
 export const entregaItemPublicoSchema = z.object({
+  id: itemIdSnapshotSchema,
   productoId: z.string().uuid(),
   nombreMostrado: z.string(),
   unidadMedida: z.enum(UNIDADES_MEDIDA),
@@ -291,6 +303,7 @@ export const entregaItemPublicoSchema = z.object({
   precioUnitarioCentavos: centavosSchema,
   notaProduccion: z.string().nullable(),
   fotoAssetId: fotoAssetIdSnapshotSchema,
+  esDevolucion: z.boolean().default(false),
 });
 export type EntregaItemPublico = z.infer<typeof entregaItemPublicoSchema>;
 

@@ -189,9 +189,40 @@ export function precioEfectivoCentavos(input: {
   return input.precioClienteCentavos ?? input.precioBaseCentavos;
 }
 
+export const otorgarBonoRequestSchema = z.object({
+  productoId: z.string().uuid(),
+  descripcion: z.string().trim().min(1).max(200),
+  cantidad: z.number().int().min(1).max(9999),
+});
+
+export type OtorgarBonoRequest = z.infer<typeof otorgarBonoRequestSchema>;
+
+export const anularBonoRequestSchema = z.object({
+  motivo: z.string().trim().min(1).max(500),
+});
+
+export type AnularBonoRequest = z.infer<typeof anularBonoRequestSchema>;
+
+export const clienteBonoPublicoSchema = z.object({
+  id: z.string().uuid(),
+  productoId: z.string().uuid(),
+  nombreCanonico: z.string(),
+  unidadMedida: z.enum(UNIDADES_MEDIDA),
+  descripcion: z.string(),
+  cantidadOtorgada: z.number().int().positive(),
+  cantidadAplicada: z.number().int().nonnegative(),
+  cantidadDisponible: z.number().int().nonnegative(),
+  otorgadoAt: z.string().min(20),
+  anuladoAt: z.string().nullable(),
+  motivoAnulacion: z.string().nullable(),
+});
+
+export type ClienteBonoPublico = z.infer<typeof clienteBonoPublicoSchema>;
+
 export const CATALOGO_SSE_TIPOS = [
   "producto.precio",
   "cliente_producto.precio",
+  "cliente.bono",
 ] as const;
 
 export type CatalogoSseTipo = (typeof CATALOGO_SSE_TIPOS)[number];

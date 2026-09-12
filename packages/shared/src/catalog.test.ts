@@ -6,6 +6,8 @@ import {
   importarCsvRequestSchema,
   PLANTILLAS_CSV,
   upsertClienteProductoRequestSchema,
+  otorgarBonoRequestSchema,
+  anularBonoRequestSchema,
   precioEfectivoCentavos,
 } from "./catalog";
 
@@ -96,6 +98,41 @@ describe("horarioEntregaSchema", () => {
     expect(horarioEntregaSchema.parse(null)).toBeNull();
     expect(horarioEntregaSchema.safeParse("9:00").success).toBe(false);
     expect(horarioEntregaSchema.safeParse("25:00").success).toBe(false);
+  });
+});
+
+describe("otorgarBonoRequestSchema", () => {
+  const productoId = "00000000-0000-4000-a000-000000000010";
+
+  test("acepta cantidad entera y descripción recortada", () => {
+    const parsed = otorgarBonoRequestSchema.parse({
+      productoId,
+      descripcion: "  tortilla quebradita  ",
+      cantidad: 3,
+    });
+    expect(parsed.descripcion).toBe("tortilla quebradita");
+    expect(parsed.cantidad).toBe(3);
+  });
+
+  test("rechaza cantidad 0", () => {
+    expect(
+      otorgarBonoRequestSchema.safeParse({
+        productoId,
+        descripcion: "x",
+        cantidad: 0,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("anularBonoRequestSchema", () => {
+  test("exige motivo no vacío", () => {
+    expect(anularBonoRequestSchema.safeParse({ motivo: "  " }).success).toBe(
+      false,
+    );
+    expect(anularBonoRequestSchema.parse({ motivo: "error de captura" }).motivo).toBe(
+      "error de captura",
+    );
   });
 });
 

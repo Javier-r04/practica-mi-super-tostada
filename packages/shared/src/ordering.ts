@@ -57,6 +57,8 @@ export function totalPedidoCentavos(
 export const confirmarPedidoItemSchema = z.object({
   productoId: z.string().uuid(),
   cantidad: z.number().int().min(1).max(9999),
+  esDevolucion: z.boolean().default(false),
+  bonoId: z.string().uuid().optional(),
 });
 
 export const confirmarPedidoRequestSchema = z.object({
@@ -108,6 +110,8 @@ export const portalPedidoItemSchema = z.object({
   unidadMedida: z.enum(UNIDADES_MEDIDA),
   precioUnitarioCentavos: centavosSchema,
   subtotalCentavos: centavosSchema,
+  esDevolucion: z.boolean().default(false),
+  bonoId: z.string().uuid().nullable().default(null),
 });
 
 export type PortalPedidoItem = z.infer<typeof portalPedidoItemSchema>;
@@ -224,6 +228,19 @@ export const portalHistorialSchema = z.object({
 
 export type PortalHistorial = z.infer<typeof portalHistorialSchema>;
 
+export const portalBonoSchema = z.object({
+  id: z.string().uuid(),
+  productoId: z.string().uuid(),
+  alias: z.string(),
+  nombreCanonico: z.string(),
+  unidadMedida: z.enum(UNIDADES_MEDIDA),
+  descripcion: z.string(),
+  cantidadDisponible: z.number().int().nonnegative(),
+  fotoAssetId: z.string().uuid().nullable(),
+});
+
+export type PortalBono = z.infer<typeof portalBonoSchema>;
+
 export const portalPedidoDetalleItemSchema = z.object({
   productoId: z.string().uuid(),
   cantidad: z.number().int().positive(),
@@ -232,6 +249,8 @@ export const portalPedidoDetalleItemSchema = z.object({
   precioUnitarioCentavos: centavosSchema,
   subtotalCentavos: centavosSchema,
   fotoAssetId: z.string().uuid().nullable(),
+  esDevolucion: z.boolean().default(false),
+  bonoId: z.string().uuid().nullable().default(null),
 });
 
 export type PortalPedidoDetalleItem = z.infer<
@@ -300,6 +319,7 @@ export const portalSesionSchema = z.object({
   }),
   ventana: portalVentanaSchema,
   catalogo: z.array(portalProductoSchema),
+  bonos: z.array(portalBonoSchema).default([]),
   pedidoAbierto: portalPedidoSchema.nullable(),
   cuenta: portalCuentaSchema,
   /** Instantáneo del servidor (GT) — solo presentación. */
@@ -375,6 +395,7 @@ export const pedidoBandejaSchema = z.object({
 export type PedidoBandeja = z.infer<typeof pedidoBandejaSchema>;
 
 export const pedidoDetalleItemSchema = z.object({
+  id: z.string().uuid().optional(),
   productoId: z.string().uuid(),
   cantidad: z.number().int().positive(),
   /** Snapshot comercial (alias del cliente al capturar). */
@@ -386,6 +407,8 @@ export const pedidoDetalleItemSchema = z.object({
   subtotalCentavos: centavosSchema,
   puntoCarga: z.enum(PUNTOS_CARGA),
   notaProduccion: z.string().nullable(),
+  esDevolucion: z.boolean().default(false),
+  bonoId: z.string().uuid().nullable().default(null),
 });
 
 export type PedidoDetalleItem = z.infer<typeof pedidoDetalleItemSchema>;
@@ -521,6 +544,10 @@ export const panelSseEventSchema = z.union([
   z.object({
     tipo: z.literal("cliente_producto.precio"),
     productoId: z.string().uuid(),
+    clienteId: z.string().uuid(),
+  }),
+  z.object({
+    tipo: z.literal("cliente.bono"),
     clienteId: z.string().uuid(),
   }),
 ]);
