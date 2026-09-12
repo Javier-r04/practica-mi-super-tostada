@@ -10,6 +10,7 @@ import {
 } from "@misupertostada/db";
 import {
   MENSAJE_HOJA_NO_MATERIALIZADA,
+  UNIDAD_CORTA,
   diffHojas,
   gruposPorPuntoCarga,
   hojaPublicaSchema,
@@ -58,6 +59,7 @@ export class HojaService {
         puntoCarga: producto.puntoCarga,
         familia: producto.familia,
         cantidad: pedidoItem.cantidadPedida,
+        esDevolucion: pedidoItem.esDevolucion,
         notaProduccion: clienteProducto.notaProduccion,
       })
       .from(pedido)
@@ -97,7 +99,15 @@ export class HojaService {
         fechaOperacion,
       );
       const horario = fila.horario ? String(fila.horario).slice(0, 5) : null;
-      const nota = fila.notaProduccion?.trim() || null;
+      const notaBase = fila.notaProduccion?.trim() || null;
+      const fragDevolucion = fila.esDevolucion
+        ? `${fila.cantidad} ${UNIDAD_CORTA[fila.unidadMedida]} devolución`
+        : null;
+      const nota = fragDevolucion
+        ? notaBase
+          ? `${notaBase} · ${fragDevolucion}`
+          : fragDevolucion
+        : notaBase;
 
       let bloque = clientesMap.get(fila.clienteId);
       if (!bloque) {
@@ -126,6 +136,14 @@ export class HojaService {
       );
       if (itemExistente) {
         itemExistente.cantidad += fila.cantidad;
+        if (fragDevolucion) {
+          const actual = itemExistente.notaProduccion ?? "";
+          if (!actual.includes(fragDevolucion)) {
+            itemExistente.notaProduccion = actual
+              ? `${actual} · ${fragDevolucion}`
+              : fragDevolucion;
+          }
+        }
       } else {
         const item: LineaClienteItem = {
           productoId: fila.productoId,

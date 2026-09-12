@@ -20,6 +20,7 @@ import type { Actor } from "../identity/actor";
 import { ProductosService } from "./productos.service";
 import { ClientesService } from "./clientes.service";
 import { ClienteProductoService } from "./cliente-producto.service";
+import { ClienteBonoService } from "./cliente-bono.service";
 import { ImportService } from "./import.service";
 import { PedidoEvents } from "../shared/panel-events";
 
@@ -32,6 +33,7 @@ async function fixture() {
   const productos = new ProductosService(db, audit, events);
   const clientes = new ClientesService(db, audit);
   const clienteProductoSvc = new ClienteProductoService(db, audit, clientes, events);
+  const clienteBonoSvc = new ClienteBonoService(db, audit, clientes, events);
   const importSvc = new ImportService(
     db,
     audit,
@@ -76,6 +78,7 @@ async function fixture() {
     productos,
     clientes,
     clienteProductoSvc,
+    clienteBonoSvc,
     importSvc,
     actor,
     actorSinPrecio,
@@ -330,6 +333,70 @@ describe.skipIf(!listo)("catálogo E1", () => {
       expect(row?.precioCentavos).toBe(1250);
       expect(row?.alias).toBe("papas");
       expect(row?.favorito).toBe(true);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("bono: otorgar, listar saldo, anular con audit y rechazar producto inactivo", async () => {
+    const f = await fixture();
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `BONO-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla bono",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "PLANTA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `Bono ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      const bono = await f.clienteBonoSvc.otorgar(
+        cli.id,
+        {
+          productoId: prod.id,
+          descripcion: "tortilla quebradita",
+          cantidad: 2,
+        },
+        f.actor,
+      );
+      expect(bono.cantidadDisponible).toBe(2);
+      expect(bono.cantidadAplicada).toBe(0);
+
+      const lista = await f.clienteBonoSvc.listar(cli.id, f.actor);
+      expect(lista.some((b) => b.id === bono.id)).toBe(true);
+
+      const audits = await f.db
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.entidad, "cliente_bono"));
+      expect(audits.some((a) => a.accion === "cliente_bono.otorgar")).toBe(true);
+
+      const anulado = await f.clienteBonoSvc.anular(
+        cli.id,
+        bono.id,
+        { motivo: "registrado por error" },
+        f.actor,
+      );
+      expect(anulado.anuladoAt).not.toBeNull();
+      expect(anulado.motivoAnulacion).toBe("registrado por error");
+
+      await f.productos.desactivar(prod.id, f.actor);
+      await expect(
+        f.clienteBonoSvc.otorgar(
+          cli.id,
+          {
+            productoId: prod.id,
+            descripcion: "x",
+            cantidad: 1,
+          },
+          f.actor,
+        ),
+      ).rejects.toMatchObject({ code: "PRODUCTO_INACTIVO" });
     } finally {
       await f.client.end({ timeout: 1 });
     }

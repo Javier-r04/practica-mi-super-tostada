@@ -34,6 +34,7 @@ import type { Actor } from "../identity/actor";
 import { ProductosService } from "../catalog/productos.service";
 import { ClientesService } from "../catalog/clientes.service";
 import { ClienteProductoService } from "../catalog/cliente-producto.service";
+import { ClienteBonoService } from "../catalog/cliente-bono.service";
 import { PortalTokenService } from "../ordering/portal-token.service";
 import { PedidoService } from "../ordering/pedido.service";
 import { CierreService } from "./cierre.service";
@@ -67,6 +68,7 @@ async function fixture(clock: Clock) {
   const productos = new ProductosService(db, audit, events);
   const clientes = new ClientesService(db, audit);
   const ligas = new ClienteProductoService(db, audit, clientes, events);
+  const bonos = new ClienteBonoService(db, audit, clientes, events);
   const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
   const hoja = new HojaService(db, calendar);
   const cierre = new CierreService(
@@ -157,6 +159,7 @@ async function fixture(clock: Clock) {
     productos,
     clientes,
     ligas,
+    bonos,
     pedidos,
     hoja,
     cierre,
@@ -1119,6 +1122,47 @@ describe.skipIf(!listo)("E4 operación diaria", () => {
       expect(op.clientesSinPedido.some((c) => c.clienteId === tabasco.id)).toBe(
         false,
       );
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-105 hoja suma libras de devolución y anota el bono", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const { t16, tabasco } = await catalogoBasico(f);
+      const bono = await f.bonos.otorgar(
+        tabasco.id,
+        {
+          productoId: t16.id,
+          descripcion: "tortilla quebradita",
+          cantidad: 3,
+        },
+        f.actor,
+      );
+      await f.pedidos.crearManual(
+        {
+          clienteId: tabasco.id,
+          items: [
+            { productoId: t16.id, cantidad: 10, esDevolucion: false },
+            {
+              productoId: t16.id,
+              cantidad: 2,
+              esDevolucion: true,
+              bonoId: bono.id,
+            },
+          ],
+        },
+        f.actor,
+      );
+      await f.cierre.cerrar({}, f.actor);
+      const hoja = await f.hoja.obtener(f.orgId, "2026-08-20");
+      const bloque = hoja.snapshot.clientes.find((c) => c.clienteId === tabasco.id);
+      const item = bloque?.items.find((i) => i.productoId === t16.id);
+      expect(item?.cantidad).toBe(12);
+      expect(item?.notaProduccion).toContain("2 lb devolución");
+      const lineaProd = hoja.snapshot.productos.find((p) => p.productoId === t16.id);
+      expect(lineaProd?.cantidad).toBe(12);
     } finally {
       await f.client.end({ timeout: 1 });
     }

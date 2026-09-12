@@ -61,6 +61,10 @@ import {
   type ItemSnapshot,
 } from "./pedido-reglas";
 import {
+  aplicarBonosEnPedido,
+  restaurarBonosDePedido,
+} from "./pedido-bono";
+import {
   bloquearDiaOperacion,
   leerEstadoDia,
 } from "../shared/dia-operacion";
@@ -149,7 +153,6 @@ export class PedidoService {
           const itemsAntes = existente
             ? await this.itemsDe(existente.id, tx)
             : [];
-          const congelados = congelarSnapshots(snapshots, itemsAntes);
 
           const esEdicion = Boolean(existente);
           const pedidoId = existente
@@ -160,6 +163,15 @@ export class PedidoService {
                 { operacion: fechaOperacion, entrega: fechaEntrega },
                 { origen: "PORTAL" },
               );
+
+          const congelados = await this.resolverSnapshotsConBonos(
+            tx,
+            clienteRow,
+            pedidoId,
+            input.items,
+            snapshots,
+            itemsAntes,
+          );
 
           if (existente) {
             await tx
@@ -267,6 +279,7 @@ export class PedidoService {
         fechaOperacion,
         ejes.ventanaAbierta,
       );
+      await restaurarBonosDePedido(tx, row.id);
       await tx
         .update(pedido)
         .set({
@@ -452,7 +465,15 @@ export class PedidoService {
             capturadoPor: actor.usuarioId,
             notasAdmin,
           });
-          await this.escribirItems(tx, id, snapshots);
+          const congelados = await this.resolverSnapshotsConBonos(
+            tx,
+            clienteRow,
+            id,
+            input.items,
+            snapshots,
+            [],
+          );
+          await this.escribirItems(tx, id, congelados);
           await this.outbox.insert(
             {
               tipo: "PedidoConfirmado",
@@ -571,7 +592,14 @@ export class PedidoService {
         relojVivoItems,
       );
       const itemsAntes = await this.itemsDe(row.id, tx);
-      const congelados = congelarSnapshots(snapshots, itemsAntes);
+      const congelados = await this.resolverSnapshotsConBonos(
+        tx,
+        { id: row.clienteId, organizacionId: row.organizacionId },
+        row.id,
+        input.items,
+        snapshots,
+        itemsAntes,
+      );
       await tx.delete(pedidoItem).where(eq(pedidoItem.pedidoId, row.id));
       await this.escribirItems(tx, row.id, congelados);
       await this.audit.insert(
@@ -614,6 +642,7 @@ export class PedidoService {
         row.fechaOperacion,
         relojVivoAnular,
       );
+      await restaurarBonosDePedido(tx, row.id);
       await tx
         .update(pedido)
         .set({
@@ -673,6 +702,8 @@ export class PedidoService {
       unidadMedida: item.unidadMedida,
       precioUnitarioCentavos: item.precioUnitarioCentavos,
       subtotalCentavos: item.cantidadPedida * item.precioUnitarioCentavos,
+      esDevolucion: item.esDevolucion,
+      bonoId: item.bonoId ?? null,
     }));
     const totalCentavos = totalPedidoCentavos(mapped);
     return portalPedidoSchema.parse({
@@ -726,6 +757,7 @@ export class PedidoService {
       .where(eq(pedidoItem.pedidoId, pedidoId));
 
     const items = lineas.map((linea) => ({
+      id: linea.item.id,
       productoId: linea.item.productoId,
       cantidad: linea.item.cantidadPedida,
       nombreMostrado: linea.item.nombreMostrado,
@@ -739,6 +771,8 @@ export class PedidoService {
         row.fechaOperacion,
       ),
       notaProduccion: linea.notaProduccion ?? null,
+      esDevolucion: linea.item.esDevolucion,
+      bonoId: linea.item.bonoId ?? null,
     }));
     const totalCentavos = totalPedidoCentavos(items);
 
@@ -871,12 +905,21 @@ export class PedidoService {
 
   private async tasarItems(
     clienteRow: ClienteRef,
-    items: { productoId: string; cantidad: number }[],
+    items: {
+      productoId: string;
+      cantidad: number;
+      esDevolucion?: boolean;
+      bonoId?: string;
+    }[],
     previos: ItemSnapshot[],
   ): Promise<ItemSnapshot[]> {
-    const ids = items.map((i) => i.productoId);
-    const unicos = new Set(ids);
-    if (unicos.size !== ids.length) {
+    const claves = items.map((i) =>
+      i.esDevolucion
+        ? `d:${i.bonoId ?? i.productoId}:${i.productoId}`
+        : `p:${i.productoId}`,
+    );
+    const unicos = new Set(claves);
+    if (unicos.size !== claves.length) {
       throw new DomainException(
         "VALIDACION",
         "Hay productos repetidos en el pedido",
@@ -900,37 +943,103 @@ export class PedidoService {
       .from(clienteProducto)
       .where(eq(clienteProducto.clienteId, clienteRow.id));
     const ligaPorProducto = new Map(ligas.map((l) => [l.productoId, l]));
-    const previoPorProducto = new Map(previos.map((i) => [i.productoId, i]));
+    const previoPorClave = new Map(
+      previos.map((i) => [`${i.productoId}:${i.esDevolucion ? "1" : "0"}`, i]),
+    );
 
-    return items.map((item) => {
-      const ya = previoPorProducto.get(item.productoId);
-      if (ya) {
-        return { ...ya, cantidad: item.cantidad };
-      }
-      const prod = porId.get(item.productoId);
-      const liga = ligaPorProducto.get(item.productoId);
-      const precioUnitarioCentavos = prod
-        ? precioEfectivoCentavos({
-            precioClienteCentavos: liga?.precioCentavos ?? null,
-            precioBaseCentavos: prod.precioBaseCentavos ?? null,
-          })
-        : null;
-      if (!prod || precioUnitarioCentavos == null) {
-        throw new DomainException(
-          "PRECIO_AUSENTE",
-          MENSAJE_PRECIO_AUSENTE,
-          409,
-        );
-      }
-      const alias = liga?.alias?.trim();
-      return {
-        productoId: item.productoId,
-        cantidad: item.cantidad,
-        nombreMostrado: alias || prod.nombreCanonico,
-        unidadMedida: prod.unidadMedida,
-        precioUnitarioCentavos,
-      };
-    });
+    return items
+      .filter((item) => !item.esDevolucion)
+      .map((item) => {
+        const clave = `${item.productoId}:0`;
+        const ya = previoPorClave.get(clave);
+        if (ya) {
+          return { ...ya, cantidad: item.cantidad };
+        }
+        const prod = porId.get(item.productoId);
+        const liga = ligaPorProducto.get(item.productoId);
+        const precioUnitarioCentavos = prod
+          ? precioEfectivoCentavos({
+              precioClienteCentavos: liga?.precioCentavos ?? null,
+              precioBaseCentavos: prod.precioBaseCentavos ?? null,
+            })
+          : null;
+        if (!prod || precioUnitarioCentavos == null) {
+          throw new DomainException(
+            "PRECIO_AUSENTE",
+            MENSAJE_PRECIO_AUSENTE,
+            409,
+          );
+        }
+        const alias = liga?.alias?.trim();
+        return {
+          productoId: item.productoId,
+          cantidad: item.cantidad,
+          nombreMostrado: alias || prod.nombreCanonico,
+          unidadMedida: prod.unidadMedida,
+          precioUnitarioCentavos,
+          esDevolucion: false,
+          bonoId: null,
+        };
+      });
+  }
+
+  private async resolverSnapshotsConBonos(
+    tx: AppDatabase,
+    clienteRow: ClienteRef,
+    pedidoId: string,
+    itemsInput: {
+      productoId: string;
+      cantidad: number;
+      esDevolucion?: boolean;
+      bonoId?: string;
+    }[],
+    snapshotsPagados: ItemSnapshot[],
+    itemsAntes: ItemSnapshot[],
+  ): Promise<ItemSnapshot[]> {
+    const productos = await tx
+      .select()
+      .from(producto)
+      .where(
+        and(
+          eq(producto.organizacionId, clienteRow.organizacionId),
+          eq(producto.activo, true),
+        ),
+      );
+    const porId = new Map(productos.map((p) => [p.id, p]));
+    const ligas = await tx
+      .select()
+      .from(clienteProducto)
+      .where(eq(clienteProducto.clienteId, clienteRow.id));
+    const ligaPorProducto = new Map(ligas.map((l) => [l.productoId, l]));
+
+    const devolucionSnapshots = await aplicarBonosEnPedido(
+      tx,
+      clienteRow.id,
+      pedidoId,
+      itemsInput,
+      (_item, _bonoId) => {
+        const prod = porId.get(_item.productoId);
+        if (!prod) {
+          throw new DomainException(
+            "PRODUCTO_INACTIVO",
+            "El producto no está activo",
+            409,
+          );
+        }
+        const liga = ligaPorProducto.get(_item.productoId);
+        const alias = liga?.alias?.trim();
+        return {
+          nombreMostrado: alias || prod.nombreCanonico,
+          unidadMedida: prod.unidadMedida,
+          precioUnitarioCentavos: 0,
+        };
+      },
+    );
+
+    return congelarSnapshots(
+      [...snapshotsPagados, ...devolucionSnapshots],
+      itemsAntes,
+    );
   }
 
   /**
@@ -1022,6 +1131,7 @@ export class PedidoService {
     pedidoId: string,
     items: ItemSnapshot[],
   ): Promise<void> {
+    if (items.length === 0) return;
     await tx.insert(pedidoItem).values(
       items.map((item) => ({
         pedidoId,
@@ -1031,6 +1141,8 @@ export class PedidoService {
         precioUnitarioCentavos: item.precioUnitarioCentavos,
         nombreMostrado: item.nombreMostrado,
         unidadMedida: item.unidadMedida,
+        esDevolucion: item.esDevolucion,
+        bonoId: item.bonoId,
       })),
     );
   }
@@ -1049,6 +1161,8 @@ export class PedidoService {
       nombreMostrado: item.nombreMostrado,
       unidadMedida: item.unidadMedida,
       precioUnitarioCentavos: item.precioUnitarioCentavos,
+      esDevolucion: item.esDevolucion,
+      bonoId: item.bonoId ?? null,
     }));
   }
 

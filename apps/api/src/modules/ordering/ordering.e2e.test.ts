@@ -5,6 +5,7 @@ import {
   abono,
   asset,
   auditLog,
+  clienteBono,
   diaOperacion,
   factura,
   organizacion,
@@ -41,6 +42,7 @@ import type { Actor } from "../identity/actor";
 import { ProductosService } from "../catalog/productos.service";
 import { ClientesService } from "../catalog/clientes.service";
 import { ClienteProductoService } from "../catalog/cliente-producto.service";
+import { ClienteBonoService } from "../catalog/cliente-bono.service";
 import { PortalTokenService } from "./portal-token.service";
 import { PortalService } from "./portal.service";
 import { PedidoEvents } from "./pedido-events";
@@ -76,6 +78,7 @@ async function fixture(clock: Clock) {
   const productos = new ProductosService(db, audit, events);
   const clientes = new ClientesService(db, audit);
   const ligas = new ClienteProductoService(db, audit, clientes, events);
+  const bonos = new ClienteBonoService(db, audit, clientes, events);
   const tokens = new PortalTokenService(db);
   const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
   const storage = new FakeStorageAdapter();
@@ -118,6 +121,7 @@ async function fixture(clock: Clock) {
     productos,
     clientes,
     ligas,
+    bonos,
     tokens,
     pedidos,
     portal,
@@ -1228,6 +1232,120 @@ describe.skipIf(!listo)("portal E2", () => {
       await expect(
         f.portal.assetContent(clienteRow, assetB!.id),
       ).rejects.toMatchObject({ code: "NO_ENCONTRADO", httpStatus: 404 });
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("bono F-105: aplica devolución a precio 0, restaura al anular, rechaza saldo insuficiente", async () => {
+    const clock = relojControlado(instanteGT("2026-08-21T16:00:00"));
+    const f = await fixture(clock);
+    try {
+      const tortilla = await f.productos.crear(
+        {
+          sku: `BONO-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla bono e2e",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "PLANTA",
+          precioBaseCentavos: 1000,
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `Bono E2E ${crypto.randomUUID().slice(0, 8)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(
+        cli.id,
+        tortilla.id,
+        { alias: "tortilla", precioCentavos: 1000 },
+        f.actor,
+      );
+      const bono = await f.bonos.otorgar(
+        cli.id,
+        {
+          productoId: tortilla.id,
+          descripcion: "quebradita",
+          cantidad: 2,
+        },
+        f.actor,
+      );
+      const { token } = await f.clientes.rotarTokenPortal(cli.id, f.actor);
+      const clienteRow = await f.tokens.resolver(token);
+
+      const pedidoBono = await f.pedidos.upsertPortal(
+        clienteRow,
+        {
+          items: [
+            {
+              productoId: tortilla.id,
+              cantidad: 1,
+              esDevolucion: true,
+              bonoId: bono.id,
+            },
+          ],
+        },
+        meta,
+      );
+      expect(pedidoBono.totalCentavos).toBe(0);
+      expect(pedidoBono.items[0]?.precioUnitarioCentavos).toBe(0);
+      expect(pedidoBono.items[0]?.esDevolucion).toBe(true);
+
+      const [bonoRow] = await f.db
+        .select()
+        .from(clienteBono)
+        .where(eq(clienteBono.id, bono.id));
+      expect(bonoRow?.cantidadAplicada).toBe(1);
+
+      const mixto = await f.pedidos.upsertPortal(
+        clienteRow,
+        {
+          items: [
+            { productoId: tortilla.id, cantidad: 5, esDevolucion: false },
+            {
+              productoId: tortilla.id,
+              cantidad: 1,
+              esDevolucion: true,
+              bonoId: bono.id,
+            },
+          ],
+        },
+        meta,
+      );
+      expect(mixto.items).toHaveLength(2);
+      expect(mixto.totalCentavos).toBe(5000);
+
+      const lineas = await f.db
+        .select()
+        .from(pedidoItem)
+        .where(eq(pedidoItem.pedidoId, mixto.id));
+      expect(lineas.filter((l) => l.esDevolucion)).toHaveLength(1);
+      expect(lineas.filter((l) => !l.esDevolucion)).toHaveLength(1);
+
+      await expect(
+        f.pedidos.upsertPortal(
+          clienteRow,
+          {
+            items: [
+              {
+                productoId: tortilla.id,
+                cantidad: 99,
+                esDevolucion: true,
+                bonoId: bono.id,
+              },
+            ],
+          },
+          meta,
+        ),
+      ).rejects.toMatchObject({ code: "BONO_INSUFICIENTE", httpStatus: 409 });
+
+      await f.pedidos.anularPortal(clienteRow, meta);
+      const [bonoRestaurado] = await f.db
+        .select()
+        .from(clienteBono)
+        .where(eq(clienteBono.id, bono.id));
+      expect(bonoRestaurado?.cantidadAplicada).toBe(0);
     } finally {
       await f.client.end({ timeout: 1 });
     }

@@ -16,6 +16,8 @@ export type ItemSnapshot = {
   nombreMostrado: string;
   unidadMedida: "LIBRA" | "BOLSA" | "UNIDAD";
   precioUnitarioCentavos: number;
+  esDevolucion: boolean;
+  bonoId: string | null;
 };
 
 export function horarioDe(
@@ -74,15 +76,22 @@ export function congelarSnapshots(
   itemsAntes: ItemSnapshot[],
 ): ItemSnapshot[] {
   return snapshots.map((item) => {
-    const previo = itemsAntes.find((p) => p.productoId === item.productoId);
-    return previo
-      ? {
-          ...item,
-          nombreMostrado: previo.nombreMostrado,
-          unidadMedida: previo.unidadMedida,
-          precioUnitarioCentavos: previo.precioUnitarioCentavos,
-        }
-      : item;
+    const previo = itemsAntes.find(
+      (p) =>
+        p.productoId === item.productoId &&
+        p.esDevolucion === item.esDevolucion &&
+        (!item.esDevolucion || p.bonoId === item.bonoId),
+    );
+    if (!previo) return item;
+    return {
+      ...item,
+      nombreMostrado: previo.nombreMostrado,
+      unidadMedida: previo.unidadMedida,
+      precioUnitarioCentavos: item.esDevolucion
+        ? 0
+        : previo.precioUnitarioCentavos,
+      bonoId: item.esDevolucion ? item.bonoId : null,
+    };
   });
 }
 

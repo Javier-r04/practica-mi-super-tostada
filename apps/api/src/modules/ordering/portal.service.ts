@@ -1,7 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   abono,
+  clienteBono,
   clienteProducto,
   factura,
   pago,
@@ -19,6 +20,7 @@ import {
   portalPedidoDetalleClienteSchema,
   portalPedidoResumenSchema,
   portalProductoSchema,
+  portalBonoSchema,
   portalSesionSchema,
   precioEfectivoCentavos,
   estadoFactura,
@@ -94,12 +96,14 @@ export class PortalService {
       proximaAperturaDesde: (from) => cal.getProximaApertura(from),
       now,
     });
-    const [catalogo, pedidoAbierto, cuenta, ultimoPedido] = await Promise.all([
-      this.catalogoDe(clienteRow),
-      this.pedidos.portalAbierto(clienteRow.id, fechaOperacion, horario),
-      this.cuentaDe(clienteRow),
-      this.ultimoPedidoDe(clienteRow.id),
-    ]);
+    const [catalogo, bonos, pedidoAbierto, cuenta, ultimoPedido] =
+      await Promise.all([
+        this.catalogoDe(clienteRow),
+        this.bonosDe(clienteRow),
+        this.pedidos.portalAbierto(clienteRow.id, fechaOperacion, horario),
+        this.cuentaDe(clienteRow),
+        this.ultimoPedidoDe(clienteRow.id),
+      ]);
 
     return portalSesionSchema.parse({
       cliente: {
@@ -125,6 +129,7 @@ export class PortalService {
         horarioEntregaFijo: horario,
       },
       catalogo,
+      bonos,
       pedidoAbierto,
       cuenta,
       ahoraIso: instanteAIso(now),
@@ -349,6 +354,8 @@ export class PortalService {
       precioUnitarioCentavos: item.precioUnitarioCentavos,
       subtotalCentavos: item.cantidadPedida * item.precioUnitarioCentavos,
       fotoAssetId: fotoAssetId ?? null,
+      esDevolucion: item.esDevolucion,
+      bonoId: item.bonoId ?? null,
     }));
 
     const totalCentavos = totalPedidoCentavos(
@@ -523,6 +530,53 @@ export class PortalService {
         montoCentavos: p.pago.montoCentavos,
       })),
     };
+  }
+
+  private async bonosDe(clienteRow: ClientePortal) {
+    const rows = await this.db
+      .select({
+        bono: clienteBono,
+        nombreCanonico: producto.nombreCanonico,
+        unidadMedida: producto.unidadMedida,
+        fotoAssetId: producto.fotoAssetId,
+        alias: clienteProducto.alias,
+      })
+      .from(clienteBono)
+      .innerJoin(producto, eq(producto.id, clienteBono.productoId))
+      .leftJoin(
+        clienteProducto,
+        and(
+          eq(clienteProducto.clienteId, clienteBono.clienteId),
+          eq(clienteProducto.productoId, clienteBono.productoId),
+        ),
+      )
+      .where(
+        and(
+          eq(clienteBono.clienteId, clienteRow.id),
+          eq(clienteBono.organizacionId, clienteRow.organizacionId),
+          isNull(clienteBono.anuladoAt),
+        ),
+      )
+      .orderBy(asc(clienteBono.createdAt));
+
+    return rows
+      .map((row) => {
+        const disponible =
+          row.bono.cantidadOtorgada - row.bono.cantidadAplicada;
+        if (disponible <= 0) return null;
+        const alias = row.alias?.trim() || row.nombreCanonico;
+        return portalBonoSchema.parse({
+          id: row.bono.id,
+          productoId: row.bono.productoId,
+          alias,
+          nombreCanonico: row.nombreCanonico,
+          unidadMedida: row.unidadMedida,
+          descripcion: row.bono.descripcion,
+          cantidadDisponible: disponible,
+          fotoAssetId: row.fotoAssetId ?? null,
+        });
+      })
+      .filter((b): b is NonNullable<typeof b> => b !== null);
   }
 
   private async catalogoDe(clienteRow: ClientePortal) {

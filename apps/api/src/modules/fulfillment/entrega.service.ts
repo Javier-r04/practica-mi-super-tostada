@@ -9,6 +9,7 @@ import {
   pedidoItem,
   producto,
 } from "@misupertostada/db";
+import { restaurarBonoNoEntregado } from "../ordering/pedido-bono";
 import {
   MENSAJE_CANTIDAD_ENTREGADA,
   MENSAJE_PEDIDO_NO_ENTREGABLE,
@@ -57,8 +58,15 @@ export class EntregaService {
       );
     }
     const input = parseBody(entregarPedidoRequestSchema, body);
-    const cantidadesBody = new Map(
-      (input.items ?? []).map((i) => [i.productoId, i.cantidadEntregada]),
+    const cantidadesPorItem = new Map(
+      (input.items ?? [])
+        .filter((i) => i.itemId)
+        .map((i) => [i.itemId!, i.cantidadEntregada]),
+    );
+    const cantidadesPorProducto = new Map(
+      (input.items ?? [])
+        .filter((i) => i.productoId && !i.itemId)
+        .map((i) => [i.productoId!, i.cantidadEntregada]),
     );
 
     const { pedidoId, idempotente } = await this.db.transaction(async (tx) => {
@@ -88,8 +96,13 @@ export class EntregaService {
         .select()
         .from(pedidoItem)
         .where(eq(pedidoItem.pedidoId, ped.id));
+      const tieneDevolucion = items.some((i) => i.esDevolucion);
       const cantidades = items.map((item) => {
-        const override = cantidadesBody.get(item.productoId);
+        const override =
+          cantidadesPorItem.get(item.id) ??
+          (!tieneDevolucion
+            ? cantidadesPorProducto.get(item.productoId)
+            : undefined);
         const cantidadEntregada = override ?? item.cantidadPedida;
         if (!Number.isInteger(cantidadEntregada) || cantidadEntregada < 0) {
           throw new DomainException(
@@ -157,6 +170,14 @@ export class EntregaService {
           .update(pedidoItem)
           .set({ cantidadEntregada: c.cantidadEntregada })
           .where(eq(pedidoItem.id, c.item.id));
+        if (
+          c.item.esDevolucion &&
+          c.item.bonoId &&
+          c.cantidadEntregada < c.item.cantidadPedida
+        ) {
+          const noEntregado = c.item.cantidadPedida - c.cantidadEntregada;
+          await restaurarBonoNoEntregado(tx, c.item.bonoId, noEntregado);
+        }
       }
       const monto = montoFacturaCentavos(
         cantidades.map((c) => ({
@@ -204,6 +225,7 @@ export class EntregaService {
           despues: {
             estado: "ENTREGADO",
             cantidades: cantidades.map((c) => ({
+              itemId: c.item.id,
               productoId: c.item.productoId,
               cantidadEntregada: c.cantidadEntregada,
             })),
@@ -374,6 +396,7 @@ export class EntregaService {
       .where(eq(clienteProducto.clienteId, clienteId));
     const notaPor = new Map(ligas.map((l) => [l.productoId, l.notaProduccion]));
     return items.map((row) => ({
+      id: row.item.id,
       productoId: row.item.productoId,
       nombreMostrado: row.item.nombreMostrado,
       unidadMedida: row.item.unidadMedida,
@@ -382,6 +405,7 @@ export class EntregaService {
       precioUnitarioCentavos: row.item.precioUnitarioCentavos,
       notaProduccion: notaPor.get(row.item.productoId) ?? null,
       fotoAssetId: row.fotoAssetId ?? null,
+      esDevolucion: row.item.esDevolucion,
     }));
   }
 

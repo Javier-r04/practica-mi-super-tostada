@@ -6,11 +6,13 @@ import {
   auditLog,
   abono,
   cliente,
+  clienteBono,
   factura,
   outbox,
   organizacion,
   pago,
   pedido,
+  pedidoItem,
   usuario,
 } from "@misupertostada/db";
 import {
@@ -33,6 +35,7 @@ import type { Actor } from "../identity/actor";
 import { ProductosService } from "../catalog/productos.service";
 import { ClientesService } from "../catalog/clientes.service";
 import { ClienteProductoService } from "../catalog/cliente-producto.service";
+import { ClienteBonoService } from "../catalog/cliente-bono.service";
 import { PedidoService } from "../ordering/pedido.service";
 import { PortalService } from "../ordering/portal.service";
 import { CierreService } from "../fulfillment/cierre.service";
@@ -91,6 +94,7 @@ async function fixture(clock: Clock) {
   const productos = new ProductosService(db, audit, events);
   const clientes = new ClientesService(db, audit);
   const ligas = new ClienteProductoService(db, audit, clientes, events);
+  const bonos = new ClienteBonoService(db, audit, clientes, events);
   const pedidos = new PedidoService(db, audit, outboxWriter, calendar, events);
   const hoja = new HojaService(db, calendar);
   const cierre = new CierreService(
@@ -157,6 +161,7 @@ async function fixture(clock: Clock) {
     productos,
     clientes,
     ligas,
+    bonos,
     pedidos,
     cierre,
     entregas,
@@ -1177,6 +1182,83 @@ describe.skipIf(!listo)("E5 cobranza", () => {
       const [cliRow] = await f.db.select().from(cliente).where(eq(cliente.id, cli.id));
       const cuenta = await f.portal.cuentaDe(cliRow!);
       expect(cuenta.saldoCentavos).toBe(10000);
+    } finally {
+      await f.client.end({ timeout: 1 });
+    }
+  });
+
+  test("F-105 pedido mixto: factura solo líneas pagadas; devolución 0 restaura bono", async () => {
+    const f = await fixture(relojControlado(instanteGT("2026-08-20T22:00:00")));
+    try {
+      const prod = await f.productos.crear(
+        {
+          sku: `BONO-R-${crypto.randomUUID().slice(0, 6)}`,
+          nombreCanonico: "Tortilla mixta",
+          familia: "TORTILLA",
+          unidadMedida: "LIBRA",
+          puntoCarga: "PLANTA",
+        },
+        f.actor,
+      );
+      const cli = await f.clientes.crear(
+        { nombre: `Mixto bono ${crypto.randomUUID().slice(0, 6)}` },
+        f.actor,
+      );
+      await f.ligas.upsert(cli.id, prod.id, { precioCentavos: 1000 }, f.actor);
+      const bono = await f.bonos.otorgar(
+        cli.id,
+        {
+          productoId: prod.id,
+          descripcion: "quebradita",
+          cantidad: 2,
+        },
+        f.actor,
+      );
+      const pedidoCreado = await f.pedidos.crearManual(
+        {
+          clienteId: cli.id,
+          items: [
+            { productoId: prod.id, cantidad: 5, esDevolucion: false },
+            {
+              productoId: prod.id,
+              cantidad: 2,
+              esDevolucion: true,
+              bonoId: bono.id,
+            },
+          ],
+        },
+        f.actor,
+      );
+      await f.cierre.cerrar(
+        { fechaOperacion: pedidoCreado.fechaOperacion },
+        f.actor,
+      );
+
+      const items = await f.db
+        .select()
+        .from(pedidoItem)
+        .where(eq(pedidoItem.pedidoId, pedidoCreado.id));
+      const lineaDev = items.find((i) => i.esDevolucion);
+      expect(lineaDev).toBeDefined();
+
+      const entrega = await f.entregas.entregar(
+        {
+          idempotencyKey: crypto.randomUUID(),
+          pedidoId: pedidoCreado.id,
+          items: [
+            { productoId: prod.id, cantidadEntregada: 5 },
+            { itemId: lineaDev!.id, cantidadEntregada: 0 },
+          ],
+        },
+        f.actorReparto,
+      );
+      expect(entrega.factura.montoCentavos).toBe(5000);
+
+      const [bonoRow] = await f.db
+        .select()
+        .from(clienteBono)
+        .where(eq(clienteBono.id, bono.id));
+      expect(bonoRow?.cantidadAplicada).toBe(0);
     } finally {
       await f.client.end({ timeout: 1 });
     }

@@ -14,12 +14,14 @@ import { CurrentActor } from "../identity/current-actor";
 import type { Actor } from "../identity/actor";
 import { ClientesService } from "./clientes.service";
 import { ClienteProductoService } from "./cliente-producto.service";
+import { ClienteBonoService } from "./cliente-bono.service";
 
 @Controller("clientes")
 export class ClientesController {
   constructor(
     private readonly clientes: ClientesService,
     private readonly clienteProducto: ClienteProductoService,
+    private readonly clienteBono: ClienteBonoService,
   ) {}
 
   @Get()
@@ -39,6 +41,35 @@ export class ClientesController {
     @CurrentActor() actor: Actor,
   ) {
     return envelopeOk(await this.clienteProducto.listar(id, actor));
+  }
+
+  @Get(":id/bonos")
+  async listarBonos(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.clienteBono.listar(id, actor));
+  }
+
+  @Post(":id/bonos")
+  @RequierePermiso("catalogo.escribir")
+  async otorgarBono(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.clienteBono.otorgar(id, body, actor));
+  }
+
+  @Patch(":id/bonos/:bonoId/anular")
+  @RequierePermiso("catalogo.escribir")
+  async anularBono(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Param("bonoId", ParseUUIDPipe) bonoId: string,
+    @Body() body: unknown,
+    @CurrentActor() actor: Actor,
+  ) {
+    return envelopeOk(await this.clienteBono.anular(id, bonoId, body, actor));
   }
 
   @Put(":id/productos/orden")
