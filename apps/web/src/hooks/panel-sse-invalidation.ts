@@ -71,6 +71,7 @@ export function clavesAInvalidar(evento: PanelSseEvent): string[][] {
       return CLAVES_MENSAJE;
     case "producto.precio":
     case "cliente_producto.precio":
+    case "cliente.bono":
       return CLAVES_CATALOGO;
   }
 }

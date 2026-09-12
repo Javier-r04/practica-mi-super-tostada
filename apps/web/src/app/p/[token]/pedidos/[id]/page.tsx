@@ -21,7 +21,6 @@ import { NumeroDtePortal } from "@/components/portal/numero-dte";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PortalErrorAviso } from "@/components/portal/portal-error-estado";
 import { avancePagoFactura } from "@/lib/portal-cuenta-vista";
-import { cn } from "@/lib/utils";
 
 export default function PortalPedidoDetallePage({
   params,
@@ -60,7 +59,8 @@ export default function PortalPedidoDetallePage({
           <DetalleBody
             data={detalle.data}
             assetPath={assetPath}
-            cuentaHref={`${base}/cuenta`}
+            facturasHref={`${base}/cuenta/facturas`}
+            transferenciaHref={`${base}/cuenta/transferencia`}
           />
         ) : null}
       </div>
@@ -70,11 +70,13 @@ export default function PortalPedidoDetallePage({
 function DetalleBody({
   data,
   assetPath,
-  cuentaHref,
+  facturasHref,
+  transferenciaHref,
 }: {
   data: PortalPedidoDetalleCliente;
   assetPath: (id: string) => string;
-  cuentaHref: string;
+  facturasHref: string;
+  transferenciaHref: string;
 }) {
   const router = useRouter();
   return (
@@ -120,8 +122,8 @@ function DetalleBody({
       {data.factura ? (
         <FacturaDelPedido
           factura={data.factura}
-          cuentaHref={cuentaHref}
-          transferenciaHref={`${cuentaHref}/transferencia`}
+          facturasHref={facturasHref}
+          transferenciaHref={transferenciaHref}
           onIr={(href) => router.push(href)}
         />
       ) : null}
@@ -136,12 +138,12 @@ function DetalleBody({
  */
 function FacturaDelPedido({
   factura,
-  cuentaHref,
+  facturasHref,
   transferenciaHref,
   onIr,
 }: {
   factura: PortalPedidoDetalleFactura;
-  cuentaHref: string;
+  facturasHref: string;
   transferenciaHref: string;
   onIr: (href: string) => void;
 }) {
@@ -197,15 +199,12 @@ function FacturaDelPedido({
             información accesible. */}
         <div className="grid gap-1">
           <div
-            className="h-2 w-full overflow-hidden rounded-pill bg-tinta-100"
+            className="h-2 w-full overflow-hidden rounded-pill bg-[var(--green-100)]"
             role="img"
             aria-label={avance.etiqueta}
           >
             <div
-              className={cn(
-                "h-full rounded-pill",
-                pagada ? "bg-[var(--green-600)]" : "bg-[var(--green-800)]",
-              )}
+              className="h-full rounded-pill bg-[var(--green-600)] transition-all duration-300"
               style={{ width: `${avance.porcentaje}%` }}
             />
           </div>
@@ -244,7 +243,7 @@ function FacturaDelPedido({
       </Card.Content>
 
       <Card.Footer className="flex flex-wrap gap-2">
-        <Button size="md" variant="secondary" onPress={() => onIr(cuentaHref)}>
+        <Button size="md" variant="secondary" onPress={() => onIr(facturasHref)}>
           Ver mi cuenta
         </Button>
         {/* Un solo amarillo por pantalla: esta va secundaria a propósito. */}

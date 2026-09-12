@@ -25,8 +25,10 @@ import {
   PAGO_METODO_ETIQUETA,
   tienePermiso,
   type ActorPublico,
+  type ClienteBonoPublico,
   type ClienteProductoFila,
   type ClientePublico,
+  UNIDAD_CORTA,
   type PedidoBandeja,
   type PortalCuenta,
 } from "@misupertostada/shared";
@@ -42,6 +44,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import { ClientePrecios } from "@/components/catalog/cliente-precios";
+import { ClienteBonos } from "@/components/catalog/cliente-bonos";
 import { FotoPicker } from "@/components/catalog/foto-picker";
 import { ComprobanteAssetPreview } from "@/components/receivables/comprobante-asset-preview";
 
@@ -90,6 +93,11 @@ export default function ClienteFichaPage() {
     queryFn: () => api<PedidoBandeja[]>(`/pedidos?clienteId=${id}&historial=1`),
     enabled: Boolean(cliente.data),
   });
+  const bonos = useQuery({
+    queryKey: ["clientes", id, "bonos"],
+    queryFn: () => api<ClienteBonoPublico[]>(`/clientes/${id}/bonos`),
+    enabled: Boolean(cliente.data),
+  });
 
   const rotar = useMutation({
     mutationFn: () =>
@@ -131,6 +139,10 @@ export default function ClienteFichaPage() {
     cuenta.data != null &&
     cuenta.data.limiteFacturasPendientes != null &&
     cuenta.data.facturasPendientes >= cuenta.data.limiteFacturasPendientes;
+  const bonosPendientes = (bonos.data ?? []).filter(
+    (b) => !b.anuladoAt && b.cantidadDisponible > 0,
+  );
+  const chipBono = resumenChipBono(bonosPendientes);
 
   async function guardarFoto() {
     if (!canWrite) return;
@@ -218,6 +230,11 @@ export default function ClienteFichaPage() {
                 {c.tieneTokenPortal && (
                   <Chip color="success" size="sm" variant="soft">
                     Portal activo
+                  </Chip>
+                )}
+                {chipBono && (
+                  <Chip color="warning" size="sm" variant="soft">
+                    {chipBono}
                   </Chip>
                 )}
                 {excedido && (
@@ -329,6 +346,8 @@ export default function ClienteFichaPage() {
                 )}
               </>
             ) : null}
+
+            <ClienteBonos clienteId={id} canWrite={canWrite} />
 
             <Card className="gap-0 overflow-hidden p-0">
               <Card.Header className="flex-row flex-wrap items-center justify-between gap-2 px-4 py-4 pb-3 sm:px-5">
@@ -694,6 +713,19 @@ export default function ClienteFichaPage() {
       </Modal.Backdrop>
     </PanelShell>
   );
+}
+
+function resumenChipBono(
+  pendientes: readonly ClienteBonoPublico[],
+): string | null {
+  if (pendientes.length === 0) return null;
+  const unidades = new Set(pendientes.map((b) => b.unidadMedida));
+  if (unidades.size === 1) {
+    const unidad = pendientes[0]!.unidadMedida;
+    const total = pendientes.reduce((acc, b) => acc + b.cantidadDisponible, 0);
+    return `Bono ${total} ${UNIDAD_CORTA[unidad]}`;
+  }
+  return pendientes.length === 1 ? "Bono pendiente" : `${pendientes.length} bonos`;
 }
 
 function VolverAClientes() {

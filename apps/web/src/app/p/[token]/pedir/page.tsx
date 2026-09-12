@@ -6,6 +6,7 @@ import {
   Alert,
   Button,
   Card,
+  Chip,
   Modal,
   SearchField,
   Spinner,
@@ -14,12 +15,16 @@ import { CheckCircle2, PackageSearch, Star } from "lucide-react";
 import {
   formatearFechaLarga,
   totalPedidoCentavos,
+  UNIDAD_CORTA,
+  type PortalBono,
   type PortalPedido,
+  type PortalProducto,
   type PortalSesion,
 } from "@misupertostada/shared";
 import { api, ApiError } from "@/lib/api";
 import {
   cierreAnticipadoVentana,
+  copyCuentaProductos,
   copyEdicionHasta,
   copyProximaApertura,
   entregaCopy,
@@ -41,6 +46,8 @@ import {
 import { PedidoItemRow } from "@/components/domain/pedido-item-row";
 import { Money } from "@/components/domain/money";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ProductoThumb } from "@/components/catalog/producto-thumb";
+import { QuantityStepper } from "@/components/ui/quantity-stepper";
 import { useAnchoLg } from "@/hooks/use-ancho-lg";
 
 export default function PortalPedirPage() {
@@ -49,7 +56,9 @@ export default function PortalPedirPage() {
     token,
     sesion,
     cantidades,
+    cantidadesBono,
     setCantidad,
+    setCantidadBono,
     resetDesdePedido,
     vaciarCantidades,
     assetPath,
@@ -73,6 +82,16 @@ export default function PortalPedirPage() {
     () => itemsElegidosDe(sesion.catalogo, cantidades),
     [sesion.catalogo, cantidades],
   );
+
+  const bonosElegidos = useMemo(
+    () =>
+      (sesion.bonos ?? [])
+        .map((b) => ({ bono: b, cantidad: cantidadesBono[b.id] ?? 0 }))
+        .filter((x) => x.cantidad > 0),
+    [sesion.bonos, cantidadesBono],
+  );
+
+  const lineasPedido = itemsElegidos.length + bonosElegidos.length;
 
   const itemsBloqueados = useMemo(
     () => itemsBloqueadosDe(sesion.catalogo, cantidades),
@@ -110,10 +129,19 @@ export default function PortalPedirPage() {
       api<PortalPedido>(`/p/${encodeURIComponent(token)}/pedido`, {
         method: "PUT",
         body: JSON.stringify({
-          items: itemsElegidos.map((i) => ({
-            productoId: i.producto.productoId,
-            cantidad: i.cantidad,
-          })),
+          items: [
+            ...itemsElegidos.map((i) => ({
+              productoId: i.producto.productoId,
+              cantidad: i.cantidad,
+              esDevolucion: false,
+            })),
+            ...bonosElegidos.map((i) => ({
+              productoId: i.bono.productoId,
+              cantidad: i.cantidad,
+              esDevolucion: true,
+              bonoId: i.bono.id,
+            })),
+          ],
         }),
       }),
     onSuccess: (recibido) => {
@@ -208,11 +236,12 @@ export default function PortalPedirPage() {
                 const fotoAssetId = fotoPorProducto[item.productoId] ?? null;
                 return (
                   <PedidoItemRow
-                    key={item.productoId}
+                    key={`${item.productoId}-${item.esDevolucion ? "d" : "p"}`}
                     nombreMostrado={item.nombreMostrado}
                     unidadMedida={item.unidadMedida}
                     cantidad={item.cantidad}
                     precioUnitarioCentavos={item.precioUnitarioCentavos}
+                    esDevolucion={item.esDevolucion}
                     fotoAssetId={fotoAssetId}
                     fotoSrcPath={
                       fotoAssetId ? assetPath(fotoAssetId) : undefined
@@ -334,7 +363,7 @@ export default function PortalPedirPage() {
   const motivo = motivoNoConfirmar({
     abierta,
     cierreAnticipado,
-    lineas: itemsElegidos.length,
+    lineas: lineasPedido,
     proximaAperturaAt: sesion.ventana.proximaAperturaAt,
   });
 
@@ -342,8 +371,7 @@ export default function PortalPedirPage() {
     <div className="grid gap-2">
       <div className="flex min-w-0 items-baseline justify-between gap-2 px-0.5">
         <span className="shrink-0 text-sm font-semibold text-tinta-700 tabular-nums">
-          {itemsElegidos.length}{" "}
-          {itemsElegidos.length === 1 ? "producto en pedido" : "productos en pedido"}
+          {copyCuentaProductos(lineasPedido, "en-pedido")}
         </span>
         <Money centavos={totalCentavos} className="text-lg font-bold text-[var(--green-900)]" truncate />
       </div>
@@ -360,9 +388,9 @@ export default function PortalPedirPage() {
       >
         <span className="inline-flex items-center gap-2">
           <span>Revisar pedido</span>
-          {itemsElegidos.length > 0 ? (
+          {lineasPedido > 0 ? (
             <span className="rounded-full bg-[var(--green-900)]/15 px-2 py-0.5 text-xs font-bold text-[var(--green-900)]">
-              {itemsElegidos.length}
+              {lineasPedido}
             </span>
           ) : null}
         </span>
@@ -459,6 +487,64 @@ export default function PortalPedirPage() {
             </div>
           ) : null}
 
+          {(sesion.bonos ?? []).length > 0 && abierta && !cierreAnticipado ? (
+            <Alert status="success">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>Devolución pendiente</Alert.Title>
+                <Alert.Description>
+                  {(sesion.bonos ?? [])
+                    .map(
+                      (b) =>
+                        `${b.cantidadDisponible} ${UNIDAD_CORTA[b.unidadMedida]} de ${b.alias} gratis (${b.descripcion})`,
+                    )
+                    .join(" · ")}
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+
+          {(sesion.bonos ?? []).length > 0 && abierta && !cierreAnticipado ? (
+            <section className="grid gap-2">
+              <h2 className="px-1 mst-label">Devolución pendiente</h2>
+              <Card className="gap-0 overflow-hidden p-0">
+                {(sesion.bonos ?? []).map((b) => (
+                  <div
+                    key={b.id}
+                    className="flex flex-wrap items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3"
+                  >
+                    <ProductoThumb
+                      nombre={b.alias}
+                      fotoAssetId={b.fotoAssetId}
+                      srcPath={
+                        b.fotoAssetId ? assetPath(b.fotoAssetId) : undefined
+                      }
+                      size="sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-tinta-900">
+                          {b.alias}
+                        </p>
+                        <Chip size="sm" variant="soft" color="success">
+                          Gratis
+                        </Chip>
+                      </div>
+                      <p className="text-xs text-tinta-500">{b.descripcion}</p>
+                    </div>
+                    <QuantityStepper
+                      value={cantidadesBono[b.id] ?? 0}
+                      onChange={(v) => setCantidadBono(b.id, v)}
+                      min={0}
+                      max={b.cantidadDisponible}
+                      unidad={UNIDAD_CORTA[b.unidadMedida]}
+                    />
+                  </div>
+                ))}
+              </Card>
+            </section>
+          ) : null}
+
           {!abierta || cierreAnticipado ? (
             <Alert status="default">
               <Alert.Indicator />
@@ -534,7 +620,20 @@ export default function PortalPedirPage() {
             <Card.Header className="gap-1">
               <Card.Title>Su pedido</Card.Title>
             </Card.Header>
-            <Card.Content>
+            <Card.Content className="grid gap-3">
+              {lineasPedido > 0 ? (
+                <Card className="gap-0 overflow-hidden p-0">
+                  <LineasRevision
+                    itemsElegidos={itemsElegidos}
+                    bonosElegidos={bonosElegidos}
+                    assetPath={assetPath}
+                  />
+                </Card>
+              ) : (
+                <p className="text-sm text-tinta-500">
+                  Aún no ha agregado productos.
+                </p>
+              )}
               {resumenElegido}
             </Card.Content>
           </Card>
@@ -572,8 +671,7 @@ export default function PortalPedirPage() {
                 aria-live="polite"
               >
                 <span className="shrink-0 text-sm tabular-nums text-tinta-600">
-                  {itemsElegidos.length}{" "}
-                  {itemsElegidos.length === 1 ? "producto" : "productos"}
+                  {copyCuentaProductos(lineasPedido, "corto")}
                 </span>
                 <Money centavos={totalCentavos} className="text-[17px]" truncate />
               </div>
@@ -581,21 +679,11 @@ export default function PortalPedirPage() {
 
             <Modal.Body className="grid gap-4">
               <Card className="min-w-0 gap-0 overflow-hidden p-0">
-                {itemsElegidos.map(({ producto, cantidad }) => (
-                  <PedidoItemRow
-                    key={producto.productoId}
-                    nombreMostrado={producto.alias}
-                    unidadMedida={producto.unidadMedida}
-                    cantidad={cantidad}
-                    precioUnitarioCentavos={producto.precioCentavos ?? 0}
-                    fotoAssetId={producto.fotoAssetId}
-                    fotoSrcPath={
-                      producto.fotoAssetId
-                        ? assetPath(producto.fotoAssetId)
-                        : undefined
-                    }
-                  />
-                ))}
+                <LineasRevision
+                  itemsElegidos={itemsElegidos}
+                  bonosElegidos={bonosElegidos}
+                  assetPath={assetPath}
+                />
               </Card>
 
               {avisoBloqueados ? (
@@ -652,6 +740,55 @@ export default function PortalPedirPage() {
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
+    </>
+  );
+}
+
+function LineasRevision({
+  itemsElegidos,
+  bonosElegidos,
+  assetPath,
+}: {
+  itemsElegidos: { producto: PortalProducto; cantidad: number }[];
+  bonosElegidos: { bono: PortalBono; cantidad: number }[];
+  assetPath: (assetId: string) => string;
+}) {
+  if (itemsElegidos.length === 0 && bonosElegidos.length === 0) {
+    return (
+      <p className="px-4 py-6 text-center text-sm text-tinta-500">
+        Aún no ha agregado productos.
+      </p>
+    );
+  }
+  return (
+    <>
+      {bonosElegidos.map(({ bono, cantidad }) => (
+        <PedidoItemRow
+          key={`d-${bono.id}`}
+          nombreMostrado={bono.alias}
+          unidadMedida={bono.unidadMedida}
+          cantidad={cantidad}
+          precioUnitarioCentavos={0}
+          esDevolucion
+          fotoAssetId={bono.fotoAssetId}
+          fotoSrcPath={
+            bono.fotoAssetId ? assetPath(bono.fotoAssetId) : undefined
+          }
+        />
+      ))}
+      {itemsElegidos.map(({ producto, cantidad }) => (
+        <PedidoItemRow
+          key={`p-${producto.productoId}`}
+          nombreMostrado={producto.alias}
+          unidadMedida={producto.unidadMedida}
+          cantidad={cantidad}
+          precioUnitarioCentavos={producto.precioCentavos ?? 0}
+          fotoAssetId={producto.fotoAssetId}
+          fotoSrcPath={
+            producto.fotoAssetId ? assetPath(producto.fotoAssetId) : undefined
+          }
+        />
+      ))}
     </>
   );
 }

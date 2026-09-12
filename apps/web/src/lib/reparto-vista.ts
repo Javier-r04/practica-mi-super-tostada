@@ -72,9 +72,9 @@ export function paradaConColaLocal(
   for (const fila of filas) {
     if (fila.tipo === "ENTREGA" && fila.pedidoId === parada.pedidoId) {
       items = items.map((item) => {
-        const entregadoItem = fila.items.find(
-          (i) => i.productoId === item.productoId,
-        );
+        const entregadoItem =
+          fila.items.find((i) => i.itemId === item.id) ??
+          fila.items.find((i) => i.productoId === item.productoId && !i.itemId);
         const cantidadEntregada =
           entregadoItem?.cantidadEntregada ?? item.cantidadPedida;
         return { ...item, cantidadEntregada };

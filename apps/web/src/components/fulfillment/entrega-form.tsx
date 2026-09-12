@@ -20,9 +20,11 @@ export function EntregaForm({
   disabled?: boolean;
   onChange?: (cantidades: Map<string, number>) => void;
 }) {
+  const clave = (it: EntregaItemPublico) => it.id ?? it.productoId;
+
   const [cant, setCant] = useState(() =>
     Object.fromEntries(
-      items.map((i) => [i.productoId, i.cantidadEntregada || i.cantidadPedida]),
+      items.map((i) => [clave(i), i.cantidadEntregada || i.cantidadPedida]),
     ),
   );
 
@@ -30,18 +32,18 @@ export function EntregaForm({
     () =>
       montoFacturaCentavos(
         items.map((i) => ({
-          cantidadEntregada: cant[i.productoId] ?? i.cantidadPedida,
+          cantidadEntregada: cant[clave(i)] ?? i.cantidadPedida,
           precioUnitarioCentavos: i.precioUnitarioCentavos,
         })),
       ),
     [cant, items],
   );
   const ajustes = items.filter(
-    (i) => (cant[i.productoId] ?? i.cantidadPedida) !== i.cantidadPedida,
+    (i) => (cant[clave(i)] ?? i.cantidadPedida) !== i.cantidadPedida,
   ).length;
 
-  function set(productoId: string, value: number) {
-    const next = { ...cant, [productoId]: value };
+  function set(itemId: string, value: number) {
+    const next = { ...cant, [itemId]: value };
     setCant(next);
     onChange?.(new Map(Object.entries(next)));
   }
@@ -49,12 +51,14 @@ export function EntregaForm({
   return (
     <div>
       {items.map((it) => {
-        const value = cant[it.productoId] ?? it.cantidadPedida;
+        const key = clave(it);
+        const value = cant[key] ?? it.cantidadPedida;
         const ajustado = value !== it.cantidadPedida;
         const unidad = UNIDAD_CORTA[it.unidadMedida];
+        const gratis = it.esDevolucion || it.precioUnitarioCentavos === 0;
         return (
           <div
-            key={it.productoId}
+            key={key}
             className="grid gap-3 border-b border-[var(--border-subtle)] px-4 py-4 min-h-fila"
           >
             <div className="flex items-start gap-3">
@@ -68,6 +72,11 @@ export function EntregaForm({
                   <span className="min-w-0 flex-1 text-[15px] font-semibold text-pretty text-tinta-900">
                     {it.nombreMostrado}
                   </span>
+                  {it.esDevolucion && (
+                    <Chip color="success" size="sm" variant="soft">
+                      Devolución
+                    </Chip>
+                  )}
                   {ajustado && (
                     <Chip color="warning" size="sm" variant="soft">
                       Ajustado
@@ -90,7 +99,7 @@ export function EntregaForm({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <QuantityStepper
                 value={value}
-                onChange={(v) => set(it.productoId, v)}
+                onChange={(v) => set(key, v)}
                 min={0}
                 unidad={unidad}
                 disabled={disabled}
@@ -98,16 +107,22 @@ export function EntregaForm({
               />
               <div className="min-w-0 text-right">
                 <p className="mst-label text-[11px]">{unidad} entregadas</p>
-                <Money
-                  centavos={montoFacturaCentavos([
-                    {
-                      cantidadEntregada: value,
-                      precioUnitarioCentavos: it.precioUnitarioCentavos,
-                    },
-                  ])}
-                  truncate
-                  className="text-[15px]"
-                />
+                {gratis ? (
+                  <span className="text-[15px] font-semibold tabular-nums text-tinta-500">
+                    Gratis
+                  </span>
+                ) : (
+                  <Money
+                    centavos={montoFacturaCentavos([
+                      {
+                        cantidadEntregada: value,
+                        precioUnitarioCentavos: it.precioUnitarioCentavos,
+                      },
+                    ])}
+                    truncate
+                    className="text-[15px]"
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -119,7 +134,7 @@ export function EntregaForm({
             ? `${ajustes} ajuste${ajustes > 1 ? "s" : ""}`
             : "Sin ajustes"}
         </span>
-        <Money centavos={total} truncate className="text-xl" />
+        <Money centavos={total} className="text-lg font-semibold" />
       </div>
     </div>
   );

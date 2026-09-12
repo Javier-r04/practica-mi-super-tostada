@@ -61,6 +61,8 @@ type ItemLocal = {
   precioUnitarioCentavos: number;
   puntoCarga?: PedidoDetalleDto["items"][number]["puntoCarga"];
   notaProduccion?: string | null;
+  esDevolucion: boolean;
+  bonoId?: string | null;
 };
 
 export function PedidoDetalle({
@@ -136,7 +138,7 @@ export function PedidoDetalle({
     () =>
       productosAgregables(
         catalogoCliente.data ?? [],
-        new Set(items.map((i) => i.productoId)),
+        new Set(items.filter((i) => !i.esDevolucion).map((i) => i.productoId)),
       ),
     [catalogoCliente.data, items],
   );
@@ -157,6 +159,8 @@ export function PedidoDetalle({
             items: items.map((item) => ({
               productoId: item.productoId,
               cantidad: item.cantidad,
+              esDevolucion: item.esDevolucion,
+              ...(item.bonoId ? { bonoId: item.bonoId } : {}),
             })),
           }),
         });
@@ -245,6 +249,8 @@ export function PedidoDetalle({
         precioUnitarioCentavos: precio,
         puntoCarga: fila.puntoCarga,
         notaProduccion: fila.notaProduccion,
+        esDevolucion: false,
+        bonoId: null,
       },
     ]);
     setAgregarId("");
@@ -359,7 +365,7 @@ export function PedidoDetalle({
         <Card.Content className="border-t border-[var(--border-subtle)] p-0">
           {items.map((item) => (
             <PedidoItemRow
-              key={item.productoId}
+              key={`${item.productoId}-${item.esDevolucion ? "d" : "p"}-${item.bonoId ?? ""}`}
               nombreMostrado={item.nombreCanonico}
               alias={item.nombreMostrado}
               unidadMedida={item.unidadMedida}
@@ -368,12 +374,15 @@ export function PedidoDetalle({
               puntoCarga={item.puntoCarga}
               notaProduccion={item.notaProduccion}
               fotoAssetId={fotoPorProducto.get(item.productoId)}
+              esDevolucion={item.esDevolucion}
               editable={editable}
               onChangeCantidad={(v) => {
                 userEditedRef.current = true;
                 setItems((prev) =>
                   prev.map((row) =>
-                    row.productoId === item.productoId
+                    row.productoId === item.productoId &&
+                    row.esDevolucion === item.esDevolucion &&
+                    (row.bonoId ?? null) === (item.bonoId ?? null)
                       ? { ...row, cantidad: v }
                       : row,
                   ),
@@ -680,14 +689,20 @@ function mapItems(pedido: PedidoDetalleDto): ItemLocal[] {
     precioUnitarioCentavos: item.precioUnitarioCentavos,
     puntoCarga: item.puntoCarga,
     notaProduccion: item.notaProduccion,
+    esDevolucion: item.esDevolucion,
+    bonoId: item.bonoId,
   }));
+}
+
+function claveItemLocal(item: ItemLocal): string {
+  return `${item.productoId}:${item.esDevolucion ? "1" : "0"}`;
 }
 
 function mismoItemsLocal(a: ItemLocal[], b: ItemLocal[]): boolean {
   if (a.length !== b.length) return false;
-  const porId = new Map(b.map((i) => [i.productoId, i]));
+  const porClave = new Map(b.map((i) => [claveItemLocal(i), i]));
   return a.every((row) => {
-    const other = porId.get(row.productoId);
+    const other = porClave.get(claveItemLocal(row));
     return other != null && other.cantidad === row.cantidad;
   });
 }

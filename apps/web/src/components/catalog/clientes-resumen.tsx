@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { Money } from "@/components/domain/money";
 import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import type { ResumenClientes } from "@/lib/cliente-cobranza";

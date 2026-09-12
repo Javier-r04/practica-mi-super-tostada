@@ -53,9 +53,9 @@ const NAV: readonly NavItem[] = [
 
 export function PortalNav({ variant }: { variant: "bottom" | "top" }) {
   const pathname = usePathname();
-  const { token, cantidades } = usePortalSession();
+  const { token, cantidades, cantidadesBono } = usePortalSession();
   const base = `/p/${encodeURIComponent(token)}`;
-  const lineas = lineasPedidoCount(cantidades);
+  const lineas = lineasPedidoCount(cantidades, cantidadesBono);
 
   if (variant === "top") {
     return (

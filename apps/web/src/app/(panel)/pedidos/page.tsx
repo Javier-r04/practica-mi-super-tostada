@@ -9,7 +9,7 @@ import {
 } from "@heroui/react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ClipboardList, Plus, X } from "lucide-react";
-import { Suspense, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   horaEnZona,

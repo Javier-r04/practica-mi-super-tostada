@@ -11,7 +11,10 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import type { PortalProducto, PortalSesion } from "@misupertostada/shared";
 import { api } from "@/lib/api";
-import { cantidadesDesdePedido } from "@/lib/portal-vista";
+import {
+  cantidadesBonoDesdePedido,
+  cantidadesDesdePedido,
+} from "@/lib/portal-vista";
 import { intervaloRefetchVentana } from "@/lib/ventana-refetch";
 import { usePortalSse } from "@/hooks/use-portal-sse";
 import { PortalErrorPantalla } from "@/components/portal/portal-error-estado";
@@ -21,7 +24,9 @@ type PortalSessionValue = {
   token: string;
   sesion: PortalSesion;
   cantidades: Record<string, number>;
+  cantidadesBono: Record<string, number>;
   setCantidad: (productoId: string, cantidad: number) => void;
+  setCantidadBono: (bonoId: string, cantidad: number) => void;
   resetDesdePedido: () => void;
   vaciarCantidades: () => void;
   assetPath: (assetId: string) => string;
@@ -74,8 +79,16 @@ export function PortalSessionProvider({
     () => cantidadesDesdePedido(pedidoAbierto),
     [pedidoAbierto],
   );
+  const delServidorBono = useMemo(
+    () => cantidadesBonoDesdePedido(pedidoAbierto),
+    [pedidoAbierto],
+  );
   const [editadas, setEditadas] = useState<Record<string, number> | null>(null);
+  const [editadasBono, setEditadasBono] = useState<Record<string, number> | null>(
+    null,
+  );
   const cantidades = editadas ?? delServidor;
+  const cantidadesBono = editadasBono ?? delServidorBono;
 
   const setCantidad = useCallback(
     (productoId: string, cantidad: number) => {
@@ -84,13 +97,25 @@ export function PortalSessionProvider({
     [delServidor],
   );
 
+  const setCantidadBono = useCallback(
+    (bonoId: string, cantidad: number) => {
+      setEditadasBono((prev) => ({
+        ...(prev ?? delServidorBono),
+        [bonoId]: cantidad,
+      }));
+    },
+    [delServidorBono],
+  );
+
   const resetDesdePedido = useCallback(() => {
     if (!pedidoAbierto) return;
     setEditadas(cantidadesDesdePedido(pedidoAbierto));
+    setEditadasBono(cantidadesBonoDesdePedido(pedidoAbierto));
   }, [pedidoAbierto]);
 
   const vaciarCantidades = useCallback(() => {
     setEditadas({});
+    setEditadasBono({});
   }, []);
 
   const assetPath = useCallback(
@@ -120,7 +145,9 @@ export function PortalSessionProvider({
     token,
     sesion: sesion.data,
     cantidades,
+    cantidadesBono,
     setCantidad,
+    setCantidadBono,
     resetDesdePedido,
     vaciarCantidades,
     assetPath,

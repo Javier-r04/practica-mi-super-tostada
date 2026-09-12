@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -27,7 +27,6 @@ import { PanelShell } from "@/components/layout/panel-shell";
 import { useColaOffline } from "@/hooks/use-cola-offline";
 import { EmptyState } from "@/components/ui/empty-state";
 import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
-import { Skeleton } from "@/components/ui/skeleton";
 import { EstadoBadge } from "@/components/domain/estado-badge";
 import { Money } from "@/components/domain/money";
 import { EntregaForm } from "@/components/fulfillment/entrega-form";
@@ -208,8 +207,9 @@ export default function RepartoPage() {
         idempotencyKey: crypto.randomUUID(),
         pedidoId: paradaActual.pedidoId,
         items: paradaActual.items.map((i) => ({
-          productoId: i.productoId,
-          cantidadEntregada: cantidades.get(i.productoId) ?? i.cantidadPedida,
+          ...(i.id ? { itemId: i.id } : { productoId: i.productoId }),
+          cantidadEntregada:
+            cantidades.get(i.id ?? i.productoId) ?? i.cantidadPedida,
         })),
       });
       const saldo = saldoParadaCentavos({

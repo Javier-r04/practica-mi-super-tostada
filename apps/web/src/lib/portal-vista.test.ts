@@ -3,16 +3,21 @@ import type { PortalProducto } from "@misupertostada/shared";
 import {
   avisoLimiteCredito,
   cierreAnticipadoVentana,
+  copyCuentaProductos,
+  copyLosetaBonos,
   ctaInicio,
   ctaInicioSecundaria,
   entregaCopy,
   gruposCatalogo,
+  hayBonosPendientes,
   normalizarBusqueda,
   origenPedidoLabel,
   propsVentanaCountdown,
   propsVentanaPedido,
   saludoCopy,
   vistaPedir,
+  cantidadesBonoDesdePedido,
+  lineasPedidoCount,
 } from "./portal-vista";
 
 const producto = (
@@ -259,6 +264,97 @@ describe("normalizarBusqueda", () => {
     ];
     const { grupos } = gruposCatalogo({ catalogo, query: "papalínas" });
     expect(grupos[0]?.productos).toHaveLength(1);
+  });
+});
+
+describe("cantidadesBonoDesdePedido", () => {
+  test("solo líneas esDevolucion con bonoId", () => {
+    const bonoId = "00000000-0000-4000-a000-000000000099";
+    const pedido = {
+      id: "00000000-0000-4000-a000-000000000020",
+      correlativo: 1,
+      estado: "CONFIRMADO" as const,
+      fechaOperacion: "2026-08-21",
+      origen: "PORTAL" as const,
+      items: [
+        {
+          productoId: "00000000-0000-4000-a000-000000000001",
+          cantidad: 5,
+          esDevolucion: false,
+          bonoId: null,
+          nombreMostrado: "tortilla",
+          unidadMedida: "LIBRA" as const,
+          precioUnitarioCentavos: 1000,
+        },
+        {
+          productoId: "00000000-0000-4000-a000-000000000001",
+          cantidad: 2,
+          esDevolucion: true,
+          bonoId,
+          nombreMostrado: "tortilla",
+          unidadMedida: "LIBRA" as const,
+          precioUnitarioCentavos: 0,
+        },
+      ],
+      totalCentavos: 5000,
+      textoConfirmacion: "",
+    };
+    expect(cantidadesBonoDesdePedido(pedido)).toEqual({ [bonoId]: 2 });
+    expect(cantidadesBonoDesdePedido(null)).toEqual({});
+  });
+});
+
+describe("lineasPedidoCount", () => {
+  test("suma líneas pagadas y de devolución", () => {
+    expect(lineasPedidoCount({ a: 2 }, { b: 1 })).toBe(2);
+    expect(lineasPedidoCount({ a: 0 }, { b: 2 })).toBe(1);
+    expect(lineasPedidoCount({})).toBe(0);
+  });
+});
+
+describe("copyCuentaProductos", () => {
+  test("incluye devoluciones en el conteo del carrito y del modal", () => {
+    expect(copyCuentaProductos(0, "en-pedido")).toBe("0 productos en pedido");
+    expect(copyCuentaProductos(1, "en-pedido")).toBe("1 producto en pedido");
+    expect(copyCuentaProductos(2, "corto")).toBe("2 productos");
+  });
+});
+
+describe("hayBonosPendientes / copyLosetaBonos", () => {
+  const nachos = {
+    alias: "Nachos Blancos Pequeños",
+    cantidadDisponible: 2,
+    unidadMedida: "BOLSA" as const,
+  };
+  const tortilla = {
+    alias: "Tortillas #16",
+    cantidadDisponible: 5,
+    unidadMedida: "LIBRA" as const,
+  };
+
+  test("la loseta de inicio solo existe con saldo gratis", () => {
+    expect(hayBonosPendientes([])).toBe(false);
+    expect(hayBonosPendientes(undefined)).toBe(false);
+    expect(hayBonosPendientes([{ cantidadDisponible: 0 }])).toBe(false);
+    expect(hayBonosPendientes([{ cantidadDisponible: 2 }])).toBe(true);
+    expect(copyLosetaBonos([])).toBeNull();
+    expect(copyLosetaBonos([{ ...nachos, cantidadDisponible: 0 }])).toBeNull();
+  });
+
+  test("un bono: cifra en unidades y el alias", () => {
+    expect(copyLosetaBonos([nachos])).toEqual({
+      cifra: 2,
+      etiqueta: "bolsas gratis",
+      detalle: "Nachos Blancos Pequeños",
+    });
+  });
+
+  test("varios: cuenta productos y desglosa", () => {
+    expect(copyLosetaBonos([nachos, tortilla])).toEqual({
+      cifra: 2,
+      etiqueta: "productos gratis",
+      detalle: "2 bolsas de Nachos Blancos Pequeños · 5 lb de Tortillas #16",
+    });
   });
 });
 

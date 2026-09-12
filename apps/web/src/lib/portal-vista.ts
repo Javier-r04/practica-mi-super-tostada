@@ -1,11 +1,13 @@
 import {
   FAMILIA_ETIQUETA,
   FAMILIAS,
+  UNIDAD_CORTA,
   fechaDeInstante,
   formatearFechaLarga,
   horaEnZona,
   type DiaEstadoCalendario,
   type Familia,
+  type PortalBono,
   type PortalPedido,
   type PortalProducto,
   type PortalSaludo,
@@ -236,12 +238,74 @@ export function cantidadesDesdePedido(
 ): Record<string, number> {
   if (!pedido) return {};
   return Object.fromEntries(
-    pedido.items.map((item) => [item.productoId, item.cantidad]),
+    pedido.items
+      .filter((item) => !item.esDevolucion)
+      .map((item) => [item.productoId, item.cantidad]),
   );
 }
 
-export function lineasPedidoCount(cantidades: Record<string, number>): number {
-  return Object.values(cantidades).filter((n) => n > 0).length;
+export function cantidadesBonoDesdePedido(
+  pedido: PortalPedido | null,
+): Record<string, number> {
+  if (!pedido) return {};
+  return Object.fromEntries(
+    pedido.items
+      .filter((item) => item.esDevolucion && item.bonoId)
+      .map((item) => [item.bonoId!, item.cantidad]),
+  );
+}
+
+export function lineasPedidoCount(
+  ...cantidades: Record<string, number>[]
+): number {
+  return cantidades.reduce(
+    (n, rec) => n + Object.values(rec).filter((v) => v > 0).length,
+    0,
+  );
+}
+
+export function copyCuentaProductos(
+  lineas: number,
+  variante: "en-pedido" | "corto",
+): string {
+  const noun = lineas === 1 ? "producto" : "productos";
+  return variante === "en-pedido"
+    ? `${lineas} ${noun} en pedido`
+    : `${lineas} ${noun}`;
+}
+
+export function hayBonosPendientes(
+  bonos: readonly Pick<PortalBono, "cantidadDisponible">[] | null | undefined,
+): boolean {
+  return (bonos ?? []).some((b) => b.cantidadDisponible > 0);
+}
+
+export function copyLosetaBonos(
+  bonos: readonly Pick<
+    PortalBono,
+    "alias" | "cantidadDisponible" | "unidadMedida"
+  >[],
+): { cifra: number; etiqueta: string; detalle: string } | null {
+  const activos = bonos.filter((b) => b.cantidadDisponible > 0);
+  if (activos.length === 0) return null;
+  const primero = activos[0]!;
+  if (activos.length === 1) {
+    return {
+      cifra: primero.cantidadDisponible,
+      etiqueta: `${UNIDAD_CORTA[primero.unidadMedida]} gratis`,
+      detalle: primero.alias,
+    };
+  }
+  return {
+    cifra: activos.length,
+    etiqueta: "productos gratis",
+    detalle: activos
+      .map(
+        (b) =>
+          `${b.cantidadDisponible} ${UNIDAD_CORTA[b.unidadMedida]} de ${b.alias}`,
+      )
+      .join(" · "),
+  };
 }
 
 export function assetSrcPathPortal(token: string, assetId: string): string {

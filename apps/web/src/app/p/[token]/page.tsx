@@ -7,16 +7,19 @@ import { Alert, Button, Card } from "@heroui/react";
 import { ChevronRight } from "lucide-react";
 import {
   formatearFechaLarga,
+  type PortalBono,
   type PortalPedido,
   type PortalPedidoResumen,
 } from "@misupertostada/shared";
 import {
   avisoLimiteCredito,
   cierreAnticipadoVentana,
+  copyLosetaBonos,
   ctaInicio,
   ctaInicioSecundaria,
   entregaCopy,
   copyProximaApertura,
+  hayBonosPendientes,
   saludoCopy,
 } from "@/lib/portal-vista";
 import { usePortalSession } from "@/components/portal/portal-session";
@@ -39,6 +42,7 @@ export default function PortalInicioPage() {
   const aviso = avisoLimiteCredito(sesion.cuenta);
   const hrefCta =
     cta.kind === "pedidos" ? `${base}/pedidos` : `${base}/pedir`;
+  const bonosInicio = hayBonosPendientes(sesion.bonos);
 
   return (
     <div className="grid gap-4 py-4">
@@ -106,7 +110,12 @@ export default function PortalInicioPage() {
           </Alert>
         ) : null}
 
-        <div className="grid min-w-0 gap-3 sm:grid-cols-3 [&>*]:min-w-0">
+        <div
+          className={cn(
+            "grid min-w-0 gap-3 [&>*]:min-w-0",
+            bonosInicio ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3",
+          )}
+        >
           <LosetaPedidoEstaNoche
             pedido={sesion.pedidoAbierto}
             abierta={abierta}
@@ -119,6 +128,9 @@ export default function PortalInicioPage() {
             href={`${base}/cuenta`}
           />
           <LosetaUltimoPedido pedido={sesion.ultimoPedido} hrefBase={base} />
+          {bonosInicio ? (
+            <LosetaDevolucion bonos={sesion.bonos} href={`${base}/pedir`} />
+          ) : null}
         </div>
       </div>
   );
@@ -258,6 +270,28 @@ function LosetaUltimoPedido({
       <p className="text-xs tabular-nums text-tinta-500">
         {formatearFechaLarga(pedido.fechaEntrega)}
       </p>
+    </Loseta>
+  );
+}
+
+function LosetaDevolucion({
+  bonos,
+  href,
+}: {
+  bonos: readonly PortalBono[];
+  href: string;
+}) {
+  const copy = copyLosetaBonos(bonos);
+  if (!copy) return null;
+  return (
+    <Loseta etiqueta="Devolución pendiente" href={href}>
+      <p className="text-sm leading-snug">
+        <span className="text-[22px] font-semibold leading-none tabular-nums text-[var(--green-800)]">
+          {copy.cifra}
+        </span>{" "}
+        <span className="text-tinta-900">{copy.etiqueta}</span>
+      </p>
+      <p className="text-sm text-pretty text-tinta-600">{copy.detalle}</p>
     </Loseta>
   );
 }

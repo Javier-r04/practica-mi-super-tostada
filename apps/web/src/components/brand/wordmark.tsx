@@ -2,7 +2,6 @@ import { cn } from "@/lib/utils";
 
 export function Wordmark({
   compact = false,
-  onBrand: _onBrand = false,
   className,
 }: {
   compact?: boolean;

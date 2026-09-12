@@ -318,8 +318,6 @@ function HoyInner() {
 
   const data = operacion.data;
   const pedidosDelDia = data ? data.pedidosPortal + data.pedidosManual : 0;
-  const cerrado = data?.diaEstado === "CERRADO";
-  const reabierto = data?.diaEstado === "REABIERTO";
   const capturaCerrada = calendario.data?.diaEstado === "CERRADO";
   const capturaReabierta = calendario.data?.diaEstado === "REABIERTO";
   const actualizando = operacion.isFetching && Boolean(data);

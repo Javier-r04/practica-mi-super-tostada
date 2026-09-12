@@ -3,6 +3,7 @@
 import {
   Alert,
   Button,
+  Chip,
   ComboBox,
   Description,
   Input,
@@ -22,6 +23,7 @@ import {
   totalPedidoCentavos,
   precioEfectivoCentavos,
   type CalendarioAhora,
+  type ClienteBonoPublico,
   type ClienteProductoFila,
   type ClientePublico,
   type PedidoDetalle,
@@ -58,6 +60,7 @@ export function CapturaManual(props: PropsCaptura) {
 function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
   const [clienteId, setClienteId] = useState("");
   const [cantidades, setCantidades] = useState<Record<string, number>>({});
+  const [cantidadesBono, setCantidadesBono] = useState<Record<string, number>>({});
   const [notasAdmin, setNotasAdmin] = useState("");
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +90,11 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
     queryFn: () => api<PortalCuenta>(`/clientes/${clienteId}/cuenta`),
     enabled: open && Boolean(clienteId),
   });
+  const bonos = useQuery({
+    queryKey: ["clientes", clienteId, "bonos"],
+    queryFn: () => api<ClienteBonoPublico[]>(`/clientes/${clienteId}/bonos`),
+    enabled: open && Boolean(clienteId),
+  });
 
   const activos = useMemo(
     () => (clientes.data ?? []).filter((c) => c.activo),
@@ -112,11 +120,33 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
     return agruparProductosCaptura(filtrados);
   }, [productos.data, q]);
 
-  const items = Object.entries(cantidades)
+  const itemsPagados = Object.entries(cantidades)
     .filter(([, cantidad]) => cantidad > 0)
-    .map(([productoId, cantidad]) => ({ productoId, cantidad }));
+    .map(([productoId, cantidad]) => ({
+      productoId,
+      cantidad,
+      esDevolucion: false,
+    }));
+  const itemsBonos = Object.entries(cantidadesBono)
+    .filter(([, cantidad]) => cantidad > 0)
+    .flatMap(([bonoId, cantidad]) => {
+      const bono = (bonos.data ?? []).find((b) => b.id === bonoId);
+      if (!bono) return [];
+      return [
+        {
+          productoId: bono.productoId,
+          cantidad,
+          esDevolucion: true as const,
+          bonoId,
+        },
+      ];
+    });
+  const items = [...itemsPagados, ...itemsBonos];
   const total = totalPedidoCentavos(
     items.map((item) => {
+      if (item.esDevolucion) {
+        return { cantidad: item.cantidad, precioUnitarioCentavos: 0 };
+      }
       const fila = productos.data?.find((p) => p.productoId === item.productoId);
       return {
         cantidad: item.cantidad,
@@ -130,7 +160,10 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
       };
     }),
   );
-  const lineas = items.length;
+  const lineas = itemsPagados.length + itemsBonos.length;
+  const bonosDisponibles = (bonos.data ?? []).filter(
+    (b) => !b.anuladoAt && b.cantidadDisponible > 0,
+  );
 
   const clienteSeleccionado = activos.find((c) => c.id === clienteId);
   const limiteExcedido =
@@ -200,6 +233,7 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
                 onSelectionChange={(key) => {
                   setClienteId(typeof key === "string" ? key : "");
                   setCantidades({});
+                  setCantidadesBono({});
                   setNotasAdmin("");
                   setQ("");
                   setError(null);
@@ -246,6 +280,46 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
                   </Alert.Content>
                 </Alert>
               ) : null}
+
+              {clienteId && bonosDisponibles.length > 0 && (
+                <section className="grid gap-2">
+                  <h3 className="mst-label px-0.5">Devolución pendiente</h3>
+                  <div className="rounded-campo border border-[var(--border-subtle)]">
+                    {bonosDisponibles.map((b) => (
+                      <div
+                        key={b.id}
+                        className="flex flex-wrap items-center gap-3 border-b border-[var(--border-subtle)] px-3 py-3 last:border-b-0"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-tinta-900">
+                              {b.nombreCanonico}
+                            </p>
+                            <Chip size="sm" variant="soft" color="success">
+                              Devolución
+                            </Chip>
+                          </div>
+                          <p className="text-xs text-tinta-500">{b.descripcion}</p>
+                        </div>
+                        <QuantityStepper
+                          value={cantidadesBono[b.id] ?? 0}
+                          onChange={(cantidad) =>
+                            setCantidadesBono((prev) => {
+                              const next = { ...prev };
+                              if (cantidad <= 0) delete next[b.id];
+                              else next[b.id] = cantidad;
+                              return next;
+                            })
+                          }
+                          min={0}
+                          max={b.cantidadDisponible}
+                          unidad={UNIDAD_CORTA[b.unidadMedida]}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {clienteId && (
                 <>
@@ -313,6 +387,7 @@ function FormularioCaptura({ open, onClose, onCaptured }: PropsCaptura) {
                       Total
                       <span className="ml-2 font-normal tabular-nums text-tinta-500">
                         {lineas} línea{lineas === 1 ? "" : "s"}
+                        {itemsBonos.length > 0 ? " · devolución a Q 0.00" : ""}
                       </span>
                     </span>
                     <Money centavos={total} truncate className="text-lg" />

@@ -1,5 +1,6 @@
 "use client";
 
+import { Chip } from "@heroui/react";
 import {
   UNIDAD_CORTA,
   type PuntoCarga,
@@ -23,6 +24,7 @@ export function PedidoItemRow({
   fotoAssetId,
   fotoSrcPath,
   editable = false,
+  esDevolucion = false,
   onChangeCantidad,
 }: {
   nombreMostrado: string;
@@ -36,10 +38,12 @@ export function PedidoItemRow({
   /** Path API del portal (`/p/{token}/assets/{id}`). */
   fotoSrcPath?: string;
   editable?: boolean;
+  esDevolucion?: boolean;
   onChangeCantidad?: (cantidad: number) => void;
 }) {
   const unidad = UNIDAD_CORTA[unidadMedida];
   const subtotal = cantidad * precioUnitarioCentavos;
+  const gratis = esDevolucion || precioUnitarioCentavos === 0;
   return (
     /* Un solo renglón también en el teléfono. En `flex-col` el subtotal caía
        solo a la izquierda de un `justify-between` sin compañero, y cada ítem
@@ -61,22 +65,35 @@ export function PedidoItemRow({
           size="sm"
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-tinta-900">
-            {nombreMostrado}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-semibold text-tinta-900">
+              {nombreMostrado}
+            </p>
+            {esDevolucion && (
+              <Chip size="sm" variant="soft" color="success">
+                Devolución
+              </Chip>
+            )}
+          </div>
           <p className="min-w-0 truncate text-[12px] tabular-nums text-tinta-500">
             {alias && alias !== nombreMostrado ? `«${alias}» · ` : null}
-            {editable ? null : (
+            {editable ? null : gratis ? (
+              <>
+                {cantidad} {unidad} · Gratis
+              </>
+            ) : (
               <>
                 {cantidad} {unidad} ×{" "}
                 <Money centavos={precioUnitarioCentavos} tone="muted" truncate />
               </>
             )}
-            {editable ? (
+            {editable && !gratis ? (
               <>
                 <Money centavos={precioUnitarioCentavos} tone="muted" truncate /> /{" "}
                 {unidad}
               </>
+            ) : editable && gratis ? (
+              <>Gratis / {unidad}</>
             ) : null}
           </p>
           {(puntoCarga || notaProduccion) && (
@@ -101,7 +118,13 @@ export function PedidoItemRow({
             unidad={unidad}
           />
         ) : null}
-        <Money centavos={subtotal} truncate className="shrink-0 tabular-nums" />
+        {gratis ? (
+          <span className="shrink-0 text-sm font-semibold tabular-nums text-tinta-500">
+            Gratis
+          </span>
+        ) : (
+          <Money centavos={subtotal} truncate className="shrink-0 tabular-nums" />
+        )}
       </div>
     </div>
   );
