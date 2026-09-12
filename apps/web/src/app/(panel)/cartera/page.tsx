@@ -5,7 +5,6 @@ import {
   useDeferredValue,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -17,21 +16,13 @@ import {
 import {
   Button,
   Card,
-  ComboBox,
-  Disclosure,
-  Input,
-  Label,
-  ListBox,
-  SearchField,
-  Select,
   Spinner,
   ToggleButton,
   ToggleButtonGroup,
 } from "@heroui/react";
-import { Banknote, Filter, MessageCircle, X } from "lucide-react";
+import { Banknote } from "lucide-react";
 import {
   CARTERA_PAGE_SIZE_DEFAULT,
-  PAGO_METODOS,
   PAGO_METODO_ETIQUETA,
   tienePermiso,
   type ActorPublico,
@@ -49,10 +40,7 @@ import { PageToolbar } from "@/components/layout/page-header";
 import { useOnline } from "@/hooks/use-online";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DateField } from "@/components/ui/date-field";
-import { KpiCard, KpiGrid, KpiGridSkeleton } from "@/components/ui/kpi-grid";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Money } from "@/components/domain/money";
-import { ClienteAvatar } from "@/components/catalog/cliente-avatar";
 import {
   TablaCartera,
   type VistaCartera,
@@ -60,35 +48,30 @@ import {
 import { DialogoPago } from "@/components/receivables/dialogo-pago";
 import { VistaCuadre } from "@/components/receivables/cuadre-dia";
 import { BandejaTransferencias } from "@/components/receivables/bandeja-transferencias";
-import { cn } from "@/lib/utils";
+import { ResumenCartera } from "@/components/receivables/resumen-cartera";
+import { AlertaLimiteCredito } from "@/components/receivables/alerta-limite-credito";
 import {
-  etiquetaDiaSemanaCorto,
-  hoyCivilIso,
-  PRESETS_CALENDARIO,
-} from "@/lib/fecha-ui";
+  FiltrosCartera,
+  type FiltroChip,
+  type TabCartera,
+} from "@/components/receivables/filtros-cartera";
+import { cn } from "@/lib/utils";
+import { hoyCivilIso } from "@/lib/fecha-ui";
 
-type TabCartera = "todas" | "pendientes" | "vencidas";
 type PanelCartera = "lista" | "cuadre" | "transferencias";
 
 type CobroCliente = {
   clienteId: string;
   clienteNombre: string;
   saldoCentavos: number;
+  facturas: FacturaCartera[];
 };
 
 const PANELES = [
-  { id: "lista", label: "Facturas abiertas" },
-  { id: "transferencias", label: "Transferencias" },
-  { id: "cuadre", label: "Cobros del día" },
+  { id: "lista" as const, label: "Facturas abiertas" },
+  { id: "transferencias" as const, label: "Transferencias" },
+  { id: "cuadre" as const, label: "Cobros del día" },
 ] as const;
-
-const VISTAS = [
-  { id: "factura", label: "Recientes primero" },
-  { id: "cliente", label: "Por cliente" },
-] as const;
-
-/** `""` no sirve como `Key` de React Aria: "todos" es el centinela de «sin filtro». */
-const TODOS = "todos";
 
 function CarteraInner() {
   const qc = useQueryClient();
@@ -109,15 +92,9 @@ function CarteraInner() {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [metodoPago, setMetodoPago] = useState("");
-  // Día del cuadre. "" = hoy, que es lo que responde la API sin `?fecha=`.
-  // Carla necesita cuadrar días pasados; `/reparto` en cambio se queda fijo en
-  // hoy a propósito, porque ahí las acciones se encolan y se sincronizan solas.
   const [fechaCuadre, setFechaCuadre] = useState("");
   const [sinDte, setSinDte] = useState(false);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(Boolean(clienteIdUrl));
-  // `null` = todavía no la tocaron: la apertura la decide el tamaño de la
-  // lista. Se deriva en vez de auto-colapsar desde un efecto, que además
-  // pintaba la alerta abierta un frame antes de cerrarla.
   const [alertaTocada, setAlertaTocada] = useState<boolean | null>(null);
   const [cobrando, setCobrando] = useState<CobroCliente | null>(null);
   const [pagoError, setPagoError] = useState<string>();
@@ -144,17 +121,6 @@ function CarteraInner() {
     "cobranza.confirmar_transferencia",
   );
 
-  function abrirCobro(fac: FacturaCartera) {
-    const saldo = lista
-      .filter((f) => f.clienteId === fac.clienteId && f.estado !== "PAGADO")
-      .reduce((acc, f) => acc + f.saldoCentavos, 0);
-    setCobrando({
-      clienteId: fac.clienteId,
-      clienteNombre: fac.clienteNombre,
-      saldoCentavos: saldo,
-    });
-  }
-
   const filtros = {
     estado: tab,
     clienteId,
@@ -170,11 +136,13 @@ function CarteraInner() {
     queryFn: () => api<ClientePublico[]>("/clientes"),
     enabled: Boolean(me.data) && (filtrosAbiertos || Boolean(clienteId)),
   });
+
   const resumen = useQuery({
     queryKey: ["cartera", "resumen"],
     queryFn: () => api<CarteraResumen>("/cartera/resumen"),
     enabled: Boolean(me.data),
   });
+
   const facturas = useInfiniteQuery({
     queryKey: ["cartera", "lista", filtros],
     queryFn: ({ pageParam }) =>
@@ -196,6 +164,7 @@ function CarteraInner() {
       last.hasMore ? last.offset + last.limit : undefined,
     enabled: Boolean(me.data),
   });
+
   const cuadre = useQuery({
     queryKey: ["cuadre", fechaCuadre],
     queryFn: () =>
@@ -213,11 +182,18 @@ function CarteraInner() {
   };
   const totalFiltrado = facturas.data?.pages[0]?.total ?? lista.length;
 
-  const TABS = [
-    { id: "pendientes", label: "Pendientes", count: counts.pendientes },
-    { id: "vencidas", label: "Vencidas", count: counts.vencidas },
-    { id: "todas", label: "Todas", count: counts.todas },
-  ] as const;
+  function abrirCobro(fac: FacturaCartera) {
+    const facturasDelCliente = lista.filter(
+      (f) => f.clienteId === fac.clienteId && f.estado !== "PAGADO",
+    );
+    const saldo = facturasDelCliente.reduce((acc, f) => acc + f.saldoCentavos, 0);
+    setCobrando({
+      clienteId: fac.clienteId,
+      clienteNombre: fac.clienteNombre,
+      saldoCentavos: saldo,
+      facturas: facturasDelCliente,
+    });
+  }
 
   const clienteNombre = useMemo(() => {
     if (!clienteId) return null;
@@ -229,8 +205,8 @@ function CarteraInner() {
     );
   }, [clienteId, clientes.data, facturas.data]);
 
-  const chips = useMemo(() => {
-    const out: { key: string; label: string; clear: () => void }[] = [];
+  const chips: FiltroChip[] = useMemo(() => {
+    const out: FiltroChip[] = [];
     if (clienteId) {
       out.push({
         key: "cliente",
@@ -255,7 +231,9 @@ function CarteraInner() {
     if (metodoPago) {
       out.push({
         key: "metodo",
-        label: PAGO_METODO_ETIQUETA[metodoPago as keyof typeof PAGO_METODO_ETIQUETA] ?? metodoPago,
+        label:
+          PAGO_METODO_ETIQUETA[metodoPago as keyof typeof PAGO_METODO_ETIQUETA] ??
+          metodoPago,
         clear: () => setMetodoPago(""),
       });
     }
@@ -333,90 +311,20 @@ function CarteraInner() {
   return (
     <PanelShell title="Cartera">
       <div className="grid min-w-0 gap-5">
-        <PageToolbar description="Vencidas y operación reciente arriba. Por cliente, la factura más vieja es la siguiente en cobrar." />
+        <PageToolbar description="Gestión de cuentas por cobrar, revisión de transferencias y cuadre de caja diario." />
 
         <ResumenCartera cargando={!resumen.data} resumen={resumen.data} />
 
-        {sobreLimite.length > 0 ? (
-          <Card className="gap-0 overflow-hidden p-0">
-            <Disclosure
-              isExpanded={alertaAbierta}
-              onExpandedChange={setAlertaTocada}
-            >
-              <Disclosure.Heading className="transition-colors hover:bg-tinta-50">
-                <Button
-                  className="min-h-16 w-full justify-start rounded-none px-4 py-5 text-left hover:bg-transparent"
-                  slot="trigger"
-                  variant="ghost"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-base font-semibold text-tinta-900">
-                      Al límite de crédito
-                    </span>
-                    <span className="mt-1 block text-sm font-normal text-tinta-600">
-                      {sobreLimite.length} restaurante
-                      {sobreLimite.length === 1 ? "" : "s"}
-                    </span>
-                  </span>
-                  <Disclosure.Indicator />
-                </Button>
-              </Disclosure.Heading>
-              <Disclosure.Content>
-                <Disclosure.Body className="p-0">
-                  <ul className="grid max-h-56 gap-2 overflow-y-auto border-t border-[var(--border-subtle)] px-4 py-3">
-                    {sobreLimite.map((c) => (
-                      <li
-                        key={c.clienteId}
-                        className="flex min-h-12 flex-wrap items-center gap-3 rounded-[calc(var(--radius-card)-0.5rem)] border border-peligro/35 bg-tinta-50 px-3 py-2.5"
-                      >
-                        <ClienteAvatar
-                          fotoAssetId={c.fotoAssetId}
-                          nombre={c.nombre}
-                          size="sm"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-semibold text-tinta-900">
-                            {c.nombre}
-                          </p>
-                          <p className="mst-label mt-0.5 tabular-nums text-peligro">
-                            {c.pendientes}/{c.limite} facturas pendientes
-                          </p>
-                        </div>
-                        <Button
-                          aria-label={
-                            puedeRecordar
-                              ? `Recordar a ${c.nombre}: envía el estado de cuenta por WhatsApp`
-                              : "No tiene permiso para enviar WhatsApp"
-                          }
-                          className="min-h-11 shrink-0"
-                          isDisabled={!puedeRecordar}
-                          isPending={
-                            recordar.isPending &&
-                            recordar.variables === c.clienteId
-                          }
-                          size="sm"
-                          variant="secondary"
-                          onPress={() => recordar.mutate(c.clienteId)}
-                        >
-                          {({ isPending }) => (
-                            <>
-                              {isPending ? (
-                                <Spinner color="current" size="sm" />
-                              ) : (
-                                <MessageCircle size={15} aria-hidden />
-                              )}
-                              Recordar
-                            </>
-                          )}
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </Disclosure.Body>
-              </Disclosure.Content>
-            </Disclosure>
-          </Card>
-        ) : null}
+        <AlertaLimiteCredito
+          alertaAbierta={alertaAbierta}
+          clientes={sobreLimite}
+          puedeRecordar={puedeRecordar}
+          recordarLoadingId={
+            recordar.isPending ? (recordar.variables as string) : undefined
+          }
+          onAlertaChange={setAlertaTocada}
+          onRecordar={(id) => recordar.mutate(id)}
+        />
 
         <div className="-mx-1 min-w-0 overflow-x-auto px-1 sm:mx-0 sm:overflow-visible sm:px-0">
           <ToggleButtonGroup
@@ -465,204 +373,31 @@ function CarteraInner() {
           </Card>
         ) : (
           <>
-            <section className="grid gap-3" aria-label="Buscar y filtrar">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <SearchField
-                  aria-label="Buscar factura"
-                  className="min-w-0 flex-1"
-                  value={q}
-                  onChange={setQ}
-                >
-                  <SearchField.Group>
-                    <SearchField.SearchIcon />
-                    <SearchField.Input placeholder="Restaurante, DTE o #pedido" />
-                    <SearchField.ClearButton />
-                  </SearchField.Group>
-                </SearchField>
-                <Button
-                  aria-expanded={filtrosAbiertos}
-                  className="shrink-0"
-                  variant={filtrosAbiertos || chips.length > 0 ? "secondary" : "ghost"}
-                  onPress={() => setFiltrosAbiertos((v) => !v)}
-                >
-                  <Filter size={16} aria-hidden />
-                  Filtros
-                  {chips.length > 0 ? (
-                    <span className="tabular-nums">{chips.length}</span>
-                  ) : null}
-                </Button>
-              </div>
-
-              <div className="mst-segmento-activo flex min-w-0 flex-wrap items-center gap-2">
-                <ToggleButtonGroup
-                  aria-label="Estado de facturas"
-                  disallowEmptySelection
-                  selectedKeys={new Set([tab])}
-                  selectionMode="single"
-                  size="sm"
-                  onSelectionChange={(keys) => {
-                    const next = [...keys][0];
-                    if (typeof next === "string") setTab(next as TabCartera);
-                  }}
-                >
-                  {TABS.map((t, i) => (
-                    <ToggleButton key={t.id} id={t.id}>
-                      {i > 0 && <ToggleButtonGroup.Separator />}
-                      {t.label}
-                      <span className="tabular-nums text-tinta-500">
-                        {t.count}
-                      </span>
-                    </ToggleButton>
-                  ))}
-                </ToggleButtonGroup>
-
-                <ToggleButtonGroup
-                  aria-label="Agrupar lista"
-                  disallowEmptySelection
-                  selectedKeys={new Set([vista])}
-                  selectionMode="single"
-                  size="sm"
-                  onSelectionChange={(keys) => {
-                    const next = [...keys][0];
-                    if (typeof next === "string") setVista(next as VistaCartera);
-                  }}
-                >
-                  {VISTAS.map((v, i) => (
-                    <ToggleButton key={v.id} id={v.id}>
-                      {i > 0 && <ToggleButtonGroup.Separator />}
-                      {v.label}
-                    </ToggleButton>
-                  ))}
-                </ToggleButtonGroup>
-
-                <ToggleButton
-                  isSelected={sinDte}
-                  size="sm"
-                  variant="ghost"
-                  onChange={setSinDte}
-                >
-                  Sin DTE
-                  {sinDte ? <X size={12} aria-hidden /> : null}
-                </ToggleButton>
-
-                {chips.map((chip) => (
-                  <Button
-                    key={chip.key}
-                    size="sm"
-                    variant="tertiary"
-                    onPress={chip.clear}
-                  >
-                    {chip.label}
-                    <X size={12} aria-hidden />
-                    <span className="sr-only">Quitar filtro</span>
-                  </Button>
-                ))}
-                {facturas.data ? (
-                  <p
-                    className="mst-label w-full tabular-nums sm:ml-auto sm:w-auto"
-                    aria-live="polite"
-                  >
-                    {lista.length} de {totalFiltrado} factura
-                    {totalFiltrado === 1 ? "" : "s"}
-                  </p>
-                ) : null}
-              </div>
-
-              {filtrosAbiertos ? (
-                <div className="grid gap-3 rounded-tarjeta border border-[var(--border-subtle)] bg-[var(--ink-50)] p-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <ComboBox
-                    selectedKey={clienteId || TODOS}
-                    onSelectionChange={(key) =>
-                      setClienteId(!key || key === TODOS ? "" : String(key))
-                    }
-                  >
-                    <Label>Cliente</Label>
-                    <ComboBox.InputGroup>
-                      <Input placeholder="Buscar restaurante" />
-                      <ComboBox.Trigger />
-                    </ComboBox.InputGroup>
-                    <ComboBox.Popover>
-                      <ListBox>
-                        <ListBox.Item id={TODOS} textValue="Todos">
-                          Todos
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                        {(clientes.data ?? []).map((c) => (
-                          <ListBox.Item
-                            key={c.id}
-                            id={c.id}
-                            textValue={c.nombre}
-                          >
-                            {c.nombre}
-                            <ListBox.ItemIndicator />
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </ComboBox.Popover>
-                  </ComboBox>
-
-                  {/* Recortan por día de calle: la fecha de calendario de `factura.emitida_at`. */}
-                  <DateField
-                    ancla={desde || hasta || undefined}
-                    id="filtro-desde"
-                    label="Emitida desde"
-                    presets={PRESETS_CALENDARIO}
-                    rangeEnd={hasta || undefined}
-                    value={desde}
-                    onChange={setDesde}
-                    onRangeChange={({ desde: d, hasta: h }) => {
-                      setDesde(d);
-                      setHasta(h);
-                    }}
-                  />
-                  <DateField
-                    ancla={hasta || desde || undefined}
-                    id="filtro-hasta"
-                    label="Emitida hasta"
-                    presets={PRESETS_CALENDARIO}
-                    rangeEnd={desde || undefined}
-                    value={hasta}
-                    onChange={setHasta}
-                    onRangeChange={({ desde: d, hasta: h }) => {
-                      setDesde(d);
-                      setHasta(h);
-                    }}
-                  />
-
-                  <Select
-                    placeholder="Todos"
-                    value={metodoPago || TODOS}
-                    onChange={(key) =>
-                      setMetodoPago(!key || key === TODOS ? "" : String(key))
-                    }
-                  >
-                    <Label>Método de pago</Label>
-                    <Select.Trigger>
-                      <Select.Value />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        <ListBox.Item id={TODOS} textValue="Todos">
-                          Todos
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                        {PAGO_METODOS.map((m) => (
-                          <ListBox.Item
-                            key={m}
-                            id={m}
-                            textValue={PAGO_METODO_ETIQUETA[m]}
-                          >
-                            {PAGO_METODO_ETIQUETA[m]}
-                            <ListBox.ItemIndicator />
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
-              ) : null}
-            </section>
+            <FiltrosCartera
+              clienteId={clienteId}
+              clientes={clientes.data ?? []}
+              counts={counts}
+              desde={desde}
+              filtrosAbiertos={filtrosAbiertos}
+              hasta={hasta}
+              metodoPago={metodoPago}
+              q={q}
+              sinDte={sinDte}
+              tab={tab}
+              totalFiltrado={totalFiltrado}
+              totalMostrado={lista.length}
+              vista={vista}
+              chips={chips}
+              onClienteChange={setClienteId}
+              onDesdeChange={setDesde}
+              onHastaChange={setHasta}
+              onMetodoPagoChange={setMetodoPago}
+              onQChange={setQ}
+              onSinDteChange={setSinDte}
+              onTabChange={setTab}
+              onToggleFiltros={() => setFiltrosAbiertos((v) => !v)}
+              onVistaChange={setVista}
+            />
 
             <Card className="gap-0 overflow-hidden p-0">
               {facturas.isLoading && !facturas.data ? (
@@ -684,21 +419,6 @@ function CarteraInner() {
               >
                 {facturas.data && lista.length === 0 ? (
                   <EmptyState
-                    icon={<Banknote size={22} aria-hidden />}
-                    title={
-                      hayFiltros || tab !== "todas"
-                        ? "Ninguna factura coincide"
-                        : "No hay facturas"
-                    }
-                    description={
-                      hayFiltros
-                        ? "Quite un filtro o amplíe el rango de fechas."
-                        : tab === "vencidas"
-                          ? "No hay facturas vencidas en este momento."
-                          : tab === "pendientes"
-                            ? "Nadie tiene saldo abierto. Al entregar un pedido se crea la factura."
-                            : "Al entregar un pedido se crea la factura sobre lo entregado."
-                    }
                     action={
                       hayFiltros ? (
                         <Button
@@ -713,6 +433,21 @@ function CarteraInner() {
                         </Button>
                       ) : null
                     }
+                    description={
+                      hayFiltros
+                        ? "Quite un filtro o amplíe el rango de fechas."
+                        : tab === "vencidas"
+                          ? "No hay facturas vencidas en este momento."
+                          : tab === "pendientes"
+                            ? "Nadie tiene saldo abierto. Al entregar un pedido se crea la factura."
+                            : "Al entregar un pedido se crea la factura sobre lo entregado."
+                    }
+                    icon={<Banknote size={22} aria-hidden />}
+                    title={
+                      hayFiltros || tab !== "todas"
+                        ? "Ninguna factura coincide"
+                        : "No hay facturas"
+                    }
                   />
                 ) : null}
 
@@ -726,7 +461,7 @@ function CarteraInner() {
                     puedeDte={puedeDte}
                     puedeRecordar={puedeRecordar}
                     recordarLoadingId={
-                      recordar.isPending ? recordar.variables : undefined
+                      recordar.isPending ? (recordar.variables as string) : undefined
                     }
                     vista={vista}
                     onCobrar={abrirCobro}
@@ -766,12 +501,13 @@ function CarteraInner() {
         <DialogoPago
           key={cobrando.clienteId}
           open
-          descripcion={`${cobrando.clienteNombre} · se aplica a las facturas más antiguas`}
+          descripcion={`${cobrando.clienteNombre} · se aplica a las facturas más antiguas (FIFO)`}
           error={pagoError}
+          facturasPendientes={cobrando.facturas}
           loading={pagar.isPending}
           online={online}
           saldoCentavos={cobrando.saldoCentavos}
-          titulo="Registrar pago"
+          titulo="Registrar cobro"
           onClose={() => {
             setCobrando(null);
             setPagoError(undefined);
@@ -789,63 +525,6 @@ function CarteraInner() {
         />
       ) : null}
     </PanelShell>
-  );
-}
-
-/**
- * Lo que Carla lee antes de decidir a quién visitar: cuánto falta por cobrar,
- * cuántas facturas lo componen, qué queda por facturar de la operación abierta
- * y cuánto entró hoy. Todo sale de `/cartera/resumen`, sin llamadas nuevas.
- */
-function ResumenCartera({
-  resumen,
-  cargando,
-}: {
-  resumen: CarteraResumen | undefined;
-  cargando: boolean;
-}) {
-  if (cargando || !resumen) {
-    return <KpiGridSkeleton count={4} />;
-  }
-
-  return (
-    <KpiGrid>
-      <KpiCard
-        etiqueta="Saldo por cobrar"
-        valor={
-          <Money
-            centavos={resumen.pendientesSaldoCentavos}
-            tone="pendiente"
-            truncate
-          />
-        }
-      />
-      <KpiCard
-        etiqueta="Facturas pendientes"
-        tono={resumen.pendientesCount > 0 ? "aviso" : "ok"}
-        valor={resumen.pendientesCount}
-      />
-      <KpiCard
-        etiqueta="Por facturar de la operación"
-        nota="Entregado sin factura todavía"
-        valor={
-          <Money
-            centavos={resumen.porCobrarFechaOperacionCentavos}
-            tone="muted"
-            truncate
-          />
-        }
-      />
-      <KpiCard
-        etiqueta="Cobrado hoy"
-        nota={
-          resumen.fechaCobro
-            ? `Día de calle · ${etiquetaDiaSemanaCorto(resumen.fechaCobro)}`
-            : "Día de calle"
-        }
-        valor={<Money centavos={resumen.cobradoHoyCentavos} tone="pagado" truncate />}
-      />
-    </KpiGrid>
   );
 }
 

@@ -6,7 +6,6 @@ import {
   Button,
   Chip,
   Disclosure,
-  Modal,
   Spinner,
   Table,
 } from "@heroui/react";

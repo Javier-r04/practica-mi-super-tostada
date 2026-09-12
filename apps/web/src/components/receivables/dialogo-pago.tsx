@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -14,7 +14,9 @@ import {
   ToggleButtonGroup,
 } from "@heroui/react";
 import {
+  aplicarFifo,
   formatearCentavos,
+  ordenarFacturasFifo,
   quetzalesTextoACentavos,
   MENSAJE_COMPROBANTE_REQUERIDO,
   MENSAJE_GUARDAR_TELEFONO,
@@ -27,6 +29,15 @@ import { Money } from "@/components/domain/money";
 import { subirComprobanteAbono } from "@/lib/upload-asset";
 import { avisoSinSenal } from "@/hooks/use-online";
 
+export type FacturaPendienteCobro = {
+  id: string;
+  correlativo?: number;
+  saldoCentavos: number;
+  numeroDte?: string | null;
+  emitidaAt?: string | null;
+  fechaOperacion?: string;
+};
+
 type PropsPago = {
   open: boolean;
   titulo: string;
@@ -35,6 +46,8 @@ type PropsPago = {
   online: boolean;
   loading?: boolean;
   error?: string;
+  /** Facturas pendientes del cliente para previsualizar FIFO en vivo. */
+  facturasPendientes?: readonly FacturaPendienteCobro[];
   /** Solo /reparto. Cartera no lo pasa: sigue exigiendo señal. */
   permitirOffline?: boolean;
   /** Por defecto efectivo, transferencia y cheque. */
@@ -80,6 +93,7 @@ function FormularioPago({
   online,
   loading,
   error,
+  facturasPendientes,
   permitirOffline = false,
   metodos = METODOS_DEFAULT,
   onClose,
@@ -101,6 +115,61 @@ function FormularioPago({
   const sinSenal = permitirOffline ? undefined : avisoSinSenal(online);
   const mensajeError = localError ?? error ?? sinSenal;
 
+  const facturasOrdenadas = useMemo(() => {
+    if (!facturasPendientes?.length) return [];
+    return [...facturasPendientes].sort((a, b) =>
+      ordenarFacturasFifo(
+        {
+          emitidaAt: a.emitidaAt ?? null,
+          correlativo: a.correlativo,
+          fechaOperacion: a.fechaOperacion,
+        },
+        {
+          emitidaAt: b.emitidaAt ?? null,
+          correlativo: b.correlativo,
+          fechaOperacion: b.fechaOperacion,
+        },
+      ),
+    );
+  }, [facturasPendientes]);
+
+  const desgloseFifo = useMemo(() => {
+    try {
+      const centavos = quetzalesTextoACentavos(monto);
+      if (centavos <= 0) return null;
+      if (centavos > saldoCentavos) {
+        return {
+          excede: true,
+          centavosExceso: centavos - saldoCentavos,
+          asignaciones: [],
+        };
+      }
+      if (!facturasOrdenadas.length) {
+        return { excede: false, centavosExceso: 0, asignaciones: [] };
+      }
+      const { asignaciones } = aplicarFifo(
+        facturasOrdenadas.map((f) => ({ id: f.id, saldoCentavos: f.saldoCentavos })),
+        centavos,
+      );
+      return {
+        excede: false,
+        centavosExceso: 0,
+        asignaciones: asignaciones.map((asg) => {
+          const fac = facturasOrdenadas.find((f) => f.id === asg.facturaId);
+          return {
+            ...asg,
+            correlativo: fac?.correlativo,
+            numeroDte: fac?.numeroDte,
+            saldoOriginal: fac?.saldoCentavos ?? asg.montoCentavos,
+            seLiquida: asg.montoCentavos >= (fac?.saldoCentavos ?? 0),
+          };
+        }),
+      };
+    } catch {
+      return null;
+    }
+  }, [monto, saldoCentavos, facturasOrdenadas]);
+
   async function guardar() {
     setLocalError(undefined);
     if (!online && !permitirOffline) {
@@ -112,6 +181,12 @@ function FormularioPago({
       montoCentavos = quetzalesTextoACentavos(monto);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "Monto inválido");
+      return;
+    }
+    if (montoCentavos > saldoCentavos) {
+      setLocalError(
+        `El monto supera el saldo pendiente (${formatearCentavos(saldoCentavos)}). El sistema no admite registrar saldo a favor.`,
+      );
       return;
     }
     if (pagoRequiereComprobante(metodo) && !archivo) {
@@ -177,7 +252,7 @@ function FormularioPago({
               {/* El saldo abre el diálogo porque es la cifra contra la que
                   Carla compara el billete antes de escribir nada. */}
               <div className="flex items-center justify-between rounded-campo bg-tinta-50 px-3 py-3 text-sm">
-                <span className="mst-label">Saldo pendiente</span>
+                <span className="mst-label">Saldo pendiente total</span>
                 <Money
                   centavos={saldoCentavos}
                   className="text-lg"
@@ -194,10 +269,66 @@ function FormularioPago({
                   inputMode="decimal"
                 />
                 <Description>
-                  Se aplica a las facturas más antiguas del cliente. Puede ser un
-                  abono parcial.
+                  Se aplica a las facturas más antiguas del cliente (FIFO).
                 </Description>
               </TextField>
+
+              {desgloseFifo?.excede ? (
+                <Alert status="warning">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>El monto excede el saldo pendiente</Alert.Title>
+                    <Alert.Description>
+                      El valor ingresado supera la deuda en{" "}
+                      <Money centavos={desgloseFifo.centavosExceso} />. El negocio
+                      no permite cobros en exceso ni registra saldo a favor.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              ) : null}
+
+              {desgloseFifo && desgloseFifo.asignaciones.length > 0 ? (
+                <div className="grid gap-2 rounded-tarjeta border border-[var(--border-subtle)] bg-tinta-50/70 p-3 text-xs">
+                  <div className="flex items-center justify-between font-medium text-tinta-700">
+                    <span>Distribución del cobro:</span>
+                    <span className="text-tinta-500 font-normal">
+                      {desgloseFifo.asignaciones.length} factura
+                      {desgloseFifo.asignaciones.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <ul className="grid gap-1.5">
+                    {desgloseFifo.asignaciones.map((asg) => (
+                      <li
+                        key={asg.facturaId}
+                        className="flex items-center justify-between rounded border border-[var(--border-subtle)] bg-white px-2.5 py-1.5"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-mono font-medium text-tinta-900">
+                            Pedido #{asg.correlativo ?? "—"}
+                          </span>
+                          {asg.numeroDte ? (
+                            <span className="ml-1.5 text-tinta-500">
+                              · DTE {asg.numeroDte}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Money centavos={asg.montoCentavos} tone="pagado" />
+                          {asg.seLiquida ? (
+                            <span className="rounded bg-marca-50 px-1.5 py-0.5 text-[10px] font-semibold text-marca-700">
+                              Saldada ✓
+                            </span>
+                          ) : (
+                            <span className="rounded bg-aviso-50 px-1.5 py-0.5 text-[10px] font-semibold text-aviso-700">
+                              Parcial
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
               {metodosVisibles.length > 1 && (
                 <div className="grid gap-1.5">
@@ -259,7 +390,10 @@ function FormularioPago({
             </Button>
             <Button
               form="registrar-pago"
-              isDisabled={!online && !permitirOffline}
+              isDisabled={
+                Boolean(desgloseFifo?.excede) ||
+                (!online && !permitirOffline)
+              }
               isPending={loading || subiendo}
               type="submit"
               variant="primary"
