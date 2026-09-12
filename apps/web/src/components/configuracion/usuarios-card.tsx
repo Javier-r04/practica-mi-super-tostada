@@ -20,6 +20,7 @@ import { Plus, UserCog } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   MODULOS_ACCESO,
+  ROL_ETIQUETA,
   ROLES,
   modulosDePermisos,
   modulosDePlantilla,
@@ -32,16 +33,6 @@ import { api } from "@/lib/api";
 import { toastFromError, toastSuccess } from "@/lib/toast";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RowSkeleton } from "@/components/ui/skeleton";
-
-/* El enum del backend se lee en mayúsculas y con guion bajo; en pantalla se
-   escribe como lo dice el negocio. El valor guardado no cambia. */
-const ROL_ETIQUETA: Record<Rol, string> = {
-  ADMIN_JEFE: "Admin jefe",
-  ADMIN: "Admin",
-  PRODUCCION: "Producción",
-  TIENDA: "Tienda",
-  REPARTO: "Reparto",
-};
 
 const ROL_CONSECUENCIA: Record<Rol, string> = {
   ADMIN_JEFE: "Ve todos los módulos y es el único que administra cuentas.",

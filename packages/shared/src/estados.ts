@@ -33,6 +33,14 @@ export const ROLES = [
 ] as const;
 export type Rol = (typeof ROLES)[number];
 
+export const ROL_ETIQUETA: Record<Rol, string> = {
+  ADMIN_JEFE: "Admin jefe",
+  ADMIN: "Admin",
+  PRODUCCION: "Producción",
+  TIENDA: "Tienda",
+  REPARTO: "Reparto",
+};
+
 export const PEDIDO_ORIGENES = ["PORTAL", "MANUAL"] as const;
 export type PedidoOrigen = (typeof PEDIDO_ORIGENES)[number];
 
