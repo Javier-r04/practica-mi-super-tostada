@@ -11,8 +11,9 @@
   },
   "dependencies": {
     "@misupertostada/shared": "workspace:*",
-    "@react-pdf/renderer": "^4.3.0",
-    "react": "^19.2.8"
+    "@takumi-rs/helpers": "^2.13.7",
+    "react": "^19.2.8",
+    "takumi-pdf": "^0.14.3"
   },
   "devDependencies": {
     "@types/react": "^19"

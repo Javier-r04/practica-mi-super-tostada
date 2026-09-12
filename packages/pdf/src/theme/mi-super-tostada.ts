@@ -1,0 +1,90 @@
+import type { PdfcnTheme } from "./theme-types";
+
+export const miSuperTostadaTheme: PdfcnTheme = {
+  name: "mi-super-tostada",
+  primitives: {
+    typography: {
+      xs: 7,
+      sm: 8.5,
+      base: 10,
+      lg: 12,
+      xl: 14,
+      "2xl": 18,
+      "3xl": 24,
+    },
+    fontWeights: {
+      regular: 400,
+      medium: 500,
+      semibold: 600,
+      bold: 700,
+    },
+    letterSpacing: {
+      tighter: -0.05,
+      tight: -0.025,
+      normal: 0,
+      wide: 0.025,
+      wider: 0.05,
+      widest: 0.1,
+    },
+    radii: {
+      none: 0,
+      sm: 2,
+      md: 4,
+      lg: 6,
+      full: 9999,
+    },
+  },
+  colors: {
+    primary: "#1B4D2A",
+    primaryForeground: "#ffffff",
+    primarySoft: "#EEF3EC",
+    accent: "#F2C230",
+    foreground: "#282A20",
+    background: "#ffffff",
+    muted: "#EEF3EC",
+    mutedForeground: "#767A69",
+    border: "#DEDFD6",
+    destructive: "#B3231C",
+    warning: "#8A5502",
+    warningBackground: "#FFF9D6",
+    warningBorder: "#FFE100",
+    info: "#154A63",
+    zebra: "#F7F8F3",
+    filaCambio: "#FDF0D6",
+  },
+  typography: {
+    body: {
+      fontFamily: "Helvetica, Arial, sans-serif",
+      fontSize: 9,
+      lineHeight: 1.3,
+    },
+    heading: {
+      fontFamily: "Helvetica, Arial, sans-serif",
+      fontWeight: 700,
+      lineHeight: 1.2,
+      fontSize: {
+        h1: 24,
+        h2: 18,
+        h3: 16,
+        h4: 14,
+        h5: 12,
+        h6: 10,
+      },
+    },
+  },
+  spacing: {
+    page: {
+      marginTop: 34,
+      marginRight: 34,
+      marginBottom: 34,
+      marginLeft: 34,
+    },
+    sectionGap: 16,
+    paragraphGap: 6,
+    componentGap: 8,
+  },
+  page: {
+    size: "letter",
+    orientation: "portrait",
+  },
+};

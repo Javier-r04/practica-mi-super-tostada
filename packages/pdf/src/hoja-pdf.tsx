@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  StyleSheet,
-  renderToBuffer,
-} from "@react-pdf/renderer";
+import { render } from "takumi-pdf";
 import {
   gruposNotaProduccion,
   gruposPorPuntoCarga,
@@ -16,80 +9,123 @@ import {
   type HojaSnapshot,
   type LineaProducto,
 } from "@misupertostada/shared";
+import { View, Text, StyleSheet } from "./primitives/pdf-primitives";
+import { PdfcnThemeProvider } from "./theme/theme-provider";
+import { miSuperTostadaTheme } from "./theme/mi-super-tostada";
 
 const MM = 2.83465;
-const MARGEN = 12 * MM;
+const MARGEN = Math.round(12 * MM); // ~34pt
 
 const s = StyleSheet.create({
   page: {
-    padding: MARGEN,
     fontSize: 10,
-    fontFamily: "Helvetica",
+    fontFamily: "Helvetica, Arial, sans-serif",
     color: "#111",
+    display: "flex",
+    flexDirection: "column",
   },
   header: {
+    display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: "#333",
+    borderBottomStyle: "solid",
     paddingBottom: 8,
   },
-  marca: { fontSize: 9, color: "#1B4D2A" },
-  titulo: { fontSize: 18, fontFamily: "Helvetica-Bold" },
-  meta: { fontSize: 9, color: "#444" },
+  marca: { fontSize: 9, color: "#1B4D2A", display: "block" },
+  titulo: {
+    fontSize: 18,
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
+    display: "block",
+  },
+  meta: { fontSize: 9, color: "#444", display: "block" },
   grupo: {
     marginTop: 10,
     backgroundColor: "#1B4D2A",
     color: "#fff",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingLeft: 8,
+    paddingRight: 8,
     fontSize: 11,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
+    display: "block",
   },
   fila: {
+    display: "flex",
     flexDirection: "row",
     alignItems: "flex-start",
     borderBottomWidth: 0.5,
     borderBottomColor: "#ccc",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    borderBottomStyle: "solid",
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingLeft: 8,
+    paddingRight: 8,
+    breakInside: "avoid",
   },
   filaCambio: { backgroundColor: "#FDF0D6" },
-  colProducto: { flexGrow: 1, flexShrink: 1, flexBasis: 0, paddingRight: 8 },
-  producto: { fontSize: 14, fontFamily: "Helvetica-Bold" },
+  colProducto: { flex: 1, paddingRight: 8 },
+  producto: {
+    fontSize: 14,
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
+    display: "block",
+  },
   notaCaja: {
     marginTop: 4,
     backgroundColor: "#FFF9D6",
     borderLeftWidth: 3,
     borderLeftColor: "#FFE100",
-    paddingVertical: 4,
-    paddingHorizontal: 6,
+    borderLeftStyle: "solid",
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingLeft: 6,
+    paddingRight: 6,
   },
   notaTitulo: {
     fontSize: 9,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     color: "#8A5502",
+    display: "block",
   },
   notaCuerpo: {
     fontSize: 9,
     color: "#8A5502",
     marginTop: 2,
     lineHeight: 1.35,
+    whiteSpace: "pre-line",
+    display: "block",
   },
   cantidad: {
     fontSize: 24,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     width: 72,
     textAlign: "right",
+    display: "block",
   },
-  unidad: { fontSize: 10, width: 48, marginLeft: 6, color: "#555", paddingTop: 8 },
+  unidad: {
+    fontSize: 10,
+    width: 48,
+    marginLeft: 6,
+    color: "#555",
+    paddingTop: 8,
+    display: "block",
+  },
   marcaNuevo: {
     fontSize: 8,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     width: 48,
     paddingTop: 6,
     color: "#8A5502",
+    display: "block",
   },
 });
 
@@ -108,8 +144,8 @@ export async function renderHojaPdf(input: {
   const dia = nombreDiaOperacion(snapshot.fechaOperacion);
 
   const doc = (
-    <Document>
-      <Page size="LETTER" style={s.page}>
+    <PdfcnThemeProvider theme={miSuperTostadaTheme}>
+      <View style={s.page}>
         <View style={s.header}>
           <View>
             <Text style={s.marca}>Mi Súper Tostada</Text>
@@ -143,12 +179,22 @@ export async function renderHojaPdf(input: {
             ))}
           </View>
         ))}
-      </Page>
-    </Document>
+      </View>
+    </PdfcnThemeProvider>
   );
 
-  const buf = await renderToBuffer(doc);
-  return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  const pdfBytes = await render(doc, {
+    size: "letter",
+    margin: MARGEN,
+    metadata: {
+      title: `Hoja de producción · ${dia} ${snapshot.fechaOperacion}`,
+      authors: ["Mi Súper Tostada"],
+      description: `Hoja de producción versión ${version}`,
+      creator: "Mi Súper Tostada (pdfcn / takumi)",
+    },
+  });
+
+  return Buffer.from(pdfBytes);
 }
 
 function FilaPdf({

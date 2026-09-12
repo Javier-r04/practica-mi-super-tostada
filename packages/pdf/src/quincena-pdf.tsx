@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  StyleSheet,
-  renderToBuffer,
-} from "@react-pdf/renderer";
+import { render, PageNumber, TotalPages } from "takumi-pdf";
 import {
   FAMILIA_ETIQUETA,
   UNIDAD_CORTA,
@@ -16,9 +9,12 @@ import {
   reporteTablero,
   type Tablero,
 } from "@misupertostada/shared";
+import { View, Text, StyleSheet, type StyleInput } from "./primitives/pdf-primitives";
+import { PdfcnThemeProvider } from "./theme/theme-provider";
+import { miSuperTostadaTheme } from "./theme/mi-super-tostada";
 
 const MM = 2.83465;
-const MARGEN = 12 * MM;
+const MARGEN = Math.round(12 * MM);
 /** LETTER (612pt) menos los dos márgenes. Ancho útil de una fila. */
 const ANCHO = 612 - MARGEN * 2;
 
@@ -34,172 +30,250 @@ const PELIGRO = "#B3231C";
 
 const s = StyleSheet.create({
   page: {
-    paddingTop: MARGEN,
-    paddingBottom: MARGEN + 14,
-    paddingHorizontal: MARGEN,
     fontSize: 8.5,
-    fontFamily: "Helvetica",
+    fontFamily: "Helvetica, Arial, sans-serif",
     color: TINTA,
     lineHeight: 1.25,
+    display: "flex",
+    flexDirection: "column",
   },
 
   header: {
+    display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     borderBottomWidth: 1,
     borderBottomColor: MARCA,
+    borderBottomStyle: "solid",
     paddingBottom: 7,
     marginBottom: 9,
   },
   marca: {
     fontSize: 7.5,
     color: MARCA,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     letterSpacing: 1,
     textTransform: "uppercase",
+    display: "block",
   },
   titulo: {
     fontSize: 17,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     lineHeight: 1.15,
     marginTop: 2,
+    display: "block",
   },
-  rango: { fontSize: 9.5, color: TINTA, marginTop: 3 },
-  meta: { fontSize: 7.5, color: MUTED, marginTop: 2 },
-  metaDer: { fontSize: 7.5, color: MUTED, textAlign: "right" },
+  rango: { fontSize: 9.5, color: TINTA, marginTop: 3, display: "block" },
+  meta: { fontSize: 7.5, color: MUTED, marginTop: 2, display: "block" },
+  metaDer: { fontSize: 7.5, color: MUTED, textAlign: "right", display: "block" },
 
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 },
+  chips: {
+    display: "flex",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 4,
+  },
   chip: {
     fontSize: 7,
     color: MARCA,
     backgroundColor: MARCA_SUAVE,
     borderRadius: 6,
-    paddingVertical: 1.5,
-    paddingHorizontal: 5,
+    paddingTop: 1.5,
+    paddingBottom: 1.5,
+    paddingLeft: 5,
+    paddingRight: 5,
+    display: "inline-block",
   },
 
-  kpis: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  kpis: {
+    display: "flex",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 10,
+  },
   kpi: {
-    width: (ANCHO - 6 * 2) / 3,
+    width: Math.floor((ANCHO - 6 * 2) / 3),
     borderWidth: 0.5,
     borderColor: LINEA,
+    borderStyle: "solid",
     borderRadius: 3,
     borderLeftWidth: 2.5,
     borderLeftColor: LINEA,
+    borderLeftStyle: "solid",
     padding: 6,
+    display: "flex",
+    flexDirection: "column",
+    breakInside: "avoid",
   },
-  kpiMarca: { backgroundColor: MARCA, borderColor: MARCA, borderLeftColor: ACENTO },
+  kpiMarca: {
+    backgroundColor: MARCA,
+    borderColor: MARCA,
+    borderLeftColor: ACENTO,
+  },
   kpiLabel: {
     fontSize: 6.5,
     color: MUTED,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     textTransform: "uppercase",
     letterSpacing: 0.6,
+    display: "block",
   },
   kpiLabelMarca: { color: "#BFD6C0" },
   kpiValor: {
     fontSize: 14,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     lineHeight: 1.1,
     marginTop: 3,
     color: MARCA,
+    display: "block",
   },
   kpiValorMarca: { color: ACENTO },
-  kpiHint: { fontSize: 6.8, color: MUTED, marginTop: 3 },
+  kpiHint: { fontSize: 6.8, color: MUTED, marginTop: 3, display: "block" },
   kpiHintMarca: { color: "#BFD6C0" },
 
-  seccion: { marginBottom: 9 },
+  seccion: {
+    marginBottom: 9,
+    display: "flex",
+    flexDirection: "column",
+  },
   seccionTitulo: {
     fontSize: 9.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     marginBottom: 1,
+    display: "block",
   },
-  seccionNota: { fontSize: 7, color: MUTED, marginBottom: 4 },
+  seccionNota: { fontSize: 7, color: MUTED, marginBottom: 4, display: "block" },
 
-  fila2: { flexDirection: "row", gap: 8 },
-  col: { width: (ANCHO - 8) / 2 },
+  fila2: {
+    display: "flex",
+    flexDirection: "row",
+    gap: 8,
+  },
+  col: {
+    width: Math.floor((ANCHO - 8) / 2),
+    display: "flex",
+    flexDirection: "column",
+  },
 
-  barRow: { flexDirection: "row", alignItems: "center", marginBottom: 2.5 },
-  barLabel: { width: 96, fontSize: 7 },
-  barTrack: { flex: 1, height: 7, backgroundColor: "#EDEEE8", borderRadius: 2 },
+  barRow: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2.5,
+    breakInside: "avoid",
+  },
+  barLabel: { width: 96, fontSize: 7, display: "block" },
+  barTrack: {
+    flex: 1,
+    height: 7,
+    backgroundColor: "#EDEEE8",
+    borderRadius: 2,
+    display: "flex",
+    flexDirection: "row",
+    overflow: "hidden",
+  },
   barFill: { height: 7, borderRadius: 2 },
-  barVal: { width: 58, fontSize: 7, textAlign: "right", fontFamily: "Helvetica-Bold" },
+  barVal: {
+    width: 58,
+    fontSize: 7,
+    textAlign: "right",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
+    display: "block",
+  },
 
   th: {
+    display: "flex",
     flexDirection: "row",
     borderBottomWidth: 0.8,
     borderBottomColor: MARCA,
+    borderBottomStyle: "solid",
     paddingBottom: 2.5,
   },
   thTexto: {
     fontSize: 6.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
     color: MUTED,
     textTransform: "uppercase",
     letterSpacing: 0.4,
+    display: "block",
   },
   tr: {
+    display: "flex",
     flexDirection: "row",
     borderBottomWidth: 0.4,
     borderBottomColor: LINEA,
-    paddingVertical: 2.5,
+    borderBottomStyle: "solid",
+    paddingTop: 2.5,
+    paddingBottom: 2.5,
+    breakInside: "avoid",
   },
   trCebra: { backgroundColor: CEBRA },
-  td: { fontSize: 7.5 },
+  td: { fontSize: 7.5, display: "block" },
   total: {
+    display: "flex",
     flexDirection: "row",
     borderTopWidth: 0.8,
     borderTopColor: MARCA,
+    borderTopStyle: "solid",
     paddingTop: 3,
     marginTop: 1,
+    breakInside: "avoid",
   },
-  totalTexto: { fontSize: 7.5, fontFamily: "Helvetica-Bold" },
+  totalTexto: {
+    fontSize: 7.5,
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
+    display: "block",
+  },
 
   aviso: {
     borderWidth: 0.5,
     borderColor: LINEA,
+    borderStyle: "solid",
     borderRadius: 3,
     padding: 6,
     marginBottom: 6,
+    display: "flex",
+    flexDirection: "column",
+    breakInside: "avoid",
   },
   avisoAlerta: { borderColor: PELIGRO, backgroundColor: "#FCF0EF" },
-  avisoTitulo: { fontSize: 8, fontFamily: "Helvetica-Bold", marginBottom: 2 },
-  avisoTexto: { fontSize: 7.5, color: TINTA },
+  avisoTitulo: {
+    fontSize: 8,
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontWeight: "bold",
+    marginBottom: 2,
+    display: "block",
+  },
+  avisoTexto: { fontSize: 7.5, color: TINTA, display: "block" },
 
-  pieNota: {
-    position: "absolute",
-    bottom: MARGEN - 8,
-    left: MARGEN,
-    width: ANCHO,
+  footerContainer: {
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
     fontSize: 6.5,
     color: MUTED,
     borderTopWidth: 0.4,
     borderTopColor: LINEA,
-    paddingTop: 4,
-  },
-  pieSello: {
-    position: "absolute",
-    bottom: MARGEN - 8,
-    left: MARGEN,
-    width: ANCHO,
-    fontSize: 6.5,
-    color: MUTED,
-    textAlign: "right",
+    borderTopStyle: "solid",
     paddingTop: 4,
   },
 });
 
-/** `Style` no se re-exporta desde el renderer; se toma del propio `View`. */
-type EstiloPdf = React.ComponentProps<typeof View>["style"];
-
 const der = { textAlign: "right" as const };
 
-/**
- * Helvetica (WinAnsi) no trae el menos tipográfico «−» que usa
- * `formatearCentavos`: sin esto un delta negativo se imprimía sin signo y el
- * cierre decía que las ventas habían subido.
- */
 function q(
   centavos: number,
   opts?: { simbolo?: boolean; miles?: boolean },
@@ -207,14 +281,12 @@ function q(
   return formatearCentavos(centavos, opts).replace("−", "-");
 }
 
-/** Puntos base (1/100 de punto porcentual) a "12.3 %", con signo. */
 function pctDePuntosBase(puntosBase: number, conSigno = false): string {
   const signo = puntosBase < 0 ? "-" : conSigno && puntosBase > 0 ? "+" : "";
   const abs = Math.abs(puntosBase);
   return `${signo}${Math.trunc(abs / 100)}.${Math.trunc((abs % 100) / 10)} %`;
 }
 
-/** "2026-08-16" → "16 ago". Sin luxon: el paquete solo dibuja. */
 const MESES = [
   "ene",
   "feb",
@@ -229,6 +301,7 @@ const MESES = [
   "nov",
   "dic",
 ];
+
 function diaCorto(iso: string): string {
   const [, m, d] = iso.split("-");
   const mes = MESES[Number(m) - 1];
@@ -236,7 +309,6 @@ function diaCorto(iso: string): string {
   return `${Number(d)} ${mes}`;
 }
 
-/** Corta sin partir a la mitad una palabra corta; añade elipsis si sobra. */
 function recortar(texto: string, max: number): string {
   if (texto.length <= max) return texto;
   return `${texto.slice(0, max - 1).trimEnd()}...`;
@@ -255,7 +327,7 @@ function Barra({
 }) {
   const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
   return (
-    <View style={s.barRow} wrap={false}>
+    <View style={s.barRow}>
       <Text style={s.barLabel}>{label}</Text>
       <View style={s.barTrack}>
         <View style={[s.barFill, { width: `${pct}%`, backgroundColor: color }]} />
@@ -273,7 +345,7 @@ function Seccion({
 }: {
   titulo: string;
   nota?: string;
-  style?: EstiloPdf;
+  style?: StyleInput;
   children: React.ReactNode;
 }) {
   return (
@@ -297,7 +369,7 @@ function Kpi({
   marca?: boolean;
 }) {
   return (
-    <View style={[s.kpi, marca ? s.kpiMarca : {}]} wrap={false}>
+    <View style={[s.kpi, marca ? s.kpiMarca : {}]}>
       <Text style={[s.kpiLabel, marca ? s.kpiLabelMarca : {}]}>{label}</Text>
       <Text style={[s.kpiValor, marca ? s.kpiValorMarca : {}]}>{valor}</Text>
       {hint ? (
@@ -307,17 +379,6 @@ function Kpi({
   );
 }
 
-/**
- * Reporte del tablero, listo para imprimir.
- *
- * Refleja lo que muestra `/tablero` con el mismo recorte: los KPI, el
- * movimiento diario (ventas y caja lado a lado), participación por cliente,
- * volumen por producto, antigüedad de cartera, ruta y adopción, la tabla de
- * clientes completa y las alertas accionables.
- *
- * `generadoAt` viene del `BusinessCalendar` del servidor; el paquete no
- * inventa la hora.
- */
 export async function renderQuincenaPdf(
   data: Tablero,
   opts: { generadoAt?: Date } = {},
@@ -352,8 +413,6 @@ export async function renderQuincenaPdf(
     ? `Generado ${diaCorto(fechaDeInstante(opts.generadoAt))} ${horaEnZona(opts.generadoAt)}`
     : null;
 
-  // Movimiento diario: ventas y caja del mismo día en una sola fila. Eran dos
-  // gráficas separadas y nadie podía cruzar "vendí X / entró Y" sin sumar a mano.
   const cobradoMap = new Map(cobradoPorDia.map((c) => [c.fecha, c]));
   const dias = ventas.porDia.map((d) => {
     const c = cobradoMap.get(d.fecha);
@@ -371,8 +430,6 @@ export async function renderQuincenaPdf(
   const diasConMovimiento = dias.filter(
     (d) => d.pedidos > 0 || d.ventasCentavos !== 0 || d.cobrado !== 0,
   );
-  // Un mes entero son 31 filas de las que la mitad suelen ir en cero; en un
-  // cierre lo que importa son los días que movieron algo.
   const diasMostrados = diasConMovimiento.length > 0 ? diasConMovimiento : dias;
   const diasOcultos = dias.length - diasMostrados.length;
   const totalDias = diasMostrados.reduce(
@@ -384,10 +441,6 @@ export async function renderQuincenaPdf(
       cobrado: acc.cobrado + d.cobrado,
     }),
     { pedidos: 0, ventas: 0, efectivo: 0, transferencia: 0, cobrado: 0 },
-  );
-  const maxDia = Math.max(
-    1,
-    ...diasMostrados.map((d) => Math.max(d.ventasCentavos, d.cobrado)),
   );
 
   const TOP = 8;
@@ -424,29 +477,22 @@ export async function renderQuincenaPdf(
     0,
   );
 
+  const footer = (
+    <View style={s.footerContainer}>
+      <Text style={{ flex: 1, paddingRight: 8 }}>
+        Montos en quetzales. Una factura está pagada cuando la suma de sus
+        abonos la cubre. Los pedidos anulados no suman.
+      </Text>
+      <Text style={{ textAlign: "right" }}>
+        {titulo} · {f.desde} – {f.hasta} · Página <PageNumber /> de <TotalPages />
+      </Text>
+    </View>
+  );
+
   const doc = (
-    <Document
-      title={`${titulo} · ${f.desde} – ${f.hasta}`}
-      author="Mi Súper Tostada"
-      subject={f.etiqueta}
-      keywords={chips.join(", ")}
-    >
-      <Page size="LETTER" style={s.page}>
-        <Text style={s.pieNota} fixed>
-          Montos en quetzales. Una factura está pagada cuando la suma de sus
-          abonos la cubre. Los pedidos anulados no suman.
-        </Text>
-        {/*
-          Identificación en cada hoja: el cierre se imprime y se reparte, y una
-          hoja suelta sin periodo no se puede archivar. El número de página se
-          omite a propósito: `render` dinámico no llega al PDF en este
-          documento (react-pdf 4.6) y una numeración a medias engaña más que
-          no tenerla.
-        */}
-        <Text style={s.pieSello} fixed>
-          {titulo} · {f.desde} – {f.hasta}
-        </Text>
-        <View style={s.header} fixed>
+    <PdfcnThemeProvider theme={miSuperTostadaTheme}>
+      <View style={s.page}>
+        <View style={s.header}>
           <View>
             <Text style={s.marca}>Mi Súper Tostada</Text>
             <Text style={s.titulo}>{titulo}</Text>
@@ -492,9 +538,7 @@ export async function renderQuincenaPdf(
           />
           <Kpi
             label="Por cobrar"
-            valor={
-              f.carteraAplica ? q(kpis.porCobrarCentavos) : "N/A"
-            }
+            valor={f.carteraAplica ? q(kpis.porCobrarCentavos) : "N/A"}
             hint={
               f.carteraAplica
                 ? `Vencido 15+ días ${q(carteraVencidaCentavos)}`
@@ -521,7 +565,7 @@ export async function renderQuincenaPdf(
           titulo="Movimiento diario"
           nota="Ventas facturadas y caja del mismo día de calendario. La caja puede cubrir facturas de días anteriores."
         >
-          <View style={s.th} fixed>
+          <View style={s.th}>
             <Text style={[s.thTexto, { width: "16%" }]}>Día</Text>
             <Text style={[s.thTexto, { width: "10%" }, der]}>Pedidos</Text>
             <Text style={[s.thTexto, { width: "18%" }, der]}>Ventas</Text>
@@ -533,7 +577,6 @@ export async function renderQuincenaPdf(
             <View
               key={d.fecha}
               style={[s.tr, i % 2 === 1 ? s.trCebra : {}]}
-              wrap={false}
             >
               <Text style={[s.td, { width: "16%" }]}>{diaCorto(d.fecha)}</Text>
               <Text style={[s.td, { width: "10%" }, der]}>{d.pedidos}</Text>
@@ -551,7 +594,7 @@ export async function renderQuincenaPdf(
               </Text>
             </View>
           ))}
-          <View style={s.total} wrap={false}>
+          <View style={s.total}>
             <Text style={[s.totalTexto, { width: "16%" }]}>Total</Text>
             <Text style={[s.totalTexto, { width: "10%" }, der]}>
               {totalDias.pedidos}
@@ -723,7 +766,7 @@ export async function renderQuincenaPdf(
           nota="Ticket promedio y días de pago del recorte; el último pedido mira los 30 días previos."
           style={{ marginTop: 2 }}
         >
-          <View style={s.th} fixed>
+          <View style={s.th}>
             <Text style={[s.thTexto, { width: "34%" }]}>Cliente</Text>
             <Text style={[s.thTexto, { width: "11%" }, der]}>Pedidos</Text>
             <Text style={[s.thTexto, { width: "19%" }, der]}>
@@ -739,7 +782,6 @@ export async function renderQuincenaPdf(
               <View
                 key={c.clienteId}
                 style={[s.tr, i % 2 === 1 ? s.trCebra : {}]}
-                wrap={false}
               >
                 <Text
                   style={[
@@ -767,7 +809,7 @@ export async function renderQuincenaPdf(
             ))
           )}
           {clientes.length > 0 ? (
-            <View style={s.total} wrap={false}>
+            <View style={s.total}>
               <Text style={[s.totalTexto, { width: "34%" }]}>
                 {clientesConPedido.length} con pedido de {clientes.length}
               </Text>
@@ -783,7 +825,7 @@ export async function renderQuincenaPdf(
 
         <Seccion titulo="Requiere atención" nota="Lo que no se resuelve solo">
           {cartera.sobreLimite.length > 0 ? (
-            <View style={[s.aviso, s.avisoAlerta]} wrap={false}>
+            <View style={[s.aviso, s.avisoAlerta]}>
               <Text style={s.avisoTitulo}>
                 Sobre el límite de facturas pendientes ·{" "}
                 {cartera.sobreLimite.length}
@@ -796,7 +838,7 @@ export async function renderQuincenaPdf(
             </View>
           ) : null}
           {operacion.clientesSinPedido.length > 0 ? (
-            <View style={s.aviso} wrap={false}>
+            <View style={s.aviso}>
               <Text style={s.avisoTitulo}>
                 Aún no piden · {operacion.clientesSinPedido.length}
               </Text>
@@ -806,7 +848,7 @@ export async function renderQuincenaPdf(
             </View>
           ) : null}
           {dejaronDePedir.length > 0 ? (
-            <View style={[s.aviso, s.avisoAlerta]} wrap={false}>
+            <View style={[s.aviso, s.avisoAlerta]}>
               <Text style={s.avisoTitulo}>
                 Dejaron de pedir · {dejaronDePedir.length}
               </Text>
@@ -828,11 +870,22 @@ export async function renderQuincenaPdf(
             </Text>
           ) : null}
         </Seccion>
-
-      </Page>
-    </Document>
+      </View>
+    </PdfcnThemeProvider>
   );
 
-  const buf = await renderToBuffer(doc);
-  return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  const pdfBytes = await render(doc, {
+    size: "letter",
+    margin: MARGEN,
+    footer,
+    metadata: {
+      title: `${titulo} · ${f.desde} – ${f.hasta}`,
+      authors: ["Mi Súper Tostada"],
+      description: f.etiqueta,
+      keywords: chips,
+      creator: "Mi Súper Tostada (pdfcn / takumi)",
+    },
+  });
+
+  return Buffer.from(pdfBytes);
 }

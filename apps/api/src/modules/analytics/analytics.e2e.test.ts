@@ -623,13 +623,14 @@ describe.skipIf(!listo)("E6 tablero", () => {
       expect(texto).toContain("2026-08-31");
       // El recorte se anuncia con la etiqueta del negocio, no con el enum.
       expect(texto).toContain("Tortilla");
-      expect(texto).toContain("react-pdf");
+      expect(buf.length).toBeGreaterThan(1_000);
 
       const src = readFileSync(
         join(dirname(fileURLToPath(import.meta.url)), "../../../../../packages/pdf/src/quincena-pdf.tsx"),
         "utf8",
       );
       expect(src).not.toMatch(/puppeteer|playwright|chromium/i);
+      expect(src).toContain("takumi-pdf");
       expect(typeof renderQuincenaPdf).toBe("function");
 
       const audits = await f.db

@@ -25,6 +25,7 @@
     "@misupertostada/shared": "workspace:*",
     "@misupertostada/db": "workspace:*",
     "@misupertostada/pdf": "workspace:*",
+    "takumi-pdf": "^0.14.3",
     "argon2": "^0.45.1",
     "pg-boss": "^12.27.0",
     "cookie-parser": "^1.4.7",

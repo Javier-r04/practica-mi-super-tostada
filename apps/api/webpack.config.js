@@ -9,6 +9,10 @@ module.exports = function (options) {
       nodeExternals({
         allowlist: [/^@misupertostada\//, "luxon", "postgres"],
       }),
+      // takumi-pdf lee pkg/*.wasm relativo a su carpeta. Si webpack lo
+      // mete en el bundle, __dirname apunta a apps/api y el binario no existe.
+      "takumi-pdf",
+      /^@takumi-rs\//,
     ],
     resolve: {
       ...options.resolve,
