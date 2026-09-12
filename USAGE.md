@@ -352,6 +352,12 @@ Manual: http://localhost:3000/catalogo → crear producto, reordenar, desactivar
 
 **Cómo probar:** mismo e2e de catálogo + manual en `/clientes` y `/clientes/[id]`.
 
+#### Bonos de reposición (F-105) — ficha cliente → Operación
+
+Cuando un restaurante junta producto dañado (ej. tortilla quebradita) sin devolverlo físicamente, Cristian registra en la ficha **Bonos de reposición**: producto del catálogo, descripción y cantidad. El cliente lo ve en el portal como **gratis** y elige cuántas unidades tomar en su pedido; la línea queda a **Q 0.00** con chip **Devolución**. Producción y reparto sí cuentan las libras; la factura no cobra esa línea. Si anula el pedido antes del cierre, el saldo vuelve al bono.
+
+**Cómo probar:** `bun test apps/api/src/modules/catalog/catalog.e2e.test.ts` (otorgar/anular) y `bun test apps/api/src/modules/ordering/ordering.e2e.test.ts` (consumo y restauración).
+
 #### Alias y precios (F-103)
 
 **Lógica:** `ClienteProducto` = cómo **ese** cliente llama al producto, su precio, nota de producción (ej. GRUESA), favoritos. El portal **no** auto-crea ligas: solo aparecen productos con precio cargado.
@@ -523,7 +529,7 @@ sin botones de escritura y con el badge «Solo lectura».
 
 #### Exportación (F-404)
 
-**Lógica:** hoja en texto y PDF (`@react-pdf/renderer`, sin Chrome headless) para WhatsApp o impresión de respaldo.
+**Lógica:** hoja en texto y PDF (`pdfcn` / `takumi-pdf`, sin Chrome headless) para WhatsApp o impresión de respaldo.
 
 **Manual:** `/produccion` o `/hoy` → exportar texto/PDF.
 

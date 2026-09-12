@@ -231,6 +231,14 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 - [x] Validación por fila con vista previa y reporte de errores antes de confirmar
 - [x] Importación parcial permitida (para que carguen por partes)
 
+**F-105 · Bono de reposición** *(hecho)*
+- [x] `cliente_bono`: producto + descripción + N unidades; anular solo si `cantidad_aplicada = 0`
+- [x] Portal y captura manual: el cliente elige unidades gratis; línea `es_devolucion` a Q 0.00
+- [x] Mismo SKU pagado y devolución en un pedido; consumo FIFO del saldo
+- [x] Producción suma libras; hoja con nota «N lb devolución»; factura solo lo cobrado
+- [x] Anular pedido restaura saldo; entregar 0 de devolución devuelve al bono
+- [ ] WhatsApp fuera de alcance v1
+
 ### E2 — Portal del cliente *(semanas 3–4)*
 
 **F-201 · Acceso por token**
@@ -335,7 +343,7 @@ todos sus criterios pasan y cumple la Definición de Terminado (§8).
 - [x] Adopción: portal vs manual
 
 **F-602 · Exportación a PDF**
-- [x] Con `@react-pdf/renderer`, sin Chrome headless
+- [x] Con `pdfcn` / `takumi-pdf`, sin Chrome headless
 - [x] Reporte listo para imprimir; el título y el archivo siguen al recorte
   (`reporteTablero`): cierre de quincena, cierre de mes, resumen de la semana,
   del día o del periodo

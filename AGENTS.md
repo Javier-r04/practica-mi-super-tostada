@@ -95,7 +95,7 @@ Estas producen bugs caros si se rompen. No las replantees.
 | Colas y cron | **pg-boss** | Sobre Postgres. **Sin Redis.** |
 | Tiempo real | **SSE** (`@Sse()` de Nest) | No WebSockets |
 | Archivos | **Cloudflare R2** | Subida directa con URLs prefirmadas |
-| PDF | **@react-pdf/renderer** | **No Puppeteer.** Ver §3.2 |
+| PDF | **pdfcn / Takumi** (`takumi-pdf`) | **No Puppeteer.** Ver §3.2 |
 | UI | **Tailwind + shadcn/ui** | Mobile-first |
 | Estado cliente | **TanStack Query**, invalidado por SSE | |
 | Formularios | **react-hook-form + Zod** | |
@@ -130,7 +130,8 @@ los `bunfig.toml`) borra lo que quedó. Para limpiar una base ya contaminada:
 
 Puppeteer/Playwright son ~400 MB de imagen y 200–300 MB de RAM en pico. El presupuesto de
 infraestructura es de **US$20/mes**; eso obliga a subir de plan solo para generar un PDF.
-`@react-pdf/renderer` es JS puro, dibuja SVG para las gráficas del dashboard y corre en proceso.
+`pdfcn` con motor Takumi (`takumi-pdf` y `@takumi-rs/helpers`) corre en proceso (Rust/WASM),
+dibuja SVG para las gráficas del dashboard y produce PDFs sin navegadores externos.
 
 **No instales Puppeteer, Playwright ni Chromium** sin una discusión explícita.
 
