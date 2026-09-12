@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   formatearFechaLarga,
   MENSAJE_COLA_SESION,
+  ROL_ETIQUETA,
   tienePermiso,
   type ActorPublico,
   type CalendarioAhora,
@@ -239,13 +240,13 @@ export function PanelShell({
         id="nav-panel"
         className="hidden w-sidebar shrink-0 flex-col border-r border-[var(--border-subtle)] bg-blanco lg:flex shadow-sm z-10"
       >
-        <div className="flex shrink-0 items-center justify-center border-b border-[var(--border-subtle)] px-2 py-4">
+        <div className="flex shrink-0 items-center justify-center border-b border-[var(--border-subtle)] px-1 py-5">
           <Link
             href="/hoy"
             className="flex w-full items-center justify-center rounded-campo no-underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-marca/50"
             aria-label="Mi Súper Tostada · Hoy"
           >
-            <Wordmark className="h-20 w-auto max-w-full" />
+            <Wordmark className="h-36 w-auto max-w-full" />
           </Link>
         </div>
         <ScrollShadow
@@ -267,7 +268,7 @@ export function PanelShell({
               {usuario.username}
             </span>
             <span className="block mst-label text-tinta-500 text-[10px]">
-              {usuario.rol}
+              {ROL_ETIQUETA[usuario.rol]}
             </span>
           </span>
           <div className="flex items-center gap-1 shrink-0">
@@ -488,7 +489,9 @@ export function PanelShell({
                       <span className="block truncate text-sm font-semibold text-tinta-900">
                         {usuario.username}
                       </span>
-                      <span className="block mst-label text-tinta-500">{usuario.rol}</span>
+                      <span className="block mst-label text-tinta-500">
+                        {ROL_ETIQUETA[usuario.rol]}
+                      </span>
                     </span>
                   </div>
                   {soloLectura ? (
@@ -724,8 +727,8 @@ function ShellSkeleton() {
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-[var(--surface-page)]">
       <div className="hidden w-sidebar border-r border-[var(--border-subtle)] bg-blanco lg:block">
-        <div className="border-b border-[var(--border-subtle)] px-3 py-3">
-          <Skeleton className="mx-auto size-24 rounded-full" />
+        <div className="border-b border-[var(--border-subtle)] px-1 py-5">
+          <Skeleton className="mx-auto size-36 rounded-full" />
         </div>
         <div className="grid gap-2 p-4">
           <Skeleton className="h-11 w-full" />

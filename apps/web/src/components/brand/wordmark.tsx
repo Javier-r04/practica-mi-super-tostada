@@ -9,16 +9,15 @@ export function Wordmark({
   onBrand?: boolean;
   className?: string;
 }) {
-  // El SVG declara width/height=500. Sin altura CSS explícita, Safari (y a
-  // veces Chrome en móvil) lo pinta a tamaño intrínseco y rompe el header.
-  // La altura por defecto SIEMPRE aplica; `className` la puede sobrescribir
-  // vía twMerge (p. ej. h-20 en el panel, h-44 en login). Antes, cualquier
-  // className truthy —incluso "shrink-0"— anulaba h-8/h-10.
+  // El PNG es 500×500. Sin altura CSS explícita, Safari (y a veces Chrome en
+  // móvil) lo pinta a tamaño intrínseco y rompe el header. La altura por
+  // defecto SIEMPRE aplica; `className` la puede sobrescribir vía twMerge
+  // (p. ej. h-20 en el panel, h-44 en login).
   const altoPx = compact ? 32 : 40;
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- SVG local en /public; next/image no aporta optimización aquí.
+    // eslint-disable-next-line @next/next/no-img-element -- logo local en /public; next/image no aporta optimización aquí.
     <img
-      src="/logo.svg"
+      src="/logo.png"
       alt="Mi Súper Tostada"
       width={altoPx}
       height={altoPx}

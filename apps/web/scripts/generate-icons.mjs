@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-const logoPath = "public/logo.svg";
+const logoPath = "public/logo.png";
 const outDir = "public/icons";
 const appDir = "src/app";
 
