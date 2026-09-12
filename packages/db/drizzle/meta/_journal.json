@@ -113,6 +113,13 @@
       "when": 1787340000000,
       "tag": "0016_modulos_panel",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787350000000,
+      "tag": "0017_cliente_bono",
+      "breakpoints": true
     }
   ]
 }

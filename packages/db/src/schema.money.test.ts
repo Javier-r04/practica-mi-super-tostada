@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { getTableColumns, getTableName } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import {
+  clienteBono,
   clienteProducto,
   conversacion,
   factura,
@@ -40,6 +41,12 @@ describe("columnas de dinero", () => {
       "precioCentavos",
     );
     expect(Object.keys(getTableColumns(producto))).toContain("precioBaseCentavos");
+    expect(Object.keys(getTableColumns(clienteBono))).toContain(
+      "cantidadOtorgada",
+    );
+    expect(Object.keys(getTableColumns(clienteBono))).toContain(
+      "cantidadAplicada",
+    );
   });
 });
 

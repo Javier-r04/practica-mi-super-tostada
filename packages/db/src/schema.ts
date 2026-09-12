@@ -232,6 +232,35 @@ export const clienteProducto = pgTable(
   ],
 );
 
+/** Crédito de reposición por producto dañado. Nada se borra: anular con motivo. */
+export const clienteBono = pgTable(
+  "cliente_bono",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizacionId: uuid("organizacion_id")
+      .notNull()
+      .references(() => organizacion.id),
+    clienteId: uuid("cliente_id")
+      .notNull()
+      .references(() => cliente.id),
+    productoId: uuid("producto_id")
+      .notNull()
+      .references(() => producto.id),
+    descripcion: text("descripcion").notNull(),
+    cantidadOtorgada: integer("cantidad_otorgada").notNull(),
+    cantidadAplicada: integer("cantidad_aplicada").notNull().default(0),
+    otorgadoPor: uuid("otorgado_por")
+      .notNull()
+      .references(() => usuario.id),
+    anuladoAt: timestamp("anulado_at", { withTimezone: true, mode: "date" }),
+    motivoAnulacion: text("motivo_anulacion"),
+    ...timestamps,
+  },
+  (t) => [
+    index("cliente_bono_cliente_idx").on(t.clienteId),
+  ],
+);
+
 export const pedido = pgTable(
   "pedido",
   {
@@ -278,6 +307,8 @@ export const pedidoItem = pgTable("pedido_item", {
   precioUnitarioCentavos: integer("precio_unitario_centavos").notNull(),
   nombreMostrado: text("nombre_mostrado").notNull(),
   unidadMedida: unidadMedidaEnum("unidad_medida").notNull(),
+  esDevolucion: boolean("es_devolucion").notNull().default(false),
+  bonoId: uuid("bono_id").references(() => clienteBono.id),
 });
 
 export const factura = pgTable(

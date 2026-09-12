@@ -4,6 +4,7 @@ import {
   abono,
   asset,
   cliente,
+  clienteBono,
   clienteProducto,
   conexionWaba,
   conversacion,
@@ -117,6 +118,9 @@ async function purgarLote(db: Db, ids: string[]): Promise<void> {
   await db
     .delete(clienteProducto)
     .where(inArray(clienteProducto.productoId, productos));
+  await db
+    .delete(clienteBono)
+    .where(inArray(clienteBono.organizacionId, ids));
   await db.delete(cliente).where(inArray(cliente.organizacionId, ids));
   await db.delete(producto).where(inArray(producto.organizacionId, ids));
   await db
